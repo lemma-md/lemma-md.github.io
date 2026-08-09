@@ -1,0 +1,125 @@
+:root {
+  --bg: #ffffff;
+  --fg: #1a1a1a;
+  --muted: #6a737d;
+  --line: #e1e4e8;
+  --accent: #0969da;
+  --surface: #f6f8fa;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  height: 100%;
+  font: 15px/1.6 -apple-system, "Segoe UI", Roboto, sans-serif;
+  color: var(--fg);
+  background: var(--bg);
+}
+
+body { display: flex; flex-direction: column; }
+
+/* ---------- top bar ---------- */
+
+#bar {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+  min-height: 38px;
+}
+
+#tabs { display: flex; flex: 1; overflow-x: auto; }
+
+.tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  border-right: 1px solid var(--line);
+  white-space: nowrap;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.tab.active { background: var(--bg); color: var(--fg); box-shadow: inset 0 -2px 0 var(--accent); }
+.tab .close { border: 0; background: none; cursor: pointer; color: var(--muted); font-size: 14px; line-height: 1; padding: 2px 4px; border-radius: 3px; }
+.tab .close:hover { background: var(--line); color: var(--fg); }
+.tab .dot { color: var(--accent); font-size: 18px; line-height: 0; }
+
+#actions { display: flex; align-items: center; gap: 6px; padding: 0 10px; }
+
+#actions button {
+  font: inherit;
+  font-size: 13px;
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--bg);
+  cursor: pointer;
+}
+
+#actions button:hover { border-color: var(--muted); }
+
+/* ---------- panes ---------- */
+
+#panes { display: flex; flex: 1; min-height: 0; }
+
+#editor-pane { width: 45%; min-width: 220px; display: flex; }
+/* Ace measures its container, so it needs a positioned box with real size. */
+#editor { flex: 1; position: relative; font-size: 14px; color: var(--muted); padding: 12px; }
+#editor.ace_editor { padding: 0; }
+
+#splitter { width: 5px; cursor: col-resize; background: var(--line); flex: none; }
+#splitter:hover { background: var(--accent); }
+
+#preview-pane { flex: 1; overflow-y: auto; min-width: 220px; }
+#preview { max-width: 760px; margin: 0 auto; padding: 28px 32px 96px; }
+
+/* ---------- rendered markdown ---------- */
+
+#preview h1, #preview h2, #preview h3, #preview h4 { margin: 1.4em 0 .5em; line-height: 1.25; }
+#preview h1 { font-size: 1.9em; }
+#preview h2 { font-size: 1.45em; border-bottom: 1px solid var(--line); padding-bottom: .25em; }
+#preview h3 { font-size: 1.2em; }
+#preview p, #preview ul, #preview ol, #preview blockquote, #preview table { margin: .8em 0; }
+#preview ul, #preview ol { padding-left: 1.5em; }
+#preview a { color: var(--accent); }
+#preview blockquote { border-left: 3px solid var(--line); padding-left: 1em; color: var(--muted); }
+#preview code { background: var(--surface); padding: .15em .35em; border-radius: 4px; font-size: .9em; }
+#preview pre { background: var(--surface); padding: 12px 14px; border-radius: 6px; overflow-x: auto; }
+#preview pre code { background: none; padding: 0; }
+#preview table { border-collapse: collapse; width: 100%; font-size: .95em; }
+#preview th, #preview td { border: 1px solid var(--line); padding: .4em .6em; text-align: left; }
+#preview th { background: var(--surface); }
+#preview hr { border: 0; border-top: 1px solid var(--line); margin: 2em 0; }
+#preview img { max-width: 100%; }
+
+/* Long formulas scroll instead of widening the page. */
+#preview .katex-display { overflow-x: auto; overflow-y: hidden; padding: 2px 0; }
+#preview .katex-error { color: #b00020; }
+
+/* ---------- drop hint ---------- */
+
+#drop-hint {
+  position: fixed;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  color: var(--accent);
+  background: rgba(255, 255, 255, .88);
+  border: 3px dashed var(--accent);
+  z-index: 100;
+  pointer-events: none;
+}
+
+body.dragging #drop-hint { display: flex; }
+
+@media (max-width: 700px) {
+  #panes { flex-direction: column; }
+  #editor-pane { width: auto; height: 45%; }
+  #splitter { width: auto; height: 5px; cursor: row-resize; }
+}

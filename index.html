@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>md-studio</title>
+
+<link rel="stylesheet" href="vendor/katex/katex.min.css">
+<link rel="stylesheet" href="src/ui.css">
+
+<!-- Vendored libraries expose globals; our own code in src/ is ES modules. -->
+<script src="vendor/marked.min.js"></script>
+<script src="vendor/purify.min.js"></script>
+<script src="vendor/katex/katex.min.js"></script>
+</head>
+
+<body>
+
+<header id="bar">
+  <div id="tabs"></div>
+  <div id="actions">
+    <button id="btn-new" title="New note">New</button>
+    <button id="btn-open" title="Open a .md file">Open</button>
+    <button id="btn-save" title="Download as .md">Download</button>
+  </div>
+</header>
+
+<main id="panes">
+  <section id="editor-pane"><div id="editor">Loading editor…</div></section>
+  <div id="splitter"></div>
+  <section id="preview-pane"><article id="preview"></article></section>
+</main>
+
+<div id="drop-hint">Drop .md files here</div>
+
+<input type="file" id="file-input" accept=".md,.markdown,.txt,text/markdown" multiple hidden>
+
+<script type="module" src="src/app.js"></script>
+</body>
+</html>
