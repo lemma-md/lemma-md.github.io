@@ -102,6 +102,46 @@ pdf.js.
 
 ## Storage, and why syncing is last
 
+By default IndexedDB is "best effort": a browser may evict it when the disk
+fills up, without asking. For an app whose promise is that work is not lost,
+that is a defect, so `navigator.storage.persist()` is requested — but **on the
+first keystroke, never on load**. Firefox shows a permission prompt for this,
+and a prompt on the first screen is exactly the obstacle this app exists to
+avoid; by the first edit the user has something to lose and has just made a
+gesture. Chrome and Safari never prompt, deciding from engagement heuristics
+instead. The request fires once per page load and is not retried.
+
+The size shown in Settings is summed from the note text, not taken from
+`navigator.storage.estimate()`. That call measures the browser's entire storage
+bucket for the origin — block allocation, metadata, space not yet reclaimed
+after deletion — which measured about 49x the real text in testing, and in
+Firefox reported hundreds of megabytes unrelated to any note. Its quota figure
+is equally unhelpful: Firefox reports a small group limit before persistence
+and roughly half the free disk afterwards, so the number leaps from ~10 MB to
+hundreds of gigabytes on being granted permission. The quota is consulted only
+to detect that the disk is genuinely nearly full.
+
+Persistence is offered as a button and a status line, never a toggle. The
+Storage API has `persist` but no `unpersist`, so an "off" position could not do
+anything — a switch that only works one way is a lie in the shape of a control.
+Turning it off is possible only through the browser's own site settings, and
+the UI says so.
+
+**Closing a tab does not delete the note.** It leaves the tab strip and stays in
+storage, reachable from Settings, where deleting is explicit and confirmed. This
+matters because until cloud saving exists, this database holds the *only* copy
+of a note — a close button that destroys work is indefensible. The pending
+debounced write is flushed on close so the last keystrokes survive.
+
+The mental model is a desktop editor: IndexedDB is the scratch area, and cloud
+storage will be the real disk. That analogy is not yet honest — there is no real
+disk to save to — which is another reason export and syncing come next.
+
+Drafts are readable by any page on the same origin — and on GitHub Pages the
+path is not part of the origin, so every project published under the same
+account shares it, including any third-party script on those pages. A custom
+domain gives the app an origin of its own and is the clean fix.
+
 Verified constraints, not assumptions:
 
 - **File System Access API is Chromium-desktop only** — absent in Firefox

@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <title>md-studio</title>
+  <rect width="64" height="64" rx="14" fill="#0969da"/>
+  <path d="M34 20 C34 14 26 13 26 21 L22 43 C22 51 14 50 14 44"
+        fill="none" stroke="#ffffff" stroke-width="6" stroke-linecap="round"/>
+  <!-- The 64-unit box is 4 units per pixel at favicon size, so a 4-wide stroke
+       centred on 26/34/42 lands on whole pixel rows 6, 8, 10 with clear gaps
+       between. Widening these or moving them off that rhythm turns the three
+       lines into one grey smudge at 16 px. -->
+  <path d="M40 26 H52 M40 34 H52 M40 42 H48"
+        fill="none" stroke="#ffffff" stroke-width="4" stroke-linecap="round"/>
+</svg>

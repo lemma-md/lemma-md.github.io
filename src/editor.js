@@ -1,23 +1,9 @@
 // Ace wrapper.
 //
 // Ace is ~550 kB — far more than the rest of the app put together — so it is
-// injected on demand rather than blocking the first render. The same
-// loadScript helper will carry reveal.js and pdf.js later.
+// injected on demand rather than blocking the first render.
 
-const loaded = new Map()
-
-function loadScript(src) {
-  if (!loaded.has(src)) {
-    loaded.set(src, new Promise((resolve, reject) => {
-      const el = document.createElement('script')
-      el.src = src
-      el.onload = () => resolve()
-      el.onerror = () => reject(new Error(`Failed to load ${src}`))
-      document.head.append(el)
-    }))
-  }
-  return loaded.get(src)
-}
+import { loadScript } from './load-script.js'
 
 async function loadAce() {
   await loadScript('vendor/ace/ace.js')

@@ -28,7 +28,10 @@ Working today:
 - live preview of markdown with TeX formulas
 - editor with line numbers, syntax highlighting and search
 - multiple notes in tabs, restored when you come back
-- automatic saving of drafts
+- automatic saving of drafts; closing a tab keeps the note, it does not delete it
+- a Settings window listing every saved note — reopen or delete any of them —
+  along with how much space they take and whether the browser has agreed to
+  keep them permanently
 - download as `.md`
 
 Planned, roughly in order:
@@ -51,10 +54,13 @@ There is no build step. Any static file server will do — from the repository
 root:
 
 ```bash
-python -m http.server 8080
+python -m http.server 8001
 ```
 
-Then open <http://localhost:8080>. Opening `index.html` straight from disk does
+Then open <http://localhost:8001>. **Use that port and no other**: it is
+registered with Google as an authorised origin, and the cloud features refuse
+to start from an address that does not match exactly — see
+[docs/CLOUD-SETUP.md](docs/CLOUD-SETUP.md). Opening `index.html` straight from disk does
 **not** work — the code uses ES modules, which browsers refuse to load over
 `file://`.
 
@@ -63,14 +69,24 @@ Deployment is a file copy: the repository is the site.
 ## Layout
 
 ```
-index.html          loads the vendored libraries
+index.html          loads the vendored libraries; holds the icon sprite
 src/app.js          tabs, drag & drop, autosave, pane splitter
 src/viewer.js       markdown + TeX -> sanitised HTML
 src/editor.js       Ace, loaded on demand
 src/drafts.js       IndexedDB persistence
+src/settings.js     the Settings window
+src/storage/        cloud providers behind one interface (see docs/CLOUD-SETUP.md)
+src/config.js       the app's own Google ids — empty until you fill them in
 src/ui.css
 vendor/             third-party libraries, committed (see VENDOR.md)
+tools/              one-off asset generation; not part of running the app
 ```
+
+`favicon.svg` is the only place the logo is drawn. The PNG copies beside it —
+`favicon-16`, `favicon-32`, `apple-touch-icon` (180 px, deliberately
+full-bleed because iOS applies its own rounded mask) and `logo-120` (the size
+Google's consent screen demands) — are rendered from it by
+`tools/make-icons.ps1` and should be regenerated rather than edited.
 
 Why it is built this way — and why there is no bundler — is in
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).

@@ -1,6 +1,11 @@
 import { render } from './viewer.js'
 import { createEditor } from './editor.js'
+import { initSettings } from './settings.js'
 import * as drafts from './drafts.js'
+import { register, availableProviders, providerFor } from './storage/index.js'
+import { googleDrive } from './storage/gdrive.js'
+
+register(googleDrive)
 
 const SAMPLE = `# Welcome to md-studio
 
@@ -59,6 +64,13 @@ function scheduleSave() {
   }, 400)
 }
 
+/**
+ * Write a document immediately, bypassing the debounce. The in-memory document
+ * is always current — only the database write is delayed — so this captures
+ * whatever was typed last.
+ */
+const saveNow = (doc) => (doc ? drafts.putDoc(doc).catch(reportError) : Promise.resolve())
+
 const saveSession = () =>
   drafts.putSession({ openIds: state.openIds, activeId: state.activeId }).catch(reportError)
 
@@ -74,9 +86,14 @@ function schedulePreview() {
   previewTimer = setTimeout(updatePreview, 120)
 }
 
+const EMPTY_STATE =
+  '<p class="empty-note">No note is open. Start one with <strong>New</strong>, ' +
+  'load a file with <strong>Open</strong>, or reopen a closed note from ' +
+  '<strong>Settings</strong>.</p>'
+
 function updatePreview() {
   const doc = active()
-  el.preview.innerHTML = doc ? render(doc.text) : ''
+  el.preview.innerHTML = doc ? render(doc.text) : EMPTY_STATE
 }
 
 function renderTabs() {
@@ -93,7 +110,7 @@ function renderTabs() {
       const dot = document.createElement('span')
       dot.className = 'dot'
       dot.textContent = '•'
-      dot.title = 'Edited since it was opened or downloaded'
+      dot.title = 'Edited since it was last saved'
       tab.append(dot)
     }
 
@@ -114,12 +131,13 @@ function renderTabs() {
 
 /* ---------- document actions ---------- */
 
-function addDoc(name, text) {
+function addDoc(name, text, remote = null) {
   const doc = {
     id: crypto.randomUUID(),
     name,
     text,
     savedText: text,
+    remote,
     createdAt: Date.now(),
     updatedAt: Date.now(),
   }
@@ -138,12 +156,26 @@ function setActive(id) {
   saveSession()
 }
 
+/**
+ * Close a tab without destroying anything. The note stays in storage and can
+ * be reopened from Settings — until cloud saving exists this database is the
+ * only copy a note has, so a close button must not be a delete button.
+ */
 function closeTab(id) {
+  saveNow(state.docs.get(id))
+  dropTab(id)
+}
+
+/**
+ * Remove a note from the tab strip, leaving storage alone. Used both by
+ * closing (after the note has been written) and by deleting from Settings
+ * (where writing it back would undo the deletion).
+ */
+function dropTab(id) {
   const i = state.openIds.indexOf(id)
   if (i === -1) return
   state.openIds.splice(i, 1)
   state.docs.delete(id)
-  drafts.deleteDoc(id).catch(reportError)
 
   if (state.activeId === id) {
     const next = state.openIds[Math.min(i, state.openIds.length - 1)]
@@ -165,6 +197,17 @@ function onEdit(text) {
   if (wasClean) renderTabs()
   schedulePreview()
   scheduleSave()
+
+  // The first keystroke is the earliest point where the user has something to
+  // lose, and it follows a real gesture — see requestPersistenceOnce.
+  drafts.requestPersistenceOnce()
+}
+
+/** Reopen a note that was closed earlier, from the Settings list. */
+function openStoredDoc(doc) {
+  if (!state.docs.has(doc.id)) state.docs.set(doc.id, doc)
+  if (!state.openIds.includes(doc.id)) state.openIds.push(doc.id)
+  setActive(doc.id)
 }
 
 /* ---------- files ---------- */
@@ -195,6 +238,57 @@ function downloadActive() {
   renderTabs()
 }
 
+/* ---------- cloud ---------- */
+
+function updateCloudButtons() {
+  const available = availableProviders().length > 0
+  document.getElementById('btn-cloud-open').hidden = !available
+  document.getElementById('btn-cloud-save').hidden = !available
+}
+
+/** Report a cloud failure where the user will actually see it. */
+function cloudFailed(action, err) {
+  reportError(err)
+  alert(`Could not ${action}.\n\n${err.message ?? err}`)
+}
+
+async function openFromCloud() {
+  const provider = availableProviders()[0]
+  if (!provider) return
+  try {
+    if (!provider.isConnected()) await provider.connect()
+    const picked = await provider.pick()
+    let lastId = null
+    for (const file of picked) {
+      const { id, name, text } = await provider.read(file.id)
+      lastId = addDoc(name, text, { provider: provider.id, id, savedAt: Date.now() })
+    }
+    if (lastId) setActive(lastId)
+  } catch (err) {
+    cloudFailed('open that file', err)
+  }
+}
+
+async function saveToCloud() {
+  const doc = active()
+  if (!doc) return
+  // Saving a note that came from the cloud writes back over the same file;
+  // a note that did not creates a new one. Same intent, so one button.
+  const provider = providerFor(doc) ?? availableProviders()[0]
+  if (!provider) return
+  try {
+    if (!provider.isConnected()) await provider.connect()
+    const saved = await provider.write({ id: doc.remote?.id, name: doc.name, text: doc.text })
+    doc.remote = { provider: provider.id, id: saved.id, savedAt: Date.now() }
+    if (saved.name) doc.name = saved.name
+    doc.savedText = doc.text
+    await saveNow(doc)
+    renderTabs()
+  } catch (err) {
+    cloudFailed('save to the cloud', err)
+  }
+}
+
 /* ---------- wiring ---------- */
 
 document.getElementById('btn-new').onclick = () => {
@@ -203,6 +297,8 @@ document.getElementById('btn-new').onclick = () => {
 }
 document.getElementById('btn-open').onclick = () => el.fileInput.click()
 document.getElementById('btn-save').onclick = downloadActive
+document.getElementById('btn-cloud-open').onclick = openFromCloud
+document.getElementById('btn-cloud-save').onclick = saveToCloud
 
 el.fileInput.onchange = () => {
   openFiles([...el.fileInput.files])
@@ -251,12 +347,22 @@ async function init() {
     reportError(err)
   }
 
-  for (const doc of stored) state.docs.set(doc.id, doc)
-
+  const byId = new Map(stored.map((doc) => [doc.id, doc]))
   const session = await drafts.getSession().catch(() => null)
-  state.openIds = (session?.openIds ?? []).filter((id) => state.docs.has(id))
-  if (!state.openIds.length && stored.length) state.openIds = stored.map((d) => d.id)
-  state.activeId = state.docs.has(session?.activeId) ? session.activeId : state.openIds[0] ?? null
+
+  let openIds = (session?.openIds ?? []).filter((id) => byId.has(id))
+  if (!openIds.length && stored.length) {
+    // No usable session, but notes exist. Since closing a tab now keeps the
+    // note, reopening every note ever written would be wrong — take the one
+    // that was edited last.
+    const newest = stored.reduce((a, b) => (b.updatedAt > a.updatedAt ? b : a))
+    openIds = [newest.id]
+  }
+
+  // Only open notes are held in memory; Settings reads the rest from storage.
+  for (const id of openIds) state.docs.set(id, byId.get(id))
+  state.openIds = openIds
+  state.activeId = openIds.includes(session?.activeId) ? session.activeId : openIds[0] ?? null
 
   if (!state.openIds.length) state.activeId = addDoc('welcome.md', SAMPLE)
 
@@ -267,6 +373,19 @@ async function init() {
   const doc = active()
   if (doc) editor.setText(doc.text)
   editor.focus()
+
+  // Last, and isolated: the editor must be usable even if this fails.
+  try {
+    updateCloudButtons()
+    initSettings({
+      getOpenIds: () => state.openIds,
+      onOpen: openStoredDoc,
+      onDeleted: dropTab,
+      onCloudChange: updateCloudButtons,
+    })
+  } catch (err) {
+    reportError(err)
+  }
 }
 
 init().catch((err) => {

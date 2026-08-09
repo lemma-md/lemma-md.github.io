@@ -5,6 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>md-studio</title>
 
+<!-- Modern browsers take the SVG and scale it. Safari ignores SVG icons, so
+     the PNGs are its fallback; the 180px one is for an iOS home screen. -->
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="icon" href="favicon-32.png" sizes="32x32" type="image/png">
+<link rel="icon" href="favicon-16.png" sizes="16x16" type="image/png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+
 <link rel="stylesheet" href="vendor/katex/katex.min.css">
 <link rel="stylesheet" href="src/ui.css">
 
@@ -16,12 +23,52 @@
 
 <body>
 
+<!-- Icons from Lucide, ISC licensed — see VENDOR.md. Defined once here and
+     referenced with <use>, so the paths are not repeated in every button. -->
+<svg id="icon-sprite" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+  <symbol id="icon-new" viewBox="0 0 24 24">
+    <path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"/>
+    <path d="M14 2v5a1 1 0 0 0 1 1h5"/>
+    <path d="M9 15h6"/>
+    <path d="M12 18v-6"/>
+  </symbol>
+  <symbol id="icon-open" viewBox="0 0 24 24">
+    <path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"/>
+  </symbol>
+  <symbol id="icon-download" viewBox="0 0 24 24">
+    <path d="M12 15V3"/>
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+    <path d="m7 10 5 5 5-5"/>
+  </symbol>
+  <symbol id="icon-cloud-open" viewBox="0 0 24 24">
+    <path d="M12 13v8l-4-4"/>
+    <path d="m12 21 4-4"/>
+    <path d="M4.393 15.269A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.436 8.284"/>
+  </symbol>
+  <symbol id="icon-cloud-save" viewBox="0 0 24 24">
+    <path d="M12 13v8"/>
+    <path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/>
+    <path d="m8 17 4-4 4 4"/>
+  </symbol>
+  <symbol id="icon-settings" viewBox="0 0 24 24">
+    <path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/>
+    <circle cx="12" cy="12" r="3"/>
+  </symbol>
+</svg>
+
 <header id="bar">
+  <!-- Reuses favicon.svg rather than repeating the paths in the sprite above,
+       so the mark has exactly one definition to keep up to date. It is already
+       in the browser cache as the icon. -->
+  <img id="logo" src="favicon.svg" alt="md-studio" width="22" height="22">
   <div id="tabs"></div>
   <div id="actions">
-    <button id="btn-new" title="New note">New</button>
-    <button id="btn-open" title="Open a .md file">Open</button>
-    <button id="btn-save" title="Download as .md">Download</button>
+    <button id="btn-new" title="New note"><svg class="icon"><use href="#icon-new"/></svg><span class="label">New</span></button>
+    <button id="btn-open" title="Open a .md file"><svg class="icon"><use href="#icon-open"/></svg><span class="label">Open</span></button>
+    <button id="btn-save" title="Download as .md"><svg class="icon"><use href="#icon-download"/></svg><span class="label">Download</span></button>
+    <button id="btn-cloud-open" title="Open from cloud storage" hidden><svg class="icon"><use href="#icon-cloud-open"/></svg><span class="label">Open from cloud</span></button>
+    <button id="btn-cloud-save" title="Save to cloud storage" hidden><svg class="icon"><use href="#icon-cloud-save"/></svg><span class="label">Save to cloud</span></button>
+    <button id="btn-settings" title="Your notes and storage"><svg class="icon"><use href="#icon-settings"/></svg><span class="label">Settings</span></button>
   </div>
 </header>
 
@@ -34,6 +81,43 @@
 <div id="drop-hint">Drop .md files here</div>
 
 <input type="file" id="file-input" accept=".md,.markdown,.txt,text/markdown" multiple hidden>
+
+<dialog id="settings">
+  <form method="dialog" class="dlg-head">
+    <h2>Settings</h2>
+    <button class="dlg-close" title="Close" aria-label="Close">&times;</button>
+  </form>
+
+  <section>
+    <h3>Where your notes are kept</h3>
+    <p class="note">
+      Notes are stored <strong>in this browser, on this computer</strong>.
+      Nothing is uploaded anywhere. Clearing your browser data removes them, and
+      they will not appear on your other devices.
+    </p>
+    <p id="storage-usage" class="figure"></p>
+    <div id="storage-persist"></div>
+  </section>
+
+  <section>
+    <h3>Your notes</h3>
+    <p class="note">
+      Everything saved in this browser, newest first. Closing a tab does not
+      delete a note — it stays here until you delete it deliberately.
+    </p>
+    <ul id="recent-list"></ul>
+  </section>
+
+  <section>
+    <h3>Cloud</h3>
+    <p class="note">
+      Notes kept in a cloud drive survive this browser and reach your other
+      devices. Files are opened and saved through the provider's own chooser —
+      this app only ever sees the files you pick.
+    </p>
+    <div id="cloud-status"></div>
+  </section>
+</dialog>
 
 <script type="module" src="src/app.js"></script>
 </body>

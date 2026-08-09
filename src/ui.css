@@ -29,7 +29,13 @@ body { display: flex; flex-direction: column; }
   min-height: 38px;
 }
 
-#tabs { display: flex; flex: 1; overflow-x: auto; }
+/* The bar stretches its children, which would distort the mark. */
+#logo { align-self: center; flex: none; margin-left: 10px; }
+
+/* `min-width: 0` lets a flex item shrink below its content. Without it the
+   buttons claimed the whole bar on a narrow screen and the tab strip
+   collapsed to nothing, leaving no way to switch notes. */
+#tabs { display: flex; flex: 1 1 auto; min-width: 60px; overflow-x: auto; }
 
 .tab {
   display: flex;
@@ -48,19 +54,39 @@ body { display: flex; flex-direction: column; }
 .tab .close:hover { background: var(--line); color: var(--fg); }
 .tab .dot { color: var(--accent); font-size: 18px; line-height: 0; }
 
+#icon-sprite { display: none; }
+
+/* Stroke properties are inherited, so they reach the shapes cloned in by
+   <use>. currentColor makes every icon follow its button's text colour. */
+.icon {
+  width: 15px;
+  height: 15px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 #actions { display: flex; align-items: center; gap: 6px; padding: 0 10px; }
 
 #actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font: inherit;
   font-size: 13px;
   padding: 4px 10px;
   border: 1px solid var(--line);
   border-radius: 5px;
   background: var(--bg);
+  color: inherit;
   cursor: pointer;
 }
 
 #actions button:hover { border-color: var(--muted); }
+#actions button:hover .icon { color: var(--accent); }
 
 /* ---------- panes ---------- */
 
@@ -95,10 +121,105 @@ body { display: flex; flex-direction: column; }
 #preview th { background: var(--surface); }
 #preview hr { border: 0; border-top: 1px solid var(--line); margin: 2em 0; }
 #preview img { max-width: 100%; }
+#preview .empty-note { color: var(--muted); margin-top: 2em; }
 
 /* Long formulas scroll instead of widening the page. */
 #preview .katex-display { overflow-x: auto; overflow-y: hidden; padding: 2px 0; }
 #preview .katex-error { color: #b00020; }
+
+/* ---------- settings dialog ---------- */
+
+#settings {
+  /* Browsers centre a modal dialog with `margin: auto` against `inset: 0`.
+     The `* { margin: 0 }` reset above overrides that and pins it to the top
+     left corner, so the centring has to be restored explicitly. */
+  margin: auto;
+  width: min(560px, calc(100vw - 32px));
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  padding: 0 22px 22px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--fg);
+  background: var(--bg);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, .18);
+}
+
+#settings::backdrop { background: rgba(0, 0, 0, .35); }
+
+.dlg-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  padding: 18px 0 12px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--line);
+}
+
+.dlg-head h2 { font-size: 1.15em; }
+
+.dlg-close {
+  border: 0;
+  background: none;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--muted);
+  padding: 2px 6px;
+  border-radius: 5px;
+}
+
+.dlg-close:hover { background: var(--surface); color: var(--fg); }
+
+#settings section { margin-top: 20px; }
+#settings h3 { font-size: .95em; margin-bottom: 6px; }
+#settings .note { font-size: .875em; color: var(--muted); margin: 0 0 10px; }
+#settings .figure { font-size: .875em; margin: 0 0 10px; }
+
+#settings button.action {
+  font: inherit;
+  font-size: 13px;
+  padding: 5px 12px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--bg);
+  cursor: pointer;
+}
+
+#settings button.action:hover { border-color: var(--muted); }
+
+.state { font-size: .875em; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.state.ok { color: #1a7f37; }
+.state.warn { color: #9a6700; }
+
+#recent-list { list-style: none; padding: 0; max-height: 260px; overflow-y: auto; }
+
+#recent-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 0;
+  border-top: 1px solid var(--line);
+  font-size: .9em;
+}
+
+#recent-list .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#recent-list .meta { color: var(--muted); font-size: .85em; white-space: nowrap; }
+#recent-list .badge {
+  font-size: .75em;
+  padding: 1px 6px;
+  border-radius: 9px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  color: var(--muted);
+  vertical-align: 1px;
+}
+#recent-list .empty { color: var(--muted); border-top: 0; }
+#recent-list button { font: inherit; font-size: 12px; padding: 3px 9px; border: 1px solid var(--line); border-radius: 4px; background: var(--bg); cursor: pointer; }
+#recent-list button:hover { border-color: var(--muted); }
+#recent-list button.danger:hover { border-color: #b00020; color: #b00020; }
 
 /* ---------- drop hint ---------- */
 
@@ -122,4 +243,10 @@ body.dragging #drop-hint { display: flex; }
   #panes { flex-direction: column; }
   #editor-pane { width: auto; height: 45%; }
   #splitter { width: auto; height: 5px; cursor: row-resize; }
+
+  /* Drop to icons alone so the tab strip keeps its room. This is what the
+     icons are for; the labels return as soon as there is space. */
+  #actions .label { display: none; }
+  #actions { gap: 2px; padding: 0 6px; }
+  #actions button { padding: 5px 8px; }
 }

@@ -26,12 +26,25 @@ ES modules will not load over `file://`. Serve the directory and check in a
 real browser:
 
 ```bash
-python -m http.server 8080
+python -m http.server 8001
 ```
+
+**Always port 8001, never another.** `http://localhost:8001` is registered with
+Google as an authorised JavaScript origin and as an API-key referrer; the port
+is part of the origin and is matched exactly, so anything served from 8080 or
+8081 fails every cloud call. Changing it means editing the Google Cloud console
+too, which is a decision to raise rather than a port to pick.
 
 Verify by inspecting the DOM, not by reasoning about the code. Past bugs found
 this way: KaTeX fonts silently falling back inside a shadow root, and DOMPurify
 being capable of stripping MathML.
+
+`python -m http.server` sends no cache-busting headers, so a browser will
+happily serve an old `index.html` or `ui.css` after an edit. This has already
+caused two phantom bugs. Before concluding anything from a page, check that the
+file the browser holds is the file on disk — compare against
+`fetch(path, { cache: 'reload' })`, or reload the stylesheet with a query
+string appended.
 
 One caveat: an automated browser tab usually reports `visibilityState:
 "hidden"`, and `requestAnimationFrame` never fires there. Ace's render loop is
@@ -39,6 +52,20 @@ built on rAF, so the editor can look blank while its state is perfectly
 correct. Check `editor.session.getLength()` rather than counting rendered
 gutter cells, and do not "fix" a repaint problem that only exists in the test
 environment.
+
+## Binary files
+
+**Never move binary data through the transcript.** Copying a base64 blob out of
+a browser and pasting it into a file silently drops characters — that is how
+`apple-touch-icon.png` came to have a corrupt IDAT chunk while still reporting
+the right dimensions to every tool that only reads the header. Generate binaries
+with a script that writes the bytes itself, as `tools/make-icons.ps1` does.
+
+After writing one, walk its chunks and check the CRCs; a length or a successful
+`Image.FromFile` proves nothing. Beware that Windows PowerShell 5.1 parses a hex
+literal filling all 32 bits (`0xFFFFFFFF`, `0xEDB88320`) as a *negative* `Int32`,
+so a CRC-32 written the obvious way computes nonsense — keep the arithmetic in
+`[long]` and mask.
 
 ## Commits
 

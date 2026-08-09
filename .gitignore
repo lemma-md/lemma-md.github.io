@@ -1,3 +1,10 @@
 .DS_Store
 Thumbs.db
 *.local
+
+# Google hands you this when you create an OAuth client. It holds a real
+# client_secret, which this app never uses and must never publish — the browser
+# flow is PKCE-based and has nowhere to keep one. Keep the file out of the
+# repository entirely; the only value needed from it is the client id, which
+# lives in src/config.js.
+client_secret*.json

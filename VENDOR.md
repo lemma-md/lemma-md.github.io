@@ -12,6 +12,36 @@ Everything came from jsDelivr (which mirrors npm) at the pinned versions below.
 | [KaTeX](https://katex.org) | 0.18.2 | `katex/katex.min.js`, `katex/katex.min.css`, `katex/fonts/*.woff2` | formula rendering |
 | [Ace](https://ace.c9.io) | 1.44.0 | `ace/ace.js`, `ace/mode-markdown.js`, `ace/theme-textmate.js`, `ace/ext-searchbox.js` | editor with line numbers |
 
+## Icons
+
+Four icons — `file-plus`, `folder-open`, `download`, `settings` — are taken from
+[Lucide](https://lucide.dev) v1.30.0 and inlined as `<symbol>` definitions at
+the top of `index.html`. Only their path data is copied; the library itself is
+not a dependency, since pulling in a whole icon set for four glyphs would cost
+far more than it saves.
+
+They are stroke-based and use `currentColor`, so they follow the surrounding
+text colour with no per-icon styling.
+
+To add another: copy the paths from
+`https://cdn.jsdelivr.net/npm/lucide-static@1.30.0/icons/<name>.svg` into a new
+`<symbol>`, keeping `viewBox="0 0 24 24"` and dropping the wrapper `<svg>`
+attributes — those live on `.icon` in the stylesheet.
+
+> ISC License. Copyright (c) 2026 Lucide Icons and Contributors.
+>
+> Permission to use, copy, modify, and/or distribute this software for any
+> purpose with or without fee is hereby granted, provided that the above
+> copyright notice and this permission notice appear in all copies.
+>
+> THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH
+> REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
+> AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT,
+> INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
+> LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR
+> OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+> PERFORMANCE OF THIS SOFTWARE.
+
 ## Notes
 
 - **Only `.woff2` fonts are kept.** The KaTeX stylesheet also lists `.woff` and
