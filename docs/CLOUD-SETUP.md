@@ -3,9 +3,14 @@
 This is done once, by whoever publishes the app. Users of the app do not do any
 of it — for them connecting is two clicks.
 
-At the end you paste two values into `src/config.js`. Neither is a secret: both
-are visible in the page source by design, and what actually protects them is
-the origin and referrer restrictions set below.
+At the end you paste three values into `src/config.js`. None is a secret: all
+are visible in the page source by design, so what keeps them safe is not
+concealment but the restrictions set on them. The OAuth client is guarded by
+its authorised origins, and it is the only thing standing between a stranger
+and a user's Drive. The API key merely identifies the Cloud project for quota
+accounting; keep it limited to the Picker API, and note that its referrer list
+must include Google's own domains, because the picker calls home from inside a
+Google iframe.
 
 ## 1. Create a project
 
@@ -82,8 +87,12 @@ needs a human takes two to three business days.
 Two practical consequences:
 
 - Be ready to prove ownership of the origin the app is served from. For
-  `https://<account>.github.io` that means verifying the domain in Google
-  Search Console under the same account.
+  `https://lemma-md.github.io/` that means adding it in Google Search Console
+  as a *URL-prefix* property — signed in as the same Google account that owns
+  this Cloud project — and verifying by uploading the HTML file it offers to
+  the repository root. (`github.io` is on the Public Suffix List, so each
+  subdomain is its own site; verifying the parent is neither possible nor
+  needed.)
 - Later edits to the app name, the logo or the URLs create a new draft that
   can be sent back through the check, so treat them as deliberate changes
   rather than tweaks.
@@ -99,16 +108,24 @@ Sources: [when verification is not needed](https://support.google.com/cloud/answ
 
 - Application type: **Web application**
 - **Authorised JavaScript origins** — add each origin the app is served from:
-  - `https://<your-account>.github.io` for GitHub Pages
+  - `https://lemma-md.github.io` for GitHub Pages
   - `http://localhost:8001` for local work
 
-Origins have no path. `https://<account>.github.io` therefore covers every
-project published under that account — see the origin discussion in
-[ARCHITECTURE.md](ARCHITECTURE.md).
+Origins carry no path, which is why the app is published from an organisation
+of its own rather than as one project among many under a personal account —
+see the origin discussion in [ARCHITECTURE.md](ARCHITECTURE.md).
 
-One client can hold as many origins as you like, so the published site and your
-own machine share a single client ID and a single `src/config.js`. There is no
-need for a separate development project.
+One client can hold as many origins as you like, so a small private deployment
+can let the published site and local development share a single client ID and
+`src/config.js`.
+
+For a public deployment, separate development and production Cloud projects
+are safer. `localhost` identifies an origin, not your particular computer:
+anyone can run a page on their own `localhost:8001` and reuse a public browser
+client ID with their own Google account. Separate projects keep development
+traffic and quota exhaustion from affecting production. This requires using
+the development project's values locally and the production values in the
+deployed copy of `src/config.js`.
 
 Three ways this goes wrong locally:
 
@@ -131,8 +148,8 @@ client id out of it and keep the file out of the repository** — it is already
 in `.gitignore`. Despite the name, that file is not the API key of step 5, and
 the `client_secret` inside it is a genuine secret: it belongs to the
 authorisation-code flow that servers use. A browser app has nowhere to hide
-one, so this app uses the PKCE token flow and never sends it. Nothing here
-needs it, and publishing it would let someone else's site act as this app.
+one, so this app uses Google's browser token flow and never sends it. Nothing
+here needs it, and publishing it would let someone else's site act as this app.
 
 ## 5. Create the API key
 
@@ -143,19 +160,42 @@ picker.
 The key appears immediately, unrestricted. Restricting it is a second step:
 close the dialog, then click the key's name in the list.
 
-Set it up like this — and note that only one of the two restrictions applies:
+Set both restrictions. This exact pair is what the app runs on:
 
-- *API restrictions* → **Google Picker API**
-- *Application restrictions* → **None**
+- *API restrictions* → **Google Picker API**, and nothing else
+- *Application restrictions* → **Websites**, with all four of:
+  - `https://lemma-md.github.io/*`
+  - `http://localhost:8001/*`
+  - `*.google.com`
+  - `*.googleusercontent.com`
 
-**Do not add a website restriction.** It is the obvious thing to do and it
-breaks the picker, with the misleading message *"The API developer key is
-invalid"*. The reason is that the picker is a page served from
-`docs.google.com` inside an iframe; the requests carrying the developer key
-come from there, so their referrer is Google's, never this app's. A rule
-listing `http://localhost:8001/*` rejects them. This was established the hard
-way: everything else in the setup was verified correct first, and removing the
-website restriction fixed it instantly.
+**The two Google wildcards are the part nobody guesses, and leaving them out is
+what breaks the picker** — with the thoroughly misleading message *"The API
+developer key is invalid"*. The picker is served from `docs.google.com` inside
+an iframe, and the internal requests carrying the key have a Google referrer,
+not this app's. A rule naming only `localhost` and the production site rejects
+them. Google's own
+[Apps Script Picker instructions](https://developers.google.com/apps-script/guides/dialogs#file-open_dialogs)
+prescribe the same two wildcards.
+
+Two ways to confirm the rule is doing its job, both worth running once:
+
+- The picker opens a file. That is the only test that exercises Google's
+  internal referrer.
+- `curl.exe -s -H "Referer: http://evil.example/" "https://www.googleapis.com/books/v1/volumes?q=test&key=$KEY"`
+  answers `API_KEY_HTTP_REFERRER_BLOCKED`, proving the restriction is live
+  rather than merely saved.
+
+Should a future Google change break this, *Application restrictions* → **None**
+is the compatible fallback; keep the API restriction either way, since that is
+the one carrying the security weight. `PickerBuilder.setOrigin()` is not a
+remedy — it configures communication with the iframe, not the HTTP referrer the
+key is validated against.
+
+**Do not add the Drive API to the key.** It looks reasonable, since the picker
+shows Drive files, and it is wrong: every Drive call in this app is authorised
+by the user's OAuth token, never by the key. Granting it buys nothing and opens
+the one genuine abuse route, described next.
 
 That leaves the key readable by anyone, which is worth being clear-eyed about
 rather than uneasy about:
@@ -164,8 +204,20 @@ rather than uneasy about:
   authorised by the user's OAuth token; a request bearing the key alone gets
   `401 CREDENTIALS_MISSING`. Restricting it to the Picker API keeps that true —
   the key cannot be pointed at anything else in the project.
-- **The worst a thief can do is show a file picker** billed to this project's
-  Picker quota. They still cannot see any Drive but their own.
+- **Starving the quota is not available to a thief either — as long as the key
+  stays Picker-only.** The two APIs differ in exactly the way that matters.
+  Picker is capped at **60 queries per minute per user**: a ceiling on each
+  account separately, so a stranger burns their own allowance and leaves
+  everyone else untouched. Drive is capped **per project** — 12,000 requests
+  per minute shared by everybody — which is a pool a stranger *could* drain,
+  denying your users their own notes. That is the whole reason the Drive API
+  must stay off this key. Check the *Quotas & System Limits* page again if
+  Google ever gives Picker a project-wide rate, since that is the assumption
+  this rests on.
+- **The website restriction is compatibility filtering, not proof of origin.**
+  It stops an unrelated site from using the key, which is worth having. It
+  cannot prove a request came from this app, because another picker instance
+  runs inside Google's iframe too and carries the very same Google referrers.
 - **What actually guards the data** is the OAuth client: its authorised
   JavaScript origins, which *are* enforced, plus the `drive.file` scope. That is
   where to be strict — see step 4.
@@ -205,16 +257,33 @@ is alive, so in practice they consent once.
 
 It almost never means the key is mistyped. In order of likelihood:
 
-1. **A website restriction on the key.** See step 5 — this is the one that cost
-   an evening. The message is the same whether the key is wrong or merely
-   refused, which is what makes it so misleading.
+1. **The website restriction is missing `*.google.com` and
+   `*.googleusercontent.com`.** A rule listing only this app's own URLs rejects
+   the picker's internal iframe request, which carries a Google referrer. See
+   step 5. The message reads the same whether the key is wrong or merely
+   refused, which is what makes it so misleading — and why this cost an evening
+   here, with three wrong theories tried before the right one.
 2. **The Google Picker API is not enabled** in the project. Enabling the Drive
    API is not enough, and the Picker API is easy to miss because searching the
    API Library for "Picker" surfaces the unrelated Photos Picker instead. Enable
    it at <https://console.cloud.google.com/apis/library/picker.googleapis.com>.
+3. **The page may be running an older `config.js`.** `python -m http.server`
+   sends no cache headers, so after filling in the credentials, reload with the
+   cache bypassed. An empty `apiKey` reaches the picker as `developerKey=` with
+   nothing after it, which it reports as an invalid key. To check, open the
+   picker and look at the `iframe` whose source is `docs.google.com/picker`: the
+   `developerKey` parameter must carry the key, and `appId` the project number.
+4. **A new key or restriction has not propagated yet.** Wait several minutes
+   after creating the key or changing its restrictions before diagnosing a
+   second problem.
 
-Before touching the console, it is worth establishing that the key itself is
-sound. Any API that accepts a key will tell you, without needing OAuth:
+### Interrogating the key directly
+
+The picker itself is a poor witness: it reports every one of the causes above
+with the same sentence. The key will answer more precisely, and without needing
+OAuth. The Picker API has no REST surface to call, so aim at any other API and
+read the failure rather than the success — `books` below is only a target to
+provoke an answer:
 
 ```bash
 KEY=AIza...
@@ -223,32 +292,31 @@ curl.exe -s -H "Referer: http://localhost:8001/" "https://www.googleapis.com/boo
 curl.exe -s -H "Referer: http://evil.example/" "https://www.googleapis.com/books/v1/volumes?q=test&key=$KEY"
 ```
 
-Read the JSON `reason`, which separates the possible faults cleanly:
+The JSON carries a `reason` that separates the faults:
 
 | reason | meaning |
 |---|---|
 | `API_KEY_INVALID` | the key really is wrong |
-| `API_KEY_HTTP_REFERRER_BLOCKED` | the website restriction rejects that referrer |
+| `API_KEY_HTTP_REFERRER_BLOCKED` | a website restriction rejected that referrer |
 | `API_KEY_SERVICE_BLOCKED` | the key's *API restrictions* exclude that API |
-| `SERVICE_DISABLED` | key and referrer are fine; the API is off in the project |
+| `SERVICE_DISABLED` | key and referrer passed; that API is off in the project |
 
-Beware that these checks run in a fixed order — referrer, then whether the API
-is enabled in the project, then the key's API restrictions. An API that is off
-in the project answers `SERVICE_DISABLED` and never reveals whether the key
-would also have been blocked, so a key can look unrestricted when it is not.
-Test against an API the project actually has enabled.
+**Read these in light of the order the checks run in:** referrer first, then
+whether the API is enabled in the project, then the key's API restrictions.
+Two consequences, both of which have already misled a diagnosis here:
 
-Two more things produce the same message from a key that is genuinely fine:
-
-- **A new key, or a just-changed restriction, needs a few minutes.** Google says
-  so in the error text of every disabled API. Testing within seconds of pressing
-  *Create* is the commonest way to see this message once and never again.
-- **The page may be running an older `config.js`.** `python -m http.server`
-  sends no cache headers, so after filling in the credentials, reload with the
-  cache bypassed. An empty `apiKey` reaches the picker as `developerKey=` with
-  nothing after it, which it reports as an invalid key. To check, open the
-  picker and look at the `iframe` whose source is `docs.google.com/picker`: the
-  `developerKey` parameter must carry the key, and `appId` the project number.
+- A referrer verdict is trustworthy whatever else is wrong, because it comes
+  first. This is what makes the third command above meaningful even for a key
+  correctly limited to the Picker API — `API_KEY_HTTP_REFERRER_BLOCKED` for a
+  foreign referrer proves a website restriction is live and enforced.
+- `SERVICE_DISABLED` is the end of the road, not a clean bill of health. It
+  means the request never reached the API-restriction check, so a key that
+  looks unrestricted may not be. To learn about restrictions, aim at an API the
+  project actually has enabled. `drive.googleapis.com` serves well: it answers
+  `API_KEY_SERVICE_BLOCKED` when the key may not use it, and a plain Drive
+  permission error such as `insufficientFilePermissions` when it may — that
+  second answer means the key passed every key-level check and only then ran
+  out of authorisation, since Drive needs the user's token rather than a key.
 
 Note that the cloud buttons appear only when all three values are present, so
 if you could click *Open from cloud* at all, `config.js` was at least fully

@@ -146,6 +146,8 @@ export const googleDrive = {
       // are simply missing from the chooser, which reads as the app being
       // broken.
       const view = new google.picker.DocsView(google.picker.ViewId.DOCS)
+        // `drive.file` does not grant thumbnail access until a file is picked.
+        .setMode(google.picker.DocsViewMode.LIST)
         .setMimeTypes('text/markdown,text/x-markdown,text/plain')
         .setIncludeFolders(true)
 

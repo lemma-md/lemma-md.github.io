@@ -137,10 +137,23 @@ The mental model is a desktop editor: IndexedDB is the scratch area, and cloud
 storage will be the real disk. That analogy is not yet honest — there is no real
 disk to save to — which is another reason export and syncing come next.
 
-Drafts are readable by any page on the same origin — and on GitHub Pages the
-path is not part of the origin, so every project published under the same
-account shares it, including any third-party script on those pages. A custom
-domain gives the app an origin of its own and is the clean fix.
+Drafts are readable by any page on the same origin, and on GitHub Pages the
+path is not part of the origin. Publishing at `<account>.github.io/<project>/`
+would therefore hand every other project under that account — and every
+third-party script on their pages — read access to the notes.
+
+The app is published from a GitHub organisation of its own instead. What that
+buys is a host nobody else publishes to — `lemma-md.github.io` — and since the
+origin is exactly scheme, host and port, that host is the whole of the
+protection. The same isolation a custom domain would give, at no cost.
+
+Two corollaries follow from the path being irrelevant. The repository is named
+`lemma-md.github.io` so the app answers at the bare root, but that is a choice
+about how the address reads aloud, not about safety: a project repository at
+`lemma-md.github.io/notes/` would be exactly as isolated. And **the isolation
+lasts only while this organisation publishes nothing else** — a second project
+under it would share this host, and therefore these drafts. If that day comes,
+the answer is a custom domain, not a second path.
 
 Verified constraints, not assumptions:
 

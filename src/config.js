@@ -2,10 +2,10 @@
  * Cloud credentials.
  *
  * These are **not secrets**. A browser client ID and API key are visible in
- * the page source by design; what protects them is the list of authorised
- * origins and referrers configured on the provider's side. Committing them is
- * normal and expected — but restrict them there, or someone else's site can
- * use your quota.
+ * the page source by design. Authorised origins protect the OAuth client; the
+ * Picker key must be restricted to the Google Picker API, but cannot be bound
+ * reliably to this page's referrer because Picker runs in a Google iframe.
+ * See the setup guide for the quota implications.
  *
  * Leave a value empty and the corresponding provider simply does not appear in
  * the interface.
@@ -15,7 +15,7 @@
 export const GOOGLE = {
   /** OAuth 2.0 Client ID, type "Web application". */
   clientId: '56804105563-ku0c9g08f1k32naap7o8i02luogimdr1.apps.googleusercontent.com',
-  /** API key, restricted by HTTP referrer, used by the file picker. */
+  /** Browser API key, restricted to the Google Picker API. */
   apiKey: 'AIzaSyBUL0k3y-j5Jzv1SFqw9LOh0CKnyUZqzZ0',
   /**
    * The Cloud project *number* (not the project ID) — the digits in front of
