@@ -2,9 +2,14 @@
 Thumbs.db
 *.local
 
+# Editor and agent settings, specific to one machine: the launch configuration
+# holds an absolute path, so it is of no use to anyone else and only leaks the
+# shape of somebody's disk.
+.claude/
+
 # Google hands you this when you create an OAuth client. It holds a real
 # client_secret, which this app never uses and must never publish — the browser
-# flow is PKCE-based and has nowhere to keep one. Keep the file out of the
-# repository entirely; the only value needed from it is the client id, which
-# lives in src/config.js.
+# token flow has nowhere to keep one. Keep the file out of the repository
+# entirely; the only value needed from it is the client id, which lives in
+# src/config.js.
 client_secret*.json

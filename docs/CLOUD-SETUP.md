@@ -239,8 +239,10 @@ The app id is what makes a file the user picks reachable under `drive.file`.
 Leave it out and the chooser works, but reading the chosen file fails
 afterwards — a confusing failure worth avoiding.
 
-Reload the app. *Open from cloud* and *Save to cloud* appear in the toolbar,
-and Settings offers a Connect button.
+Reload the app. *Open from cloud* and *Save to cloud* appear in the menu behind
+the button at the right of the bar, and Settings offers a Connect button. Until
+all three values are filled in, those two entries stay hidden — which is itself
+a useful signal while setting this up.
 
 ## What the user sees
 
@@ -318,9 +320,9 @@ Two consequences, both of which have already misled a diagnosis here:
   second answer means the key passed every key-level check and only then ran
   out of authorisation, since Drive needs the user's token rather than a key.
 
-Note that the cloud buttons appear only when all three values are present, so
-if you could click *Open from cloud* at all, `config.js` was at least fully
-populated when the page loaded.
+Note that the cloud entries appear in the menu only when all three values are
+present, so if you could click *Open from cloud* at all, `config.js` was at
+least fully populated when the page loaded.
 
 ## Notes
 

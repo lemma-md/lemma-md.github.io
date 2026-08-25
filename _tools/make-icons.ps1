@@ -6,10 +6,10 @@
 # are. It exists so the PNGs can be regenerated after the SVG changes, instead
 # of being redrawn by hand and drifting away from it.
 #
-#   .\tools\make-icons.ps1 favicon.svg favicon-16.png 16
-#   .\tools\make-icons.ps1 favicon.svg favicon-32.png 32
-#   .\tools\make-icons.ps1 favicon.svg logo-120.png 120
-#   .\tools\make-icons.ps1 favicon.svg apple-touch-icon.png 180 -FullBleed
+#   .\_tools\make-icons.ps1favicon.svg favicon-16.png 16
+#   .\_tools\make-icons.ps1favicon.svg favicon-32.png 32
+#   .\_tools\make-icons.ps1favicon.svg logo-120.png 120
+#   .\_tools\make-icons.ps1favicon.svg apple-touch-icon.png 180 -FullBleed
 param(
   [string]$SvgPath,
   [string]$OutPath,

@@ -26,8 +26,19 @@ ES modules will not load over `file://`. Serve the directory and check in a
 real browser:
 
 ```bash
-python -m http.server 8001
+./_tools/lemma_start.sh
 ```
+
+`_tools/lemma_start.cmd` is the Windows twin, and `lemma_stop.*` shuts the
+server down by finding it on the port — worth knowing, because a server left
+running with no visible window is how a stale copy ends up being tested. Do not
+start the server by hand: the scripts also reject a Python older than 3.7,
+which has already cost an afternoon here.
+
+The underscore in `_tools/` is load-bearing: GitHub Pages runs Jekyll, which
+refuses to publish anything whose name starts with one. Development scripts
+belong there; anything the site needs at runtime must not. See the Deployment
+section of [README.md](README.md).
 
 **Always port 8001, never another.** `http://localhost:8001` is registered with
 Google as an authorised JavaScript origin and as an API-key referrer; the port
@@ -59,7 +70,7 @@ environment.
 a browser and pasting it into a file silently drops characters — that is how
 `apple-touch-icon.png` came to have a corrupt IDAT chunk while still reporting
 the right dimensions to every tool that only reads the header. Generate binaries
-with a script that writes the bytes itself, as `tools/make-icons.ps1` does.
+with a script that writes the bytes itself, as `_tools/make-icons.ps1` does.
 
 After writing one, walk its chunks and check the CRCs; a length or a successful
 `Image.FromFile` proves nothing. Beware that Windows PowerShell 5.1 parses a hex

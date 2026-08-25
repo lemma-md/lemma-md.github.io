@@ -191,7 +191,7 @@ export const googleDrive = {
 
     // Creating needs the name alongside the content, which Drive takes as a
     // multipart body rather than two requests.
-    const boundary = `md-studio-${crypto.randomUUID()}`
+    const boundary = `lemma-md-${crypto.randomUUID()}`
     const body =
       `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n` +
       `${JSON.stringify({ name, mimeType: MIME })}\r\n` +

@@ -4,7 +4,20 @@
 // That limit is deliberate for now, but it must be stated in the UI so nobody
 // mistakes a draft for something that is backed up.
 
-const DB_NAME = 'md-studio'
+/**
+ * Treat this string as permanent from here on.
+ *
+ * It is not a label — nothing shows it to anyone — but the key the browser
+ * files every note under. Change it and `indexedDB.open` finds nothing, creates
+ * an empty database, and the app comes up looking as though it had lost the
+ * lot. The old notes are still on disk, merely unreachable, and nothing says so.
+ *
+ * It was renamed once, from `md-studio`, while the only notes in existence were
+ * the author's own test ones and losing them cost nothing. That window is now
+ * closed: any later rename needs code that opens the old database and copies
+ * its contents across first.
+ */
+const DB_NAME = 'lemma-md'
 const DB_VERSION = 1
 const DOCS = 'docs'
 const META = 'meta'
