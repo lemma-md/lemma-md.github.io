@@ -5,12 +5,18 @@
 
 import { loadScript } from './load-script.js'
 
+// Resolved against this module rather than the page: the editor is served from
+// /editor/ while vendor/ sits at the root, and a bare relative path would be
+// looked up beside the HTML instead. Fails silently when wrong — the editor
+// simply never appears — so it is worth stating the base explicitly.
+const vendor = (file) => new URL(`../vendor/ace/${file}`, import.meta.url).href
+
 async function loadAce() {
-  await loadScript('vendor/ace/ace.js')
+  await loadScript(vendor('ace.js'))
   await Promise.all([
-    loadScript('vendor/ace/mode-markdown.js'),
-    loadScript('vendor/ace/theme-textmate.js'),
-    loadScript('vendor/ace/ext-searchbox.js'),
+    loadScript(vendor('mode-markdown.js')),
+    loadScript(vendor('theme-textmate.js')),
+    loadScript(vendor('ext-searchbox.js')),
   ])
 }
 

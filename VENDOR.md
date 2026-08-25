@@ -14,7 +14,8 @@ Everything came from jsDelivr (which mirrors npm) at the pinned versions below.
 
 ## Icons
 
-Four icons — `file-plus`, `folder-open`, `download`, `settings` — are taken from
+The toolbar icons — among them `file-plus`, `folder-open`, `download`,
+`settings`, `eye` and `square-pen` — are taken from
 [Lucide](https://lucide.dev) v1.30.0 and inlined as `<symbol>` definitions at
 the top of `index.html`. Only their path data is copied; the library itself is
 not a dependency, since pulling in a whole icon set for four glyphs would cost

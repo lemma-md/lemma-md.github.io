@@ -1,0 +1,21 @@
+/* Colours, reset and base typography, shared by every page on the site.
+ *
+ * markdown.css is written against these variables, so any page that renders
+ * markdown needs this file first. */
+
+:root {
+  --bg: #ffffff;
+  --fg: #1a1a1a;
+  --muted: #6a737d;
+  --line: #e1e4e8;
+  --accent: #0969da;
+  --surface: #f6f8fa;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font: 15px/1.6 -apple-system, "Segoe UI", Roboto, sans-serif;
+  color: var(--fg);
+  background: var(--bg);
+}

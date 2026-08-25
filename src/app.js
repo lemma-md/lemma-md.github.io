@@ -7,9 +7,10 @@ import { googleDrive } from './storage/gdrive.js'
 
 register(googleDrive)
 
-const SAMPLE = `# Welcome to md-studio
+const SAMPLE = `# Welcome to lemma-md
 
-Write plain text on the left, see it typeset on the right — as you type.
+You are reading this note as a finished page. Press **Edit** to see the plain
+text behind it: source on the left, result on the right, changing as you type.
 
 Inline formulas go between single dollars: $e^{i\\pi} + 1 = 0$.
 Display formulas go between double dollars:
@@ -36,10 +37,10 @@ $$
 $$
 
 > Drafts live in **this browser only** — nothing is uploaded anywhere.
-> Use *Download* to keep a copy as a \`.md\` file.
+> Use *Download as .md* in the menu to keep a copy as a file.
 `
 
-const state = { docs: new Map(), openIds: [], activeId: null }
+const state = { docs: new Map(), openIds: [], activeId: null, mode: 'view' }
 let editor = null
 
 const el = {
@@ -49,6 +50,9 @@ const el = {
   editorPane: document.getElementById('editor-pane'),
   splitter: document.getElementById('splitter'),
   fileInput: document.getElementById('file-input'),
+  modeBtn: document.getElementById('btn-mode'),
+  menuBtn: document.getElementById('btn-menu'),
+  menu: document.getElementById('menu'),
 }
 
 const active = () => state.docs.get(state.activeId) ?? null
@@ -72,7 +76,9 @@ function scheduleSave() {
 const saveNow = (doc) => (doc ? drafts.putDoc(doc).catch(reportError) : Promise.resolve())
 
 const saveSession = () =>
-  drafts.putSession({ openIds: state.openIds, activeId: state.activeId }).catch(reportError)
+  drafts
+    .putSession({ openIds: state.openIds, activeId: state.activeId, mode: state.mode })
+    .catch(reportError)
 
 function reportError(err) {
   console.error(err)
@@ -98,6 +104,7 @@ function updatePreview() {
 
 function renderTabs() {
   el.tabs.textContent = ''
+  let activeTab = null
   for (const id of state.openIds) {
     const doc = state.docs.get(id)
     if (!doc) continue
@@ -125,9 +132,97 @@ function renderTabs() {
     close.onclick = (e) => { e.stopPropagation(); closeTab(id) }
     tab.append(close)
 
+    if (id === state.activeId) activeTab = tab
     el.tabs.append(tab)
   }
+
+  // The strip wraps and is capped at three rows, so with many notes the active
+  // one can sit below the fold. `nearest` scrolls the strip and nothing else.
+  activeTab?.scrollIntoView({ block: 'nearest' })
 }
+
+/* ---------- reading and writing ---------- */
+
+/**
+ * Build the editor the first time writing is asked for, and never again.
+ *
+ * The promise is what gets cached, not the editor: Ace takes a moment to
+ * arrive, and two quick presses of the toggle would otherwise start building
+ * two of them.
+ */
+let editorPromise = null
+function ensureEditor() {
+  if (!editorPromise) {
+    editorPromise = createEditor(el.editor, onEdit).then((created) => {
+      editor = created
+      const doc = active()
+      if (doc) editor.setText(doc.text)
+      return editor
+    })
+  }
+  return editorPromise
+}
+
+function renderModeButton() {
+  const willEdit = state.mode === 'view'
+  el.modeBtn.querySelector('.label').textContent = willEdit ? 'Edit' : 'Read'
+  el.modeBtn.querySelector('use').setAttribute('href', willEdit ? '#icon-write' : '#icon-read')
+  const key = shortcutLabel(SHORTCUTS.find((s) => s.id === 'btn-mode'))
+  el.modeBtn.title = willEdit
+    ? `Edit this note (${key})`
+    : `Put the editor away and just read (${key})`
+}
+
+/**
+ * Reading is the default, and it is the cheap one: in view mode Ace is never
+ * fetched at all, which is most of what the app weighs. Someone who was sent a
+ * note and only wants to read it pays for the renderer and nothing else.
+ */
+async function setMode(mode, { focus = false } = {}) {
+  state.mode = mode
+  document.body.dataset.mode = mode
+  renderModeButton()
+  saveSession()
+
+  if (mode !== 'edit') return
+  try {
+    const ed = await ensureEditor()
+    // The pane was display:none until a moment ago, so Ace measured nothing.
+    ed.resize()
+    if (focus) ed.focus()
+  } catch (err) {
+    reportError(err)
+    el.editor.textContent = 'Could not load the editor. See the browser console.'
+  }
+}
+
+const toggleMode = () => setMode(state.mode === 'edit' ? 'view' : 'edit', { focus: true })
+
+/* ---------- menu ---------- */
+
+/**
+ * Everything occasional lives behind one button, leaving the bar to the toggle
+ * and the tab strip. The entries are ordinary buttons that kept their ids, so
+ * whatever wires or hides them elsewhere is unaffected by the move.
+ */
+function setMenuOpen(open) {
+  el.menu.hidden = !open
+  el.menuBtn.setAttribute('aria-expanded', String(open))
+}
+
+const closeMenu = () => setMenuOpen(false)
+
+el.menuBtn.onclick = (e) => {
+  e.stopPropagation() // else the document listener below closes it again
+  setMenuOpen(el.menu.hidden)
+}
+
+// A menu that will not go away is worse than no menu: any click outside and any
+// choice inside dismiss it. Escape is handled with the other keys, below.
+document.addEventListener('click', (e) => {
+  if (!el.menu.hidden && !el.menu.contains(e.target)) closeMenu()
+})
+el.menu.addEventListener('click', (e) => { if (e.target.closest('button')) closeMenu() })
 
 /* ---------- document actions ---------- */
 
@@ -218,8 +313,11 @@ async function openFiles(files) {
     const text = await file.text()
     lastId = addDoc(file.name, text)
   }
-  if (lastId) setActive(lastId)
-  else renderTabs()
+  if (lastId) {
+    setActive(lastId)
+    // Someone opening a file wants to see it, not to be handed a text editor.
+    setMode('view')
+  } else renderTabs()
 }
 
 function downloadActive() {
@@ -263,7 +361,10 @@ async function openFromCloud() {
       const { id, name, text } = await provider.read(file.id)
       lastId = addDoc(name, text, { provider: provider.id, id, savedAt: Date.now() })
     }
-    if (lastId) setActive(lastId)
+    if (lastId) {
+      setActive(lastId)
+      setMode('view')
+    }
   } catch (err) {
     cloudFailed('open that file', err)
   }
@@ -293,12 +394,62 @@ async function saveToCloud() {
 
 document.getElementById('btn-new').onclick = () => {
   setActive(addDoc('untitled.md', '# \n'))
-  editor?.focus()
+  // A blank note is an invitation to type, so this is the one action that
+  // always lands in the editor.
+  setMode('edit', { focus: true })
 }
+el.modeBtn.onclick = toggleMode
 document.getElementById('btn-open').onclick = () => el.fileInput.click()
 document.getElementById('btn-save').onclick = downloadActive
+document.getElementById('btn-close').onclick = () => { if (state.activeId) closeTab(state.activeId) }
 document.getElementById('btn-cloud-open').onclick = openFromCloud
 document.getElementById('btn-cloud-save').onclick = saveToCloud
+
+/* ---------- keyboard shortcuts ---------- */
+
+/**
+ * Ctrl+N, Ctrl+W and Ctrl+F4 are reserved by Chrome and Firefox for their own
+ * window and tab handling. The browser never delivers the keydown to the page,
+ * so binding them would not fail loudly — it would simply do nothing while
+ * looking correct in the source. New and Close therefore sit on Alt.
+ *
+ * Matching is on `event.code`, the physical key, not `event.key`. With a
+ * Cyrillic layout active `event.key` for that key is 'ы', and every binding
+ * written against letters quietly stops working.
+ */
+const SHORTCUTS = [
+  { id: 'btn-mode', mod: 'ctrl', code: 'KeyE', hint: 'E' },
+  { id: 'btn-new', mod: 'alt', code: 'KeyN', hint: 'N' },
+  { id: 'btn-open', mod: 'ctrl', code: 'KeyO', hint: 'O' },
+  { id: 'btn-save', mod: 'ctrl', code: 'KeyS', hint: 'S' },
+  { id: 'btn-close', mod: 'alt', code: 'KeyW', hint: 'W' },
+]
+
+const isMac = /Mac|iPhone|iPad|iPod/.test(navigator.platform || navigator.userAgent)
+const prefix = (mod) => (mod === 'alt' ? (isMac ? '⌥' : 'Alt+') : isMac ? '⌘' : 'Ctrl+')
+const shortcutLabel = (s) => prefix(s.mod) + s.hint
+
+// The hint shown and the key handled come from the same row, so they cannot
+// drift apart.
+for (const s of SHORTCUTS) {
+  const hint = document.getElementById(s.id)?.querySelector('.key')
+  if (hint) hint.textContent = shortcutLabel(s)
+}
+
+addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') return closeMenu()
+
+  const ctrl = e.ctrlKey || e.metaKey
+  for (const s of SHORTCUTS) {
+    if (e.code !== s.code || e.shiftKey) continue
+    const pressed = s.mod === 'alt' ? e.altKey && !ctrl : ctrl && !e.altKey
+    if (!pressed) continue
+    e.preventDefault() // Ace and the browser both have their own ideas
+    closeMenu()
+    document.getElementById(s.id).click()
+    return
+  }
+}, true)
 
 el.fileInput.onchange = () => {
   openFiles([...el.fileInput.files])
@@ -369,10 +520,10 @@ async function init() {
   renderTabs()
   updatePreview()
 
-  editor = await createEditor(el.editor, onEdit)
-  const doc = active()
-  if (doc) editor.setText(doc.text)
-  editor.focus()
+  // Reading is where a first visit starts, and where a returning one resumes if
+  // that is how it was left. Nothing of Ace is fetched until edit mode is asked
+  // for, so this branch decides the weight of the page.
+  await setMode(session?.mode === 'edit' ? 'edit' : 'view', { focus: true })
 
   // Last, and isolated: the editor must be usable even if this fails.
   try {
@@ -390,5 +541,5 @@ async function init() {
 
 init().catch((err) => {
   reportError(err)
-  el.editor.textContent = 'Could not start the editor. See the browser console.'
+  el.preview.innerHTML = '<p class="empty-note">Could not start. See the browser console.</p>'
 })

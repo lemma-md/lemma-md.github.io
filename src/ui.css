@@ -1,46 +1,51 @@
-:root {
-  --bg: #ffffff;
-  --fg: #1a1a1a;
-  --muted: #6a737d;
-  --line: #e1e4e8;
-  --accent: #0969da;
-  --surface: #f6f8fa;
-}
+/* Colours, reset and base type come from theme.css; rendered markdown from
+   markdown.css. This file is the editor's own chrome. */
 
-* { box-sizing: border-box; margin: 0; padding: 0; }
-
-html, body {
-  height: 100%;
-  font: 15px/1.6 -apple-system, "Segoe UI", Roboto, sans-serif;
-  color: var(--fg);
-  background: var(--bg);
-}
-
+/* The editor fills the window and never scrolls as a whole — the two panes
+   scroll independently. */
+html, body { height: 100%; }
 body { display: flex; flex-direction: column; }
 
 /* ---------- top bar ---------- */
 
+/* The bar grows downwards as tabs wrap, so its children sit at the top rather
+   than drifting to the middle of a bar that is three rows tall. Every row is
+   --row high; 4px of padding above and below makes the usual single-row bar
+   the same 38px it has always been. */
 #bar {
+  --row: 30px;
   display: flex;
-  align-items: stretch;
+  align-items: flex-start;
   gap: 8px;
+  padding: 4px 0;
   border-bottom: 1px solid var(--line);
   background: var(--surface);
-  min-height: 38px;
 }
 
-/* The bar stretches its children, which would distort the mark. */
-#logo { align-self: center; flex: none; margin-left: 10px; }
+#logo-link { flex: none; margin-left: 10px; height: var(--row); display: flex; align-items: center; }
+#logo { display: block; }
 
-/* `min-width: 0` lets a flex item shrink below its content. Without it the
-   buttons claimed the whole bar on a narrow screen and the tab strip
-   collapsed to nothing, leaving no way to switch notes. */
-#tabs { display: flex; flex: 1 1 auto; min-width: 60px; overflow-x: auto; }
+/* Tabs wrap instead of scrolling sideways: a note you cannot see is a note you
+   will not switch back to, and a horizontal scrollbar hides them one by one.
+   The strip is capped at three rows so that a great many notes cannot push the
+   editor off the screen; past that it scrolls vertically, which at least shows
+   several at once.
+   `min-width` stops the buttons claiming the whole bar on a narrow screen. */
+#tabs {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  gap: 2px 0;
+  min-width: 60px;
+  max-height: calc(var(--row) * 3 + 4px);
+  overflow-y: auto;
+}
 
 .tab {
   display: flex;
   align-items: center;
   gap: 6px;
+  height: var(--row);
   padding: 0 10px;
   border-right: 1px solid var(--line);
   white-space: nowrap;
@@ -69,7 +74,9 @@ body { display: flex; flex-direction: column; }
   stroke-linejoin: round;
 }
 
-#actions { display: flex; align-items: center; gap: 6px; padding: 0 10px; }
+/* Pinned to the first row: the toggle must not wander down the bar as tabs
+   wrap beside it. */
+#actions { display: flex; align-items: center; gap: 6px; padding: 0 10px; height: var(--row, 30px); }
 
 #actions button {
   display: inline-flex;
@@ -88,6 +95,64 @@ body { display: flex; flex-direction: column; }
 #actions button:hover { border-color: var(--muted); }
 #actions button:hover .icon { color: var(--accent); }
 
+/* The mode toggle is the one control used constantly, so it is the one that
+   looks like a button rather than a menu entry. */
+#actions button.primary { border-color: var(--accent); color: var(--accent); }
+#actions button.primary:hover { background: var(--accent); color: #fff; }
+
+/* ---------- menu ---------- */
+
+#menu-wrap { position: relative; display: flex; align-items: center; }
+
+/* Icon only: square padding, so it does not read as a word with a picture
+   missing. */
+#btn-menu { padding: 5px 8px; }
+#btn-menu[aria-expanded="true"] { border-color: var(--accent); color: var(--accent); }
+
+#menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 50;
+  min-width: 230px;
+  padding: 5px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, .14);
+}
+
+#menu[hidden] { display: none; }
+
+/* Menu entries are rows, not buttons: full width, text on the left, no border
+   of their own. */
+#menu button {
+  display: flex;
+  width: 100%;
+  gap: 10px;
+  justify-content: flex-start;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 5px;
+  background: none;
+  text-align: left;
+  white-space: nowrap;
+}
+
+#menu button:hover { background: var(--surface); border-color: transparent; }
+#menu .label { flex: 1; }
+#menu .key { color: var(--muted); font-size: .85em; padding-left: 18px; }
+#menu button[hidden] { display: none; }
+#menu hr { border: 0; border-top: 1px solid var(--line); margin: 5px 4px; }
+
+/* ---------- reading vs writing ---------- */
+
+/* In view mode the editor is not merely hidden: Ace has never been fetched,
+   and the preview has the window to itself. */
+body[data-mode="view"] #editor-pane,
+body[data-mode="view"] #splitter { display: none; }
+body[data-mode="view"] #preview { padding-top: 36px; }
+
 /* ---------- panes ---------- */
 
 #panes { display: flex; flex: 1; min-height: 0; }
@@ -103,29 +168,9 @@ body { display: flex; flex-direction: column; }
 #preview-pane { flex: 1; overflow-y: auto; min-width: 220px; }
 #preview { max-width: 760px; margin: 0 auto; padding: 28px 32px 96px; }
 
-/* ---------- rendered markdown ---------- */
-
-#preview h1, #preview h2, #preview h3, #preview h4 { margin: 1.4em 0 .5em; line-height: 1.25; }
-#preview h1 { font-size: 1.9em; }
-#preview h2 { font-size: 1.45em; border-bottom: 1px solid var(--line); padding-bottom: .25em; }
-#preview h3 { font-size: 1.2em; }
-#preview p, #preview ul, #preview ol, #preview blockquote, #preview table { margin: .8em 0; }
-#preview ul, #preview ol { padding-left: 1.5em; }
-#preview a { color: var(--accent); }
-#preview blockquote { border-left: 3px solid var(--line); padding-left: 1em; color: var(--muted); }
-#preview code { background: var(--surface); padding: .15em .35em; border-radius: 4px; font-size: .9em; }
-#preview pre { background: var(--surface); padding: 12px 14px; border-radius: 6px; overflow-x: auto; }
-#preview pre code { background: none; padding: 0; }
-#preview table { border-collapse: collapse; width: 100%; font-size: .95em; }
-#preview th, #preview td { border: 1px solid var(--line); padding: .4em .6em; text-align: left; }
-#preview th { background: var(--surface); }
-#preview hr { border: 0; border-top: 1px solid var(--line); margin: 2em 0; }
-#preview img { max-width: 100%; }
+/* Everything about how rendered markdown looks lives in markdown.css, which
+   the front page loads too. Only the pane around it belongs here. */
 #preview .empty-note { color: var(--muted); margin-top: 2em; }
-
-/* Long formulas scroll instead of widening the page. */
-#preview .katex-display { overflow-x: auto; overflow-y: hidden; padding: 2px 0; }
-#preview .katex-error { color: #b00020; }
 
 /* ---------- settings dialog ---------- */
 
@@ -244,9 +289,7 @@ body.dragging #drop-hint { display: flex; }
   #editor-pane { width: auto; height: 45%; }
   #splitter { width: auto; height: 5px; cursor: row-resize; }
 
-  /* Drop to icons alone so the tab strip keeps its room. This is what the
-     icons are for; the labels return as soon as there is space. */
-  #actions .label { display: none; }
-  #actions { gap: 2px; padding: 0 6px; }
-  #actions button { padding: 5px 8px; }
+  /* Two controls now, so the labels can stay: what used to crowd the tab strip
+     has moved into the menu. */
+  #actions { gap: 4px; padding: 0 6px; }
 }

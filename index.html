@@ -3,122 +3,214 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>md-studio</title>
+<title>lemma-md — plain text notes, typeset mathematics</title>
+<meta name="description" content="Read and write Markdown with TeX formulas in the browser. Nothing to install, no account.">
 
-<!-- Modern browsers take the SVG and scale it. Safari ignores SVG icons, so
-     the PNGs are its fallback; the 180px one is for an iOS home screen. -->
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="icon" href="favicon-32.png" sizes="32x32" type="image/png">
 <link rel="icon" href="favicon-16.png" sizes="16x16" type="image/png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 
 <link rel="stylesheet" href="vendor/katex/katex.min.css">
-<link rel="stylesheet" href="src/ui.css">
-
-<!-- Vendored libraries expose globals; our own code in src/ is ES modules. -->
-<script src="vendor/marked.min.js"></script>
-<script src="vendor/purify.min.js"></script>
-<script src="vendor/katex/katex.min.js"></script>
+<link rel="stylesheet" href="src/theme.css">
+<link rel="stylesheet" href="src/markdown.css">
+<link rel="stylesheet" href="src/landing.css">
 </head>
 
 <body>
 
-<!-- Icons from Lucide, ISC licensed — see VENDOR.md. Defined once here and
-     referenced with <use>, so the paths are not repeated in every button. -->
-<svg id="icon-sprite" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-  <symbol id="icon-new" viewBox="0 0 24 24">
-    <path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"/>
-    <path d="M14 2v5a1 1 0 0 0 1 1h5"/>
-    <path d="M9 15h6"/>
-    <path d="M12 18v-6"/>
-  </symbol>
-  <symbol id="icon-open" viewBox="0 0 24 24">
-    <path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"/>
-  </symbol>
-  <symbol id="icon-download" viewBox="0 0 24 24">
-    <path d="M12 15V3"/>
-    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-    <path d="m7 10 5 5 5-5"/>
-  </symbol>
-  <symbol id="icon-cloud-open" viewBox="0 0 24 24">
-    <path d="M12 13v8l-4-4"/>
-    <path d="m12 21 4-4"/>
-    <path d="M4.393 15.269A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.436 8.284"/>
-  </symbol>
-  <symbol id="icon-cloud-save" viewBox="0 0 24 24">
-    <path d="M12 13v8"/>
-    <path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/>
-    <path d="m8 17 4-4 4 4"/>
-  </symbol>
-  <symbol id="icon-settings" viewBox="0 0 24 24">
-    <path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/>
-    <circle cx="12" cy="12" r="3"/>
-  </symbol>
-</svg>
-
-<header id="bar">
-  <!-- Reuses favicon.svg rather than repeating the paths in the sprite above,
-       so the mark has exactly one definition to keep up to date. It is already
-       in the browser cache as the icon. -->
-  <img id="logo" src="favicon.svg" alt="md-studio" width="22" height="22">
-  <div id="tabs"></div>
-  <div id="actions">
-    <button id="btn-new" title="New note"><svg class="icon"><use href="#icon-new"/></svg><span class="label">New</span></button>
-    <button id="btn-open" title="Open a .md file"><svg class="icon"><use href="#icon-open"/></svg><span class="label">Open</span></button>
-    <button id="btn-save" title="Download as .md"><svg class="icon"><use href="#icon-download"/></svg><span class="label">Download</span></button>
-    <button id="btn-cloud-open" title="Open from cloud storage" hidden><svg class="icon"><use href="#icon-cloud-open"/></svg><span class="label">Open from cloud</span></button>
-    <button id="btn-cloud-save" title="Save to cloud storage" hidden><svg class="icon"><use href="#icon-cloud-save"/></svg><span class="label">Save to cloud</span></button>
-    <button id="btn-settings" title="Your notes and storage"><svg class="icon"><use href="#icon-settings"/></svg><span class="label">Settings</span></button>
-  </div>
+<header class="masthead">
+  <img src="favicon.svg" alt="" width="26" height="26">
+  <span class="wordmark">lemma-md</span>
 </header>
 
-<main id="panes">
-  <section id="editor-pane"><div id="editor">Loading editor…</div></section>
-  <div id="splitter"></div>
-  <section id="preview-pane"><article id="preview"></article></section>
-</main>
+<div class="hero">
+  <h1>Write in plain text.<br>Get typeset mathematics.</h1>
+  <p class="lede">
+    Markdown is writing where a handful of punctuation marks do the formatting,
+    and formulas go between dollar signs exactly as in TeX. Nothing to install,
+    no account, no sign-up.
+  </p>
+  <div class="cta">
+    <a class="button" href="editor/">Open the editor</a>
+    <a class="button quiet" href="#examples">See what it looks like</a>
+  </div>
+</div>
 
-<div id="drop-hint">Drop .md files here</div>
+<section>
+  <h2>What Markdown is</h2>
+  <p>
+    You type <span class="lit">## A lemma</span> and get a heading. You type
+    <span class="lit">*convex*</span> and get <em>convex</em>. That is nearly
+    all of it — the rules fit on the back of a postcard, and you can see them
+    all <a href="#examples">further down this page</a>.
+  </p>
+  <p>
+    The point is what the file stays: <strong>plain text</strong>. It is
+    readable exactly as you typed it, even with nothing to render it. It opens
+    in any editor on any machine, it goes into version control sensibly, and it
+    will still open in twenty years. Formatting, without the words being locked
+    inside a program.
+  </p>
+  <p>
+    <strong>Formulas are TeX.</strong> Write
+    <span class="lit">$e^{i\pi} + 1 = 0$</span> inside a sentence, or put
+    <span class="lit">$$…$$</span> on its own lines for a displayed equation.
+    If you already write TeX, you already know the part that matters — the
+    Markdown around it is the small tax.
+  </p>
+</section>
 
-<input type="file" id="file-input" accept=".md,.markdown,.txt,text/markdown" multiple hidden>
+<section>
+  <h2>Why this site exists</h2>
+  <p>Two ordinary situations, both awkward without a tool at hand.</p>
+  <p>
+    <strong>Someone sent you a <span class="lit">.md</span> file.</strong>
+    Opened in a text editor it looks like source code — stray asterisks, hash
+    marks, dollar signs. You want to read it, not decode it.
+  </p>
+  <p>
+    <strong>You have heard Markdown is convenient</strong> and would like to
+    find out in a minute rather than an afternoon — without installing an
+    editor, creating an account or reading a manual first.
+  </p>
+  <p class="note">
+    So everything here runs in your browser. Your notes stay on your own
+    machine and are uploaded nowhere unless you explicitly ask for it.
+  </p>
+</section>
 
-<dialog id="settings">
-  <form method="dialog" class="dlg-head">
-    <h2>Settings</h2>
-    <button class="dlg-close" title="Close" aria-label="Close">&times;</button>
-  </form>
+<section>
+  <h2>Tools</h2>
+  <div class="tools">
+    <!-- Reading and writing are two modes of one page, so both cards lead
+         there. They are kept apart because the two intentions are: someone
+         sent me a file, versus I want to write something. -->
+    <a class="tool" href="editor/">
+      <span class="tag">Ready</span>
+      <h3>Viewer →</h3>
+      <p>Drop a <span class="lit">.md</span> file in and read it, typeset. The
+      editor stays out of the way until you ask for it.</p>
+    </a>
+    <a class="tool" href="editor/">
+      <span class="tag">Ready</span>
+      <h3>Editor →</h3>
+      <p>One button away: source on the left, the result on the right, changing
+      as you type.</p>
+    </a>
+    <div class="tool soon">
+      <span class="tag">Coming</span>
+      <h3>Slides</h3>
+      <p>Turn a note into a talk, with a laser pointer and a chalkboard.</p>
+    </div>
+  </div>
+</section>
 
-  <section>
-    <h3>Where your notes are kept</h3>
-    <p class="note">
-      Notes are stored <strong>in this browser, on this computer</strong>.
-      Nothing is uploaded anywhere. Clearing your browser data removes them, and
-      they will not appear on your other devices.
-    </p>
-    <p id="storage-usage" class="figure"></p>
-    <div id="storage-persist"></div>
-  </section>
+<section id="examples">
+  <h2>A little Markdown</h2>
+  <p>
+    What you type on the left, what comes out on the right. Everything below is
+    rendered on this page by the same code the editor uses.
+  </p>
 
-  <section>
-    <h3>Your notes</h3>
-    <p class="note">
-      Everything saved in this browser, newest first. Closing a tab does not
-      delete a note — it stays here until you delete it deliberately.
-    </p>
-    <ul id="recent-list"></ul>
-  </section>
+  <div class="examples">
+    <div class="example">
+<pre class="src">
+# Notes on convexity
 
-  <section>
-    <h3>Cloud</h3>
-    <p class="note">
-      Notes kept in a cloud drive survive this browser and reach your other
-      devices. Files are opened and saved through the provider's own chooser —
-      this app only ever sees the files you pick.
-    </p>
-    <div id="cloud-status"></div>
-  </section>
-</dialog>
+## A lemma
 
-<script type="module" src="src/app.js"></script>
+A set is *convex* if it contains
+every segment between its points.
+</pre>
+      <div class="out md pending">rendering…</div>
+    </div>
+
+    <div class="example">
+<pre class="src">
+Convex sets are:
+
+- closed under intersection
+- **not** closed under union
+
+See [the notes](https://example.org).
+</pre>
+      <div class="out md pending">rendering…</div>
+    </div>
+
+    <div class="example">
+<pre class="src">
+Euler's identity $e^{i\pi} + 1 = 0$
+sits inside the sentence, at the
+right size for the line.
+</pre>
+      <div class="out md pending">rendering…</div>
+    </div>
+
+    <div class="example">
+<pre class="src">
+A displayed formula stands alone:
+
+$$
+\int_0^\infty e^{-x^2}\,dx
+  = \frac{\sqrt{\pi}}{2}
+$$
+</pre>
+      <div class="out md pending">rendering…</div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>When you outgrow this</h2>
+  <p>
+    This site is a doorway, not a workshop. Once Markdown starts earning its
+    keep, these are where people go — and every one of them reads and writes
+    the same <span class="lit">.md</span> files, so nothing you write here is
+    trapped.
+  </p>
+  <ul class="elsewhere">
+    <li>
+      <a href="https://code.visualstudio.com/" target="_blank" rel="noopener noreferrer">VS Code</a> —
+      <span class="what">free and open source, and the usual choice if you also
+      write code. Previews Markdown out of the box; an extension adds TeX.</span>
+    </li>
+    <li>
+      <a href="https://obsidian.md/" target="_blank" rel="noopener noreferrer">Obsidian</a> —
+      <span class="what">free for personal use. Turns a folder of
+      <span class="lit">.md</span> files into a linked notebook; TeX included.
+      Widely used by researchers.</span>
+    </li>
+    <li>
+      <a href="https://www.zettlr.com/" target="_blank" rel="noopener noreferrer">Zettlr</a> —
+      <span class="what">free and open source, built for academic writing:
+      citations, footnotes, export to LaTeX and Word.</span>
+    </li>
+    <li>
+      <a href="https://joplinapp.org/" target="_blank" rel="noopener noreferrer">Joplin</a> —
+      <span class="what">free and open source. A notebook that syncs between
+      your own devices, with formulas and no account required.</span>
+    </li>
+    <li>
+      <a href="https://hackmd.io/" target="_blank" rel="noopener noreferrer">HackMD</a> —
+      <span class="what">in the browser, free to use, and collaborative — the
+      one to reach for when writing with a co-author. Does formulas and
+      slides.</span>
+    </li>
+  </ul>
+</section>
+
+<footer>
+  <p>
+    Notes live in this browser, on this computer. Nothing leaves it unless you
+    ask for it.
+  </p>
+  <p>
+    Source, and the reasoning behind it, on
+    <a href="https://github.com/lemma-md" target="_blank" rel="noopener noreferrer">GitHub</a>.
+  </p>
+</footer>
+
+<script type="module" src="src/landing.js"></script>
 </body>
 </html>

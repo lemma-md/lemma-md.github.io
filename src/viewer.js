@@ -50,6 +50,22 @@ const mathExtension = {
 
 marked.use({ gfm: true, breaks: false }, mathExtension)
 
+// A link inside a note goes to another site, so it opens in a new tab: clicking
+// one in the preview must not navigate the editor away from what is being
+// written. Anchors within the page (#section) are left alone.
+//
+// Done as a DOMPurify hook rather than by patching the HTML afterwards, so the
+// attributes are added while sanitising rather than reintroduced after it.
+// `noopener` also denies the opened page a handle on this one through
+// `window.opener`.
+DOMPurify.addHook('afterSanitizeAttributes', (node) => {
+  if (node.tagName !== 'A') return
+  const href = node.getAttribute('href') ?? ''
+  if (!/^https?:/i.test(href)) return
+  node.setAttribute('target', '_blank')
+  node.setAttribute('rel', 'noopener noreferrer')
+})
+
 /**
  * Convert markdown to HTML that is safe to assign to innerHTML.
  *

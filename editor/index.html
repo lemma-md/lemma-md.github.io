@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Editor — lemma-md</title>
+
+<!-- Modern browsers take the SVG and scale it. Safari ignores SVG icons, so
+     the PNGs are its fallback; the 180px one is for an iOS home screen. -->
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="icon" href="../favicon-32.png" sizes="32x32" type="image/png">
+<link rel="icon" href="../favicon-16.png" sizes="16x16" type="image/png">
+<link rel="apple-touch-icon" href="../apple-touch-icon.png">
+
+<link rel="stylesheet" href="../vendor/katex/katex.min.css">
+<link rel="stylesheet" href="../src/theme.css">
+<link rel="stylesheet" href="../src/markdown.css">
+<link rel="stylesheet" href="../src/ui.css">
+
+<!-- Vendored libraries expose globals; our own code in src/ is ES modules. -->
+<script src="../vendor/marked.min.js"></script>
+<script src="../vendor/purify.min.js"></script>
+<script src="../vendor/katex/katex.min.js"></script>
+</head>
+
+<body>
+
+<!-- Icons from Lucide, ISC licensed — see VENDOR.md. Defined once here and
+     referenced with <use>, so the paths are not repeated in every button. -->
+<svg id="icon-sprite" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+  <symbol id="icon-new" viewBox="0 0 24 24">
+    <path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"/>
+    <path d="M14 2v5a1 1 0 0 0 1 1h5"/>
+    <path d="M9 15h6"/>
+    <path d="M12 18v-6"/>
+  </symbol>
+  <symbol id="icon-open" viewBox="0 0 24 24">
+    <path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"/>
+  </symbol>
+  <symbol id="icon-download" viewBox="0 0 24 24">
+    <path d="M12 15V3"/>
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+    <path d="m7 10 5 5 5-5"/>
+  </symbol>
+  <symbol id="icon-cloud-open" viewBox="0 0 24 24">
+    <path d="M12 13v8l-4-4"/>
+    <path d="m12 21 4-4"/>
+    <path d="M4.393 15.269A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.436 8.284"/>
+  </symbol>
+  <symbol id="icon-cloud-save" viewBox="0 0 24 24">
+    <path d="M12 13v8"/>
+    <path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/>
+    <path d="m8 17 4-4 4 4"/>
+  </symbol>
+  <symbol id="icon-read" viewBox="0 0 24 24">
+    <path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/>
+    <circle cx="12" cy="12" r="3"/>
+  </symbol>
+  <symbol id="icon-write" viewBox="0 0 24 24">
+    <path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+    <path d="M18.375 2.625a1 1 0 0 1 3 3l-9.013 9.014a2 2 0 0 1-.853.505l-2.873.84a.5.5 0 0 1-.62-.62l.84-2.873a2 2 0 0 1 .506-.852z"/>
+  </symbol>
+  <symbol id="icon-settings" viewBox="0 0 24 24">
+    <path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/>
+    <circle cx="12" cy="12" r="3"/>
+  </symbol>
+  <symbol id="icon-menu" viewBox="0 0 24 24">
+    <path d="M4 5h16"/>
+    <path d="M4 12h16"/>
+    <path d="M4 19h16"/>
+  </symbol>
+  <symbol id="icon-close" viewBox="0 0 24 24">
+    <path d="M18 6 6 18"/>
+    <path d="m6 6 12 12"/>
+  </symbol>
+</svg>
+
+<header id="bar">
+  <!-- Reuses favicon.svg rather than repeating the paths in the sprite above,
+       so the mark has exactly one definition to keep up to date. It is already
+       in the browser cache as the icon. Doubles as the way back to the front
+       page, which is where a first-time visitor came from. -->
+  <a id="logo-link" href="../" title="lemma-md home">
+    <img id="logo" src="../favicon.svg" alt="lemma-md" width="22" height="22">
+  </a>
+  <div id="tabs"></div>
+  <div id="actions">
+    <!-- Only two controls stay in the bar. The toggle is what gets pressed
+         constantly; everything else is occasional and lives in the menu.
+         Labelled with the action it performs, not the state it is in, so the
+         icon and the word both answer "what happens if I press this". -->
+    <button id="btn-mode" class="primary"><svg class="icon"><use href="#icon-write"/></svg><span class="label"></span></button>
+
+    <div id="menu-wrap">
+      <button id="btn-menu" title="Menu" aria-label="Menu" aria-haspopup="true" aria-expanded="false">
+        <svg class="icon"><use href="#icon-menu"/></svg>
+      </button>
+      <!-- Kept as real buttons with their original ids, so the code that wires
+           and hides them does not care that they moved. -->
+      <!-- The `key` spans are filled in by app.js, which knows whether to write
+           Ctrl or ⌘ — and keeps the hint and the binding in one place, so they
+           cannot drift apart. -->
+      <div id="menu" role="menu" hidden>
+        <button id="btn-new" role="menuitem"><svg class="icon"><use href="#icon-new"/></svg><span class="label">New note</span><span class="key"></span></button>
+        <button id="btn-open" role="menuitem"><svg class="icon"><use href="#icon-open"/></svg><span class="label">Open a file…</span><span class="key"></span></button>
+        <button id="btn-save" role="menuitem"><svg class="icon"><use href="#icon-download"/></svg><span class="label">Download as .md</span><span class="key"></span></button>
+        <button id="btn-close" role="menuitem"><svg class="icon"><use href="#icon-close"/></svg><span class="label">Close this note</span><span class="key"></span></button>
+        <button id="btn-cloud-open" role="menuitem" hidden><svg class="icon"><use href="#icon-cloud-open"/></svg><span class="label">Open from cloud…</span><span class="key"></span></button>
+        <button id="btn-cloud-save" role="menuitem" hidden><svg class="icon"><use href="#icon-cloud-save"/></svg><span class="label">Save to cloud</span><span class="key"></span></button>
+        <hr>
+        <button id="btn-settings" role="menuitem"><svg class="icon"><use href="#icon-settings"/></svg><span class="label">Your notes and storage</span><span class="key"></span></button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main id="panes">
+  <section id="editor-pane"><div id="editor">Loading editor…</div></section>
+  <div id="splitter"></div>
+  <section id="preview-pane"><article id="preview" class="md"></article></section>
+</main>
+
+<div id="drop-hint">Drop .md files here</div>
+
+<input type="file" id="file-input" accept=".md,.markdown,.txt,text/markdown" multiple hidden>
+
+<dialog id="settings">
+  <form method="dialog" class="dlg-head">
+    <h2>Settings</h2>
+    <button class="dlg-close" title="Close" aria-label="Close">&times;</button>
+  </form>
+
+  <section>
+    <h3>Where your notes are kept</h3>
+    <p class="note">
+      Notes are stored <strong>in this browser, on this computer</strong>.
+      Nothing is uploaded anywhere. Clearing your browser data removes them, and
+      they will not appear on your other devices.
+    </p>
+    <p id="storage-usage" class="figure"></p>
+    <div id="storage-persist"></div>
+  </section>
+
+  <section>
+    <h3>Your notes</h3>
+    <p class="note">
+      Everything saved in this browser, newest first. Closing a tab does not
+      delete a note — it stays here until you delete it deliberately.
+    </p>
+    <ul id="recent-list"></ul>
+  </section>
+
+  <section>
+    <h3>Cloud</h3>
+    <p class="note">
+      Notes kept in a cloud drive survive this browser and reach your other
+      devices. Files are opened and saved through the provider's own chooser —
+      this app only ever sees the files you pick.
+    </p>
+    <div id="cloud-status"></div>
+  </section>
+</dialog>
+
+<script type="module" src="../src/app.js"></script>
+</body>
+</html>
