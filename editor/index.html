@@ -64,6 +64,11 @@
     <path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/>
     <circle cx="12" cy="12" r="3"/>
   </symbol>
+  <symbol id="icon-info" viewBox="0 0 24 24">
+    <circle cx="12" cy="12" r="10"/>
+    <path d="M12 16v-4"/>
+    <path d="M12 8h.01"/>
+  </symbol>
   <symbol id="icon-menu" viewBox="0 0 24 24">
     <path d="M4 5h16"/>
     <path d="M4 12h16"/>
@@ -85,6 +90,9 @@
   </a>
   <div id="tabs"></div>
   <div id="actions">
+    <!-- The cloud state of the active note: saved / saving / unsaved / changed
+         in Drive. Hidden until a note is linked to the cloud. -->
+    <span id="cloud-state" class="cloud-state" hidden></span>
     <!-- Only two controls stay in the bar. The toggle is what gets pressed
          constantly; everything else is occasional and lives in the menu.
          Labelled with the action it performs, not the state it is in, so the
@@ -103,12 +111,15 @@
       <div id="menu" role="menu" hidden>
         <button id="btn-new" role="menuitem"><svg class="icon"><use href="#icon-new"/></svg><span class="label">New note</span><span class="key"></span></button>
         <button id="btn-open" role="menuitem"><svg class="icon"><use href="#icon-open"/></svg><span class="label">Open a file…</span><span class="key"></span></button>
-        <button id="btn-save" role="menuitem"><svg class="icon"><use href="#icon-download"/></svg><span class="label">Download as .md</span><span class="key"></span></button>
-        <button id="btn-close" role="menuitem"><svg class="icon"><use href="#icon-close"/></svg><span class="label">Close this note</span><span class="key"></span></button>
         <button id="btn-cloud-open" role="menuitem" hidden><svg class="icon"><use href="#icon-cloud-open"/></svg><span class="label">Open from cloud…</span><span class="key"></span></button>
         <button id="btn-cloud-save" role="menuitem" hidden><svg class="icon"><use href="#icon-cloud-save"/></svg><span class="label">Save to cloud</span><span class="key"></span></button>
+        <button id="btn-cloud-save-as" role="menuitem" hidden><svg class="icon"><use href="#icon-cloud-save"/></svg><span class="label">Save to cloud as…</span><span class="key"></span></button>
+        <button id="btn-close" role="menuitem"><svg class="icon"><use href="#icon-close"/></svg><span class="label">Close this note</span><span class="key"></span></button>
         <hr>
-        <button id="btn-settings" role="menuitem"><svg class="icon"><use href="#icon-settings"/></svg><span class="label">Your notes and storage</span><span class="key"></span></button>
+        <button id="btn-save" role="menuitem"><svg class="icon"><use href="#icon-download"/></svg><span class="label">Download as .md</span><span class="key"></span></button>
+        <hr>
+        <button id="btn-file-info" role="menuitem"><svg class="icon"><use href="#icon-info"/></svg><span class="label">File info</span><span class="key"></span></button>
+        <button id="btn-settings" role="menuitem"><svg class="icon"><use href="#icon-settings"/></svg><span class="label">Settings</span><span class="key"></span></button>
       </div>
     </div>
   </div>
@@ -130,34 +141,164 @@
     <button class="dlg-close" title="Close" aria-label="Close">&times;</button>
   </form>
 
-  <section>
-    <h3>Where your notes are kept</h3>
-    <p class="note">
-      Notes are stored <strong>in this browser, on this computer</strong>.
-      Nothing is uploaded anywhere. Clearing your browser data removes them, and
-      they will not appear on your other devices.
-    </p>
-    <p id="storage-usage" class="figure"></p>
-    <div id="storage-persist"></div>
-  </section>
+  <div class="settings-body">
+    <nav class="settings-tabs" role="tablist" aria-label="Settings sections">
+      <button type="button" class="settings-tab active" data-panel="panel-general" role="tab">General</button>
+      <button type="button" class="settings-tab" data-panel="panel-storage" role="tab">Storage</button>
+      <button type="button" class="settings-tab" data-panel="panel-cloud" role="tab">Cloud</button>
+    </nav>
+
+    <div class="settings-panels">
+      <section id="panel-general" class="settings-panel" role="tabpanel">
+        <h3>Where your notes are kept</h3>
+        <p class="note">
+          Notes are stored <strong>in this browser, on this computer</strong>.
+          Nothing is uploaded anywhere. Clearing your browser data removes them, and
+          they will not appear on your other devices.
+        </p>
+        <p id="storage-usage" class="figure"></p>
+        <div id="storage-persist"></div>
+      </section>
+
+      <section id="panel-storage" class="settings-panel" role="tabpanel" hidden>
+        <h3>Your notes</h3>
+        <p class="note">
+          Everything saved in this browser, newest first. Closing a tab does not
+          delete a note — it stays here until you delete it deliberately.
+        </p>
+        <ul id="recent-list"></ul>
+      </section>
+
+      <section id="panel-cloud" class="settings-panel" role="tabpanel" hidden>
+        <h3>Cloud</h3>
+        <p class="note">
+          Notes kept in a cloud drive survive this browser and reach your other
+          devices. Files are opened and saved through the provider's own chooser —
+          this app only ever sees the files you pick.
+        </p>
+        <div id="cloud-status"></div>
+      </section>
+    </div>
+  </div>
+</dialog>
+
+<!-- First cloud use: explain that a folder is about to be made on the user's
+     Drive, and let them name it before it is. Shown once; afterwards the id is
+     remembered and this never reappears. -->
+<dialog id="cloud-setup">
+  <form method="dialog" class="dlg-head">
+    <h2>Connect to Google Drive</h2>
+    <button class="dlg-close" title="Close" aria-label="Close">&times;</button>
+  </form>
 
   <section>
-    <h3>Your notes</h3>
     <p class="note">
-      Everything saved in this browser, newest first. Closing a tab does not
-      delete a note — it stays here until you delete it deliberately.
+      lemma-md will connect to your Google Drive and use one folder as the
+      default place for your Markdown files. If that folder does not exist yet,
+      an empty one is created.
     </p>
-    <ul id="recent-list"></ul>
+    <p class="field">
+      <span>Folder</span>
+      <span id="cloud-setup-folder">lemma-md</span>
+      <button id="cloud-setup-rename" type="button" class="linklike">Change name</button>
+      <input id="cloud-setup-name" type="text" autocomplete="off" spellcheck="false" hidden>
+    </p>
+    <p class="note subtle">
+      When you continue, Google will ask you to sign in and grant access.
+    </p>
+    <div class="dlg-actions">
+      <button id="cloud-setup-create" type="button" class="primary">Continue</button>
+    </div>
   </section>
+</dialog>
+
+<!-- File info: source, path, and how the source, the opened version, and the
+     local copy compare. The Save button runs the normal save (which itself asks
+     about conflicts). Also opened by clicking the status in the bar. -->
+<dialog id="file-info">
+  <form method="dialog" class="dlg-head">
+    <h2>File info</h2>
+    <button class="dlg-close" title="Close" aria-label="Close">&times;</button>
+  </form>
 
   <section>
-    <h3>Cloud</h3>
+    <dl id="fi-grid" class="info-grid"></dl>
+    <div class="info-status">
+      <button id="fi-save" type="button" class="primary">Save</button>
+    </div>
+  </section>
+</dialog>
+
+<!-- Shown when the Drive file changed identity — trashed, renamed, or moved —
+     since the note was opened. Buttons are filled in per case by app.js.
+     Closing (× / Escape) cancels the save. -->
+<dialog id="cloud-identity">
+  <form method="dialog" class="dlg-head">
+    <h2 id="identity-title"></h2>
+    <button class="dlg-close" title="Close" aria-label="Close">&times;</button>
+  </form>
+
+  <section>
+    <p class="note" id="identity-text"></p>
+    <div class="conflict-actions" id="identity-actions"></div>
+  </section>
+</dialog>
+
+<!-- Shown when the Drive file changed since the note was opened or last saved,
+     so an overwrite would discard someone else's edit. Closing (× / Escape)
+     cancels the save. -->
+<dialog id="cloud-conflict">
+  <form method="dialog" class="dlg-head">
+    <h2>This file changed in Drive</h2>
+    <button class="dlg-close" title="Close" aria-label="Close">&times;</button>
+  </form>
+
+  <section>
     <p class="note">
-      Notes kept in a cloud drive survive this browser and reach your other
-      devices. Files are opened and saved through the provider's own chooser —
-      this app only ever sees the files you pick.
+      “<span id="conflict-name"></span>” was changed in Google Drive after you
+      opened it here — by another device, or someone you share it with.
+      Overwriting keeps your version and discards theirs.
     </p>
-    <div id="cloud-status"></div>
+    <p class="note detail" id="conflict-detail"></p>
+    <div class="conflict-actions">
+      <button id="conflict-theirs" type="button" class="action">Load their version</button>
+      <button id="conflict-copy" type="button" class="action">Save as a copy</button>
+      <button id="conflict-overwrite" type="button" class="primary danger">Overwrite</button>
+    </div>
+  </section>
+</dialog>
+
+<!-- Save-to-cloud picker, shaped like Google's own file picker: a starting
+     folder chosen from a dropdown, a breadcrumb to walk into it, one list of
+     folders and files, and the name below. Under drive.file the app sees only
+     what it created or you admitted, which is why a folder elsewhere has to be
+     added by hand. Typing (or clicking) an existing file's name saves over it. -->
+<dialog id="cloud-save-as">
+  <form method="dialog" class="dlg-head">
+    <h2>Save to Google Drive</h2>
+    <button class="dlg-close" title="Close" aria-label="Close">&times;</button>
+  </form>
+
+  <section>
+    <div class="cloud-tabs" id="cloud-tabs" role="tablist">
+      <button type="button" class="cloud-tab active" data-tab="app" id="cloud-tab-app">lemma-md</button>
+      <button type="button" class="cloud-tab" data-tab="mydrive">My Drive</button>
+    </div>
+    <div class="crumbs" id="cloud-path"></div>
+    <p class="note" id="cloud-explain" hidden>
+      Google Drive does not let an app list all your folders. To save somewhere
+      else, <button type="button" class="linklike" id="cloud-add-folder">add a folder</button>.
+    </p>
+    <ul id="cloud-files" class="files"></ul>
+    <label class="field">
+      <span>Name</span>
+      <input id="cloud-save-name" type="text" autocomplete="off" spellcheck="false">
+    </label>
+    <div class="dlg-actions">
+      <button id="cloud-new-folder" type="button" class="action">New folder</button>
+      <button id="cloud-save-confirm" type="button" class="primary">Save</button>
+      <button id="cloud-save-cancel" type="button" class="action">Cancel</button>
+    </div>
   </section>
 </dialog>
 

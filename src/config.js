@@ -14,14 +14,14 @@
  */
 export const GOOGLE = {
   /** OAuth 2.0 Client ID, type "Web application". */
-  clientId: '56804105563-ku0c9g08f1k32naap7o8i02luogimdr1.apps.googleusercontent.com',
+  clientId: '1066690844439-84upvb1e528d3jd0l2e7lphqq59o052f.apps.googleusercontent.com',
   /** Browser API key, restricted to the Google Picker API. */
-  apiKey: 'AIzaSyBUL0k3y-j5Jzv1SFqw9LOh0CKnyUZqzZ0',
+  apiKey: 'AIzaSyD8E8Mp9DWVr8P0JwprBee_tREmK5ElTkE',
   /**
    * The Cloud project *number* (not the project ID) — the digits in front of
    * the dash in `clientId` above, and the same value the console dashboard
    * shows. The picker passes it as the app id, which is how a file the user
    * chooses becomes reachable under the `drive.file` scope.
    */
-  appId: '56804105563',
+  appId: '1066690844439',
 }

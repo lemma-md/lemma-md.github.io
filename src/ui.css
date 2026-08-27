@@ -58,6 +58,30 @@ body { display: flex; flex-direction: column; }
 .tab .close { border: 0; background: none; cursor: pointer; color: var(--muted); font-size: 14px; line-height: 1; padding: 2px 4px; border-radius: 3px; }
 .tab .close:hover { background: var(--line); color: var(--fg); }
 .tab .dot { color: var(--accent); font-size: 18px; line-height: 0; }
+.tab .dot.remote { color: #c88a00; font-size: 12px; line-height: 1; }
+
+/* Cloud state of the active note, at the left of the bar's controls. Clicking
+   it opens the File info panel. */
+.cloud-state { align-self: center; font-size: 12px; color: var(--muted); white-space: nowrap; padding: 2px 6px; border-radius: 5px; cursor: pointer; }
+#actions .cloud-state:hover { background: var(--surface); }
+.cloud-state.ok { color: #1a7f37; }
+.cloud-state.warn { color: #9a6700; }
+.cloud-state[hidden] { display: none; }
+
+/* The rename field replaces the label in place, so it borrows the tab's own
+   type and sits within the row rather than growing it. */
+.tab-rename {
+  font: inherit;
+  font-size: 13px;
+  height: calc(var(--row) - 10px);
+  min-width: 90px;
+  padding: 0 4px;
+  border: 1px solid var(--accent);
+  border-radius: 3px;
+  background: var(--bg);
+  color: var(--fg);
+}
+.tab-rename:focus { outline: none; }
 
 #icon-sprite { display: none; }
 
@@ -179,9 +203,15 @@ body[data-mode="view"] #preview { padding-top: 36px; }
      The `* { margin: 0 }` reset above overrides that and pins it to the top
      left corner, so the centring has to be restored explicitly. */
   margin: auto;
-  width: min(560px, calc(100vw - 32px));
-  max-height: calc(100vh - 48px);
-  overflow-y: auto;
+  /* Fixed so switching tabs never resizes the dialog: up to two-thirds of the
+     viewport, capped, with the panel scrolling inside rather than the window
+     growing. */
+  height: clamp(360px, 66vh, 620px);
+  /* Width grows with the screen up to a 4:3 ratio against the max height. */
+  width: clamp(320px, 66vw, calc(620px * 4 / 3));
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   padding: 0 22px 22px;
   border: 1px solid var(--line);
   border-radius: 10px;
@@ -189,6 +219,10 @@ body[data-mode="view"] #preview { padding-top: 36px; }
   background: var(--bg);
   box-shadow: 0 12px 40px rgba(0, 0, 0, .18);
 }
+
+/* A closed <dialog> is display:none by default; the flex display above would
+   otherwise keep it on screen, so restore that for the closed state. */
+#settings:not([open]) { display: none; }
 
 #settings::backdrop { background: rgba(0, 0, 0, .35); }
 
@@ -218,8 +252,44 @@ body[data-mode="view"] #preview { padding-top: 36px; }
 
 .dlg-close:hover { background: var(--surface); color: var(--fg); }
 
-#settings section { margin-top: 20px; }
-#settings h3 { font-size: .95em; margin-bottom: 6px; }
+/* Tabbed body, in the manner of an Options dialog: a navigation list on the
+   left, a divider, the selected panel on the right. */
+.settings-body { display: flex; margin-top: 14px; flex: 1; min-height: 0; }
+.settings-tabs {
+  display: flex;
+  flex-direction: column;
+  flex: none;
+  width: 150px;
+  border-right: 1px solid var(--line);
+}
+.settings-tab {
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  padding: 8px 12px;
+  border: 0;
+  background: none;
+  color: var(--fg);
+  cursor: pointer;
+}
+.settings-tab:hover { background: var(--surface); }
+/* Selected row: a full-width tint with an accent bar down its leading edge. */
+.settings-tab.active { background: var(--surface); box-shadow: inset 2px 0 0 var(--accent); font-weight: 600; }
+/* Right padding keeps the scrollbar off the text when a panel overflows. */
+.settings-panels { flex: 1; min-width: 0; padding: 0 14px 0 20px; overflow-y: auto; }
+#settings .settings-panel { margin-top: 0; }
+#settings .settings-panel[hidden] { display: none; }
+
+#settings h3 { font-size: .95em; margin-top: 0; margin-bottom: 6px; }
+#cloud-status .state a { color: var(--accent); }
+
+/* Narrow: the list becomes a row above the panel, the divider underneath. */
+@media (max-width: 560px) {
+  .settings-body { flex-direction: column; min-height: 0; }
+  .settings-tabs { flex-direction: row; width: auto; flex-wrap: wrap; border-right: 0; border-bottom: 1px solid var(--line); }
+  .settings-tab.active { box-shadow: inset 0 -2px 0 var(--accent); }
+  .settings-panels { padding-left: 0; padding-top: 12px; }
+}
 #settings .note { font-size: .875em; color: var(--muted); margin: 0 0 10px; }
 #settings .figure { font-size: .875em; margin: 0 0 10px; }
 
@@ -239,7 +309,9 @@ body[data-mode="view"] #preview { padding-top: 36px; }
 .state.ok { color: #1a7f37; }
 .state.warn { color: #9a6700; }
 
-#recent-list { list-style: none; padding: 0; max-height: 260px; overflow-y: auto; }
+/* The list no longer scrolls on its own — the panel is the scroll region, so
+   the dialog stays one fixed size whichever tab is open. */
+#recent-list { list-style: none; padding: 0; }
 
 #recent-list li {
   display: flex;
@@ -265,6 +337,227 @@ body[data-mode="view"] #preview { padding-top: 36px; }
 #recent-list button { font: inherit; font-size: 12px; padding: 3px 9px; border: 1px solid var(--line); border-radius: 4px; background: var(--bg); cursor: pointer; }
 #recent-list button:hover { border-color: var(--muted); }
 #recent-list button.danger:hover { border-color: #b00020; color: #b00020; }
+
+/* ---------- cloud dialogs ---------- */
+
+/* The setup and save-as dialogs share the settings dialog's look (see the
+   margin/centring note there) but stay small: a line of prose, a name, a
+   folder. */
+#cloud-save-as,
+#cloud-setup,
+#cloud-conflict,
+#cloud-identity {
+  margin: auto;
+  width: min(460px, calc(100vw - 32px));
+  padding: 0 22px 22px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--fg);
+  background: var(--bg);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, .18);
+}
+
+#cloud-save-as::backdrop,
+#cloud-setup::backdrop,
+#cloud-conflict::backdrop,
+#cloud-identity::backdrop { background: rgba(0, 0, 0, .35); }
+
+#cloud-save-as section,
+#cloud-setup section,
+#cloud-conflict section,
+#cloud-identity section { margin-top: 18px; display: flex; flex-direction: column; gap: 14px; }
+
+#cloud-conflict .note,
+#cloud-identity .note { font-size: .9em; color: var(--muted); margin: 0; }
+#cloud-conflict .detail { font-size: .82em; }
+.conflict-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+#cloud-conflict .action,
+#cloud-identity .action {
+  font: inherit;
+  font-size: 13px;
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--bg);
+  color: inherit;
+  cursor: pointer;
+}
+#cloud-conflict .action:hover,
+#cloud-identity .action:hover { border-color: var(--muted); }
+#cloud-conflict .primary.danger { border-color: #b00020; background: #b00020; }
+
+#cloud-setup .note { font-size: .9em; color: var(--muted); margin: 0; }
+#cloud-setup .note.subtle { font-size: .82em; }
+#cloud-setup-folder { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* A button that reads as a link: the "change name" affordance next to the
+   default folder name. */
+.linklike {
+  font: inherit;
+  font-size: .85em;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  cursor: pointer;
+  text-decoration: underline;
+}
+.linklike:hover { filter: brightness(1.1); }
+
+.field { display: flex; align-items: center; gap: 10px; font-size: .9em; }
+.field > span:first-child { width: 52px; flex: none; color: var(--muted); }
+
+#cloud-save-name,
+#cloud-setup-name {
+  flex: 1;
+  font: inherit;
+  font-size: 14px;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--bg);
+  color: var(--fg);
+}
+#cloud-save-name:focus,
+#cloud-setup-name:focus { outline: none; border-color: var(--accent); }
+
+/* Save picker, shaped like Google's file picker: a wider dialog with a roots
+   dropdown, a breadcrumb, and one list of folders and files. */
+#cloud-save-as { width: min(860px, calc(100vw - 32px)); }
+#cloud-save-as .note { font-size: .875em; color: var(--muted); margin: 0; }
+
+/* Tabs like Google's own picker: the connected folder, and My Drive. */
+#cloud-save-as .cloud-tabs { display: flex; gap: 20px; border-bottom: 1px solid var(--line); }
+#cloud-save-as .cloud-tab {
+  font: inherit;
+  font-size: .95em;
+  padding: 6px 2px;
+  margin-bottom: -1px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+#cloud-save-as .cloud-tab:hover { color: var(--fg); }
+#cloud-save-as .cloud-tab.active { color: var(--fg); border-bottom-color: var(--accent); font-weight: 600; }
+
+#cloud-save-as .crumbs { display: flex; align-items: center; flex-wrap: wrap; gap: 2px; font-size: .9em; min-height: 1.6em; }
+#cloud-save-as .crumb { border: 0; background: none; font: inherit; font-size: 1em; color: var(--accent); cursor: pointer; padding: 2px 4px; border-radius: 4px; }
+#cloud-save-as .crumb:hover { background: var(--surface); }
+#cloud-save-as .crumb.current { color: var(--fg); cursor: default; }
+#cloud-save-as .crumb.current:hover { background: none; }
+#cloud-save-as .crumb-sep { color: var(--muted); }
+
+#cloud-save-as .files {
+  list-style: none;
+  margin: 0;
+  padding: 6px;
+  height: 360px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font-size: .9em;
+}
+#cloud-save-as .files-empty { color: var(--muted); padding: 8px; }
+
+#cloud-save-as .entry { display: flex; align-items: center; gap: 10px; padding: 5px 8px; border-radius: 4px; cursor: pointer; }
+#cloud-save-as .entry:hover { background: var(--surface); }
+#cloud-save-as .entry.selected { background: var(--accent); color: #fff; }
+#cloud-save-as .entry.selected .e-meta { color: #fff; }
+#cloud-save-as .e-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#cloud-save-as .e-meta { flex: none; color: var(--muted); white-space: nowrap; }
+#cloud-save-as .e-folder .e-name::before { content: "\1F4C1\00A0"; }
+#cloud-save-as .e-file .e-name::before { content: "\1F4C4\00A0"; }
+
+.dlg-actions { display: flex; justify-content: flex-end; }
+#cloud-save-as .dlg-actions { justify-content: flex-start; gap: 8px; align-items: center; }
+#cloud-save-as .dlg-actions .primary { margin-left: auto; }
+#cloud-save-as .action {
+  font: inherit;
+  font-size: 13px;
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--bg);
+  color: inherit;
+  cursor: pointer;
+}
+#cloud-save-as .action:hover { border-color: var(--muted); }
+
+#cloud-save-as .primary,
+#cloud-setup .primary,
+#cloud-conflict .primary,
+#cloud-identity .primary {
+  font: inherit;
+  font-size: 13px;
+  padding: 6px 16px;
+  border: 1px solid var(--accent);
+  border-radius: 5px;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+}
+#cloud-save-as .primary:hover,
+#cloud-setup .primary:hover,
+#cloud-conflict .primary:hover,
+#cloud-identity .primary:hover { filter: brightness(1.06); }
+#cloud-save-as .primary:disabled,
+#cloud-setup .primary:disabled { opacity: .6; cursor: default; }
+
+/* ---------- file info dialog ---------- */
+
+#file-info {
+  margin: auto;
+  width: min(520px, calc(100vw - 32px));
+  padding: 0 22px 22px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--fg);
+  background: var(--bg);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, .18);
+}
+#file-info::backdrop { background: rgba(0, 0, 0, .35); }
+#file-info section { margin-top: 18px; display: flex; flex-direction: column; gap: 16px; }
+
+.info-grid { display: grid; grid-template-columns: auto 1fr; gap: 8px 16px; margin: 0; font-size: .9em; }
+.info-grid dt { color: var(--muted); white-space: nowrap; }
+.info-grid dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.info-grid dd.with-badge { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.info-grid dd a.folder-link { color: var(--accent); margin-left: 4px; white-space: nowrap; }
+.info-badge { font-size: .82em; white-space: nowrap; flex: none; }
+.info-badge.warn { color: #9a6700; }
+.fi-reload {
+  flex: none;
+  font: inherit;
+  font-size: 14px;
+  line-height: 1;
+  padding: 2px 7px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--bg);
+  color: var(--muted);
+  cursor: pointer;
+}
+.fi-reload:hover { border-color: var(--muted); color: var(--fg); }
+/* While checking, only the glyph turns — no box, and not clickable (also
+   disabled in the markup). The border stays but transparent, so nothing shifts. */
+.fi-reload.spinning { animation: fi-spin 1s linear infinite; cursor: default; border-color: transparent; background: none; }
+@keyframes fi-spin { to { transform: rotate(360deg); } }
+
+.info-status { display: flex; align-items: center; justify-content: flex-end; gap: 12px; border-top: 1px solid var(--line); padding-top: 14px; }
+#file-info .primary {
+  font: inherit;
+  font-size: 13px;
+  padding: 6px 16px;
+  border: 1px solid var(--accent);
+  border-radius: 5px;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+}
+#file-info .primary:hover { filter: brightness(1.06); }
+#file-info .primary:disabled { opacity: .5; cursor: default; }
 
 /* ---------- drop hint ---------- */
 
@@ -292,4 +585,6 @@ body.dragging #drop-hint { display: flex; }
   /* Two controls now, so the labels can stay: what used to crowd the tab strip
      has moved into the menu. */
   #actions { gap: 4px; padding: 0 6px; }
+  /* The bar is tight here; the tab dots still carry the state. */
+  .cloud-state { display: none; }
 }

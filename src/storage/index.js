@@ -17,9 +17,20 @@
  *   isConnected   is there a usable session right now
  *   connect       obtain permission; may open a provider window
  *   disconnect    forget the session
- *   pick          show the provider's own file chooser, resolve to [{id, name}]
- *   read          (id) -> {id, name, text}
- *   write         ({id?, name, text}) -> {id, name}; creates when id is absent
+ *   pick          (parent?) show the provider's file chooser, opened inside the
+ *                 parent folder when given; resolve to [{id, name}]
+ *   pickFolder    show a folder chooser, resolve to {id, name} or null
+ *   read          (id) -> {id, name, text, ...revision}
+ *   write         ({id?, name, text, parents?}) -> {id, name, ...revision};
+ *                 creates when id is absent, then drops the file into parents
+ *   createFolder  (name, parents?) -> {id, name}
+ *   list          ({parent?, foldersOnly?}) -> [{id, name, mimeType, parents}]
+ *   stat          (id) -> {id, name}
+ *   revision      (id) -> {name, parents, trashed, headRevisionId, ...}
+ *   untrash       (id) -> restore a file from the provider's trash
+ *
+ * The revision fields (headRevisionId etc.) let a caller notice that a file
+ * changed underneath it before overwriting; providers without them may omit.
  *
  * `write` deliberately takes an optional id: creating a file and saving over
  * an existing one are the same intent, and the caller should not have to

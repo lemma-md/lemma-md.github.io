@@ -143,7 +143,7 @@ async function renderNotes({ getOpenIds, onOpen, onDeleted }) {
   }
 }
 
-function renderCloud({ onCloudChange }) {
+async function renderCloud({ cloud, onCloudChange }) {
   el.cloud.textContent = ''
   const providers = availableProviders()
 
@@ -156,26 +156,48 @@ function renderCloud({ onCloudChange }) {
   }
 
   for (const provider of providers) {
+    // Connection is defined by the app, not the live token: it survives a
+    // reload (the token is refreshed silently), so a returning user is not told
+    // they are disconnected just because the page was reloaded.
+    const connected = await cloud.isConnected(provider)
+
     const row = document.createElement('div')
-    row.className = provider.isConnected() ? 'state ok' : 'state'
+    row.className = connected ? 'state ok' : 'state'
 
     const label = document.createElement('span')
-    label.textContent = provider.isConnected()
-      ? `${provider.label} is connected.`
-      : `${provider.label} is not connected.`
+    if (connected) {
+      label.append(`${provider.label} is connected`)
+      // The folder we save into, as a link straight to it in Drive.
+      const folder = await cloud.folder?.(provider)
+      if (folder?.id) {
+        label.append(' — ')
+        const a = document.createElement('a')
+        a.className = 'folder-link'
+        a.href = `https://drive.google.com/drive/folders/${folder.id}`
+        a.target = '_blank'
+        a.rel = 'noopener noreferrer'
+        a.textContent = folder.name
+        a.title = 'Open this folder in Google Drive'
+        label.append(a)
+      } else {
+        label.append('.')
+      }
+    } else {
+      label.append(`${provider.label} is not connected.`)
+    }
     row.append(label)
 
     const button = document.createElement('button')
     button.className = 'action'
-    button.textContent = provider.isConnected() ? 'Disconnect' : 'Connect'
+    button.textContent = connected ? 'Disconnect' : 'Connect'
     button.onclick = async () => {
       button.disabled = true
       try {
-        if (provider.isConnected()) provider.disconnect()
-        else await provider.connect()
+        if (connected) await cloud.disconnect(provider)
+        else await cloud.connect(provider)
       } catch (err) {
         console.error(err)
-        label.textContent = `Could not connect to ${provider.label}.`
+        label.textContent = `Could not reach ${provider.label}.`
       }
       button.disabled = false
       onCloudChange?.()
@@ -191,8 +213,7 @@ let context = null
 
 export async function refresh() {
   if (!context) return
-  renderCloud(context)
-  await Promise.all([renderStorage(), renderNotes(context)])
+  await Promise.all([renderCloud(context), renderStorage(), renderNotes(context)])
 }
 
 /**
@@ -211,6 +232,19 @@ export function initSettings(ctx) {
   }
 
   context = ctx
+
+  // Left-hand tabs: clicking one shows its panel and hides the rest.
+  for (const tab of el.dialog.querySelectorAll('.settings-tab')) {
+    tab.onclick = () => {
+      for (const t of el.dialog.querySelectorAll('.settings-tab')) {
+        t.classList.toggle('active', t === tab)
+      }
+      for (const panel of el.dialog.querySelectorAll('.settings-panel')) {
+        panel.hidden = panel.id !== tab.dataset.panel
+      }
+    }
+  }
+
   el.open.onclick = async () => {
     await refresh()
     el.dialog.showModal()

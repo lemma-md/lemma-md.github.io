@@ -124,10 +124,12 @@ export async function storageStatus() {
   return { count: docs.length, bytes, persisted, nearlyFull }
 }
 
-export async function getSession() {
-  const row = await run(META, 'readonly', (s) => s.get('session'))
-  return row ? row.value : null
-}
+/** Small key/value cells in the meta store, for things that are not notes. */
+export const getMeta = (key) =>
+  run(META, 'readonly', (s) => s.get(key)).then((row) => (row ? row.value : null))
 
-export const putSession = (value) =>
-  run(META, 'readwrite', (s) => s.put({ key: 'session', value }))
+export const putMeta = (key, value) =>
+  run(META, 'readwrite', (s) => s.put({ key, value }))
+
+export const getSession = () => getMeta('session')
+export const putSession = (value) => putMeta('session', value)

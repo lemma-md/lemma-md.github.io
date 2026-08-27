@@ -43,7 +43,11 @@ Under *APIs & Services → OAuth consent screen*:
 - Fill in app name, support email and developer email
 - Upload `logo-120.png` from the repository root as the app logo — Google
   requires a square PNG of exactly 120×120 px, which is why that file exists
-- Add exactly one scope: `https://www.googleapis.com/auth/drive.file`
+- Add exactly one scope, on the **Data access** tab (the console once labelled
+  it *Scopes*): click **Add or remove scopes**, tick
+  `https://www.googleapis.com/auth/drive.file` in the list and **Update**. It is
+  in the list once the Drive API is enabled (step 2) — no need to type it into
+  the *Manually add scopes* box.
 
 **Do not add any other scope.** `drive.file` is classified as *non-sensitive*,
 and that is what keeps this simple: apps requesting only non-sensitive scopes
@@ -115,17 +119,27 @@ Origins carry no path, which is why the app is published from an organisation
 of its own rather than as one project among many under a personal account —
 see the origin discussion in [ARCHITECTURE.md](ARCHITECTURE.md).
 
-One client can hold as many origins as you like, so a small private deployment
-can let the published site and local development share a single client ID and
-`src/config.js`.
+**This project uses one OAuth client holding both origins** —
+`http://localhost:8001` and `https://lemma-md.github.io` — with a single
+committed `src/config.js`. One client can hold as many origins as you like, so
+development and the published site share it and nothing is switched at deploy
+time. Name the client for the app, not an environment (e.g. `lemma-md web`):
+there is no dev/prod pair to tell apart.
 
-For a public deployment, separate development and production Cloud projects
-are safer. `localhost` identifies an origin, not your particular computer:
-anyone can run a page on their own `localhost:8001` and reuse a public browser
-client ID with their own Google account. Separate projects keep development
-traffic and quota exhaustion from affecting production. This requires using
-the development project's values locally and the production values in the
-deployed copy of `src/config.js`.
+Separate development and production projects were considered and declined. The
+security case for them is real — `localhost` identifies an origin, not your
+particular computer, so anyone can run a page on their own `localhost:8001` and
+reuse this public browser client ID with their own Google account. But it buys
+little here and costs more than it returns:
+
+- The `drive.file` scope means such a stranger reaches only the files they
+  themselves pick from their own Drive, never another user's notes.
+- The Picker key is capped per user (step 5) and the Drive API is kept off it,
+  so a stranger burns their own quota, not a shared pool.
+- Two projects would force `src/config.js` to differ between the repository and
+  the deployed copy, which without a build step means swapping the file by hand.
+  Were that separation ever wanted, the cheaper path is to select the values by
+  `location.hostname` at runtime, not to maintain two copies of the file.
 
 Three ways this goes wrong locally:
 
