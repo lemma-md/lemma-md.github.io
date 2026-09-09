@@ -52,6 +52,11 @@
     <path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/>
     <path d="m8 17 4-4 4 4"/>
   </symbol>
+  <symbol id="icon-save" viewBox="0 0 24 24">
+    <path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/>
+    <path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"/>
+    <path d="M7 3v4a1 1 0 0 0 1 1h7"/>
+  </symbol>
   <symbol id="icon-read" viewBox="0 0 24 24">
     <path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/>
     <circle cx="12" cy="12" r="3"/>
@@ -111,10 +116,12 @@
       <div id="menu" role="menu" hidden>
         <button id="btn-new" role="menuitem"><svg class="icon"><use href="#icon-new"/></svg><span class="label">New note</span><span class="key"></span></button>
         <button id="btn-open" role="menuitem"><svg class="icon"><use href="#icon-open"/></svg><span class="label">Open a file…</span><span class="key"></span></button>
-        <button id="btn-cloud-open" role="menuitem" hidden><svg class="icon"><use href="#icon-cloud-open"/></svg><span class="label">Open from cloud…</span><span class="key"></span></button>
-        <button id="btn-cloud-save" role="menuitem" hidden><svg class="icon"><use href="#icon-cloud-save"/></svg><span class="label">Save to cloud</span><span class="key"></span></button>
-        <button id="btn-cloud-save-as" role="menuitem" hidden><svg class="icon"><use href="#icon-cloud-save"/></svg><span class="label">Save to cloud as…</span><span class="key"></span></button>
+        <button id="btn-cloud-save" role="menuitem"><svg class="icon"><use href="#icon-save"/></svg><span class="label">Save</span><span class="key"></span></button>
+        <button id="btn-save-as" role="menuitem"><svg class="icon"><use href="#icon-save"/></svg><span class="label">Save As…</span><span class="key"></span></button>
         <button id="btn-close" role="menuitem"><svg class="icon"><use href="#icon-close"/></svg><span class="label">Close this note</span><span class="key"></span></button>
+        <hr>
+        <button id="btn-cloud-open" role="menuitem" hidden><svg class="icon"><use href="#icon-cloud-open"/></svg><span class="label">Open from cloud…</span><span class="key"></span></button>
+        <button id="btn-cloud-save-as" role="menuitem" hidden><svg class="icon"><use href="#icon-cloud-save"/></svg><span class="label">Save to cloud…</span><span class="key"></span></button>
         <hr>
         <button id="btn-save" role="menuitem"><svg class="icon"><use href="#icon-download"/></svg><span class="label">Download as .md</span><span class="key"></span></button>
         <hr>
@@ -264,6 +271,60 @@
       <button id="conflict-theirs" type="button" class="action">Load their version</button>
       <button id="conflict-copy" type="button" class="action">Save as a copy</button>
       <button id="conflict-overwrite" type="button" class="primary danger">Overwrite</button>
+    </div>
+  </section>
+</dialog>
+
+<!-- Save-target chooser: shown for a note that has no source yet. Where the
+     browser cannot write files directly, the local choice is disabled and the
+     note below explains why, offering a download instead. -->
+<dialog id="save-target">
+  <form method="dialog" class="dlg-head">
+    <h2>Save this note</h2>
+    <button class="dlg-close" title="Close" aria-label="Close">&times;</button>
+  </form>
+
+  <section>
+    <p class="note">Where should “<span id="save-target-name"></span>” go?</p>
+    <div class="save-choices">
+      <button id="save-target-local" type="button" class="save-choice">
+        <svg class="icon"><use href="#icon-save"/></svg>
+        <span class="sc-title">This computer</span>
+        <span class="sc-desc">Save as a file on disk</span>
+      </button>
+      <button id="save-target-drive" type="button" class="save-choice">
+        <svg class="icon"><use href="#icon-cloud-save"/></svg>
+        <span class="sc-title">Google Drive</span>
+        <span class="sc-desc">Save to a folder in your Drive</span>
+      </button>
+    </div>
+    <p class="note" id="save-target-unsupported" hidden>
+      This browser can’t save directly to a file on your computer.
+      <a id="save-target-download" href="#" class="linklike">Download a copy</a>,
+      or open lemma-md in Chrome, Edge or Opera to save to disk.
+    </p>
+  </section>
+</dialog>
+
+<!-- The local twin of the Drive conflict dialog: the file on disk changed after
+     it was opened here. Closing (× / Escape) cancels the save. -->
+<dialog id="local-conflict">
+  <form method="dialog" class="dlg-head">
+    <h2>This file changed on disk</h2>
+    <button class="dlg-close" title="Close" aria-label="Close">&times;</button>
+  </form>
+
+  <section>
+    <p class="note">
+      “<span id="local-conflict-name"></span>” changed on your computer after you
+      opened it here — edited in another program, perhaps. Overwriting keeps your
+      version and discards the one on disk.
+    </p>
+    <p class="note detail" id="local-conflict-detail"></p>
+    <div class="conflict-actions">
+      <button id="local-conflict-theirs" type="button" class="action">Load the file’s version</button>
+      <button id="local-conflict-copy" type="button" class="action">Save a copy…</button>
+      <button id="local-conflict-overwrite" type="button" class="primary danger">Overwrite</button>
     </div>
   </section>
 </dialog>

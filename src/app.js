@@ -4,6 +4,7 @@ import { initSettings } from './settings.js'
 import * as drafts from './drafts.js'
 import { register, availableProviders, providerFor } from './storage/index.js'
 import { googleDrive } from './storage/gdrive.js'
+import { localFiles } from './storage/local.js'
 
 register(googleDrive)
 
@@ -64,7 +65,7 @@ const active = () => state.docs.get(state.activeId) ?? null
 // of the last external-change check. Persisting `cloudBusy` once left a note
 // stuck on "Saving…" after a reload; the remote-change flags are re-derived on
 // load anyway. Stripped on write and cleared on load.
-const TRANSIENT_KEYS = ['cloudBusy', 'remoteChanged', 'remoteRenamed', 'remoteTrashed']
+const TRANSIENT_KEYS = ['cloudBusy', 'remoteChanged', 'remoteRenamed', 'remoteTrashed', 'localBusy', 'localChanged']
 
 /** Write a note to the scratch database without its transient UI flags. */
 function persistDoc(doc) {
@@ -273,16 +274,19 @@ el.menu.addEventListener('click', (e) => { if (e.target.closest('button')) close
 
 /* ---------- document actions ---------- */
 
-function addDoc(name, text, remote = null, origin = null) {
+function addDoc(name, text, remote = null, origin = null, local = null) {
   const doc = {
     id: crypto.randomUUID(),
     name,
     text,
     savedText: text,
     remote,
+    // A local-file source: { handle, name, lastModified, size, savedAt }. Its
+    // handle writes back to the same file on disk.
+    local,
     // How the note began, for the status line: 'new' (the New button) shows
-    // "New"; an opened file ('file') stays quiet until edited. A cloud note has
-    // a source instead and needs neither.
+    // "New"; an opened file ('file') stays quiet until edited. A cloud or local
+    // note has a source instead and needs neither.
     origin,
     createdAt: Date.now(),
     updatedAt: Date.now(),
@@ -406,6 +410,43 @@ function applyRename(id, raw) {
 
 /* ---------- files ---------- */
 
+/**
+ * The local-file source stored on a note: its handle writes back to the same
+ * file, and lastModified/size are the baseline a later save compares against to
+ * notice the file changed on disk. Only present when the browser gave a handle.
+ */
+function localSource(f) {
+  return f.handle
+    ? { handle: f.handle, name: f.name, lastModified: f.lastModified, size: f.size, savedAt: Date.now() }
+    : null
+}
+
+/** The open tab already backed by this file handle, if any. */
+async function openIdForHandle(handle) {
+  for (const id of state.openIds) {
+    const h = state.docs.get(id)?.local?.handle
+    if (h && (await h.isSameEntry(handle).catch(() => false))) return id
+  }
+  return null
+}
+
+/**
+ * Open files that arrived with handles ({ handle, name, text, lastModified,
+ * size }) — from the file picker or a drop in a browser that supports it — so
+ * each note remembers where it came from and can be saved straight back.
+ */
+async function openLocalFiles(entries) {
+  let lastId = null
+  for (const f of entries) {
+    const open = f.handle ? await openIdForHandle(f.handle) : null
+    if (open) { lastId = open; continue }
+    lastId = addDoc(f.name, f.text, null, 'file', localSource(f))
+  }
+  if (lastId) { setActive(lastId); setMode('view') } else renderTabs()
+}
+
+/** Open plain File objects — the fallback where no handle is available, so the
+ *  note has no source and Save will ask where to put it. */
 async function openFiles(files) {
   let lastId = null
   for (const file of files) {
@@ -417,6 +458,22 @@ async function openFiles(files) {
     // Someone opening a file wants to see it, not to be handed a text editor.
     setMode('view')
   } else renderTabs()
+}
+
+/**
+ * "Open a file…". Where the File System Access API exists, pick with it so the
+ * note keeps a writable handle; elsewhere fall back to a plain file input, which
+ * yields contents but no handle.
+ */
+async function openLocal() {
+  if (!localFiles.isSupported()) return el.fileInput.click()
+  try {
+    const files = await localFiles.open()
+    if (files.length) await openLocalFiles(files)
+  } catch (err) {
+    reportError(err)
+    alert(`Could not open the file.\n\n${err.message ?? err}`)
+  }
 }
 
 function downloadActive() {
@@ -439,8 +496,9 @@ function downloadActive() {
 
 function updateCloudButtons() {
   const available = availableProviders().length > 0
+  // "Save" (btn-cloud-save) is always shown: it routes to a local file or the
+  // cloud, or asks. Only the cloud-specific items depend on a provider.
   document.getElementById('btn-cloud-open').hidden = !available
-  document.getElementById('btn-cloud-save').hidden = !available
   document.getElementById('btn-cloud-save-as').hidden = !available
 }
 
@@ -607,7 +665,7 @@ function copyName(name) {
  */
 function noteSource(doc) {
   if (doc?.remote?.provider === 'gdrive') return 'gdrive'
-  // if (doc?.local) return 'local'   // Phase 2: File System Access handle
+  if (doc?.local?.handle) return 'local'
   return null
 }
 
@@ -655,10 +713,19 @@ const fmtDate = (value) => {
  */
 function cloudStatusText(doc) {
   const dirty = doc.text !== doc.savedText
-  if (!noteSource(doc)) {
+  const source = noteSource(doc)
+  if (!source) {
     if (doc.origin === 'new') return { text: 'New', cls: 'cloud-state', title: 'A new note, not saved anywhere yet' }
     if (dirty) return { text: 'Changed', cls: 'cloud-state warn', title: 'Edited since it was opened' }
     return null // an opened file, unedited and with no source: say nothing
+  }
+  if (source === 'local') {
+    if (doc.localBusy) return { text: 'Saving…', cls: 'cloud-state' }
+    if (doc.localChanged) return { text: 'Changed on disk', cls: 'cloud-state warn', title: 'The file changed on disk since you opened it' }
+    if (dirty) return { text: 'Changed', cls: 'cloud-state warn', title: 'Edited since it was last saved' }
+    // In sync: the time of the last save to disk, no status word.
+    const when = doc.local.savedAt ?? doc.local.lastModified
+    return { text: fmtTimeShort(when), cls: 'cloud-state', title: 'Saved to this computer' }
   }
   if (doc.cloudBusy) return { text: 'Saving…', cls: 'cloud-state' }
   if (doc.remoteTrashed) return { text: 'In Drive trash', cls: 'cloud-state warn', title: 'The file is in the Drive trash' }
@@ -728,7 +795,24 @@ const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 async function openFileInfo() {
   const doc = active()
   if (!doc) return
-  const provider = noteSource(doc) === 'gdrive' ? providerFor(doc) : null
+  const source = noteSource(doc)
+
+  if (source === 'local') {
+    // Like the Drive panel: open already showing the disk state if the read is
+    // quick, otherwise open with a spinner and fill in when it lands.
+    const pending = readLocalInfo(doc).catch(() => null)
+    const raced = await Promise.race([pending, delay(300).then(() => SLOW)])
+    if (raced === SLOW) {
+      renderFileInfo(doc, 'checking')
+      pending.then((data) => { if (fi.dialog.open && active() === doc) renderFileInfo(doc, 'live', data) })
+    } else {
+      renderFileInfo(doc, 'live', raced)
+    }
+    if (!fi.dialog.open) fi.dialog.showModal()
+    return
+  }
+
+  const provider = source === 'gdrive' ? providerFor(doc) : null
 
   if (provider && provider.isConnected()) {
     const pending = fetchLiveInfo(provider, doc.remote).catch(() => null)
@@ -745,6 +829,23 @@ async function openFileInfo() {
     renderFileInfo(doc, provider ? 'stale' : 'live')
   }
   if (!fi.dialog.open) fi.dialog.showModal()
+}
+
+/**
+ * Read the file's current state from disk for the panel, but only where
+ * permission is already granted — opening the panel should not, on its own,
+ * provoke a permission prompt. Returns null when it can't read silently; the
+ * panel then offers a reload, which runs from the click's own gesture.
+ */
+async function readLocalInfo(doc, force = false) {
+  const handle = doc.local?.handle
+  if (!handle) return null
+  if (force) {
+    if (!(await localFiles.ensurePermission(handle, 'read'))) return null
+  } else if (handle.queryPermission) {
+    if ((await handle.queryPermission({ mode: 'read' })) !== 'granted') return null
+  }
+  return localFiles.read(handle)
 }
 
 /** Fetch the live source state plus the folder's name, for the panel. */
@@ -767,6 +868,47 @@ function renderFileInfo(doc, mode, data) {
   const localSize = new Blob([doc.text]).size
   const editedBadge = dirty ? { text: 'Changed in editor', cls: 'warn' } : null
   fi.grid.textContent = ''
+
+  if (source === 'local') {
+    const base = doc.local
+    addInfoRow('Source', 'This computer')
+    addInfoRow('File', base.name || doc.name)
+
+    const live = mode === 'live' ? (data ?? null) : null
+    if (live) {
+      // Reflect what the disk read just told us on the tab and toolbar too.
+      const moved = live.lastModified !== base.lastModified || live.size !== base.size
+      const changed = moved && live.text !== doc.savedText
+      if (Boolean(doc.localChanged) !== changed) { doc.localChanged = changed; renderTabs(); renderCloudStatus() }
+      addInfoRow('On disk now', infoLine(live.lastModified, live.size), changed ? { text: 'Changed on disk', cls: 'warn' } : null)
+      if (changed) addInfoRow('When you saved it', infoLine(base.lastModified, base.size))
+    } else {
+      // Couldn't read silently, or a read is in flight: last-known figures, with
+      // a spinner or a reload that reads from its own click gesture.
+      const control = document.createElement('button')
+      control.type = 'button'
+      control.className = 'fi-reload'
+      control.textContent = '⟳'
+      if (mode === 'checking') {
+        control.classList.add('spinning')
+        control.disabled = true
+        control.title = 'Checking the file…'
+      } else {
+        control.title = 'Check the file now'
+        control.onclick = () => {
+          renderFileInfo(doc, 'checking')
+          readLocalInfo(doc, true)
+            .catch(() => null)
+            .then((d) => { if (fi.dialog.open && active() === doc) renderFileInfo(doc, 'live', d) })
+        }
+      }
+      addInfoRow('On disk', infoLine(base.lastModified, base.size) + ' (when last saved)', control)
+    }
+
+    addInfoRow('Your copy', dirty ? infoLine(doc.updatedAt, localSize) : '(no changes)', editedBadge)
+    fi.save.disabled = !dirty
+    return
+  }
 
   const sourceLabel = source === 'gdrive'
     ? 'Google Drive'
@@ -895,12 +1037,38 @@ async function checkRemoteChanges() {
   if (touched) { renderTabs(); renderCloudStatus() }
 }
 
+/**
+ * Notice when an open local note's file has changed on disk. Like the Drive
+ * check, it only reads where permission is already granted, so returning to the
+ * tab never provokes a permission prompt on its own. The bytes are compared
+ * against what we last saved, so a mere re-touch is not flagged.
+ */
+async function checkLocalChanges() {
+  let touched = false
+  for (const id of state.openIds) {
+    const d = state.docs.get(id)
+    const base = d?.local
+    if (!base?.handle?.queryPermission) continue
+    try {
+      if ((await base.handle.queryPermission({ mode: 'read' })) !== 'granted') continue
+      const cur = await localFiles.read(base.handle)
+      const moved = cur.lastModified !== base.lastModified || cur.size !== base.size
+      const changed = moved && cur.text !== d.savedText
+      if (Boolean(d.localChanged) !== changed) { d.localChanged = changed; touched = true }
+    } catch {
+      // Transient failure — leave the note's flag as it was.
+    }
+  }
+  if (touched) { renderTabs(); renderCloudStatus() }
+}
+
 function maybeCheckRemote() {
   if (document.visibilityState !== 'visible') return
   const now = Date.now()
   if (now - lastRemoteCheck < 3000) return // don't storm on rapid focus changes
   lastRemoteCheck = now
   checkRemoteChanges().catch(reportError)
+  checkLocalChanges().catch(reportError)
 }
 
 /* ---------- overwrite conflict ---------- */
@@ -1100,16 +1268,207 @@ async function openFromCloud() {
 }
 
 /**
- * "Save to cloud", also on Ctrl+S. A note already backed by a Drive file writes
- * straight back to it — silently unless the file changed underneath us. A note
- * with no cloud source yet is asked where to go, exactly like "Save as". (Once
- * a local-file source exists, this will route there instead — Phase 2.)
+ * "Save", also on Ctrl+S. It writes a note back to wherever it came from: a
+ * Drive file, or a file on this computer — silently unless that file changed
+ * underneath us. A note with no source yet is asked where to go.
  */
-function saveToCloud() {
+function saveActive() {
   const doc = active()
   if (!doc) return
-  if (noteSource(doc) === 'gdrive') return overwriteToCloud(doc)
-  return openSaveAs()
+  const src = noteSource(doc)
+  if (src === 'gdrive') return overwriteToCloud(doc)
+  if (src === 'local') return saveToLocal(doc)
+  return openSaveTarget()
+}
+
+/* ---------- save to a local file ---------- */
+
+/**
+ * Write a note back to its file on disk, or — for a note without one yet — ask
+ * where to put it. First it checks the file has not changed on disk since we
+ * last saw it; only that turns the save into a dialog.
+ */
+async function saveToLocal(doc) {
+  const base = doc.local || null
+  try {
+    if (base?.handle) {
+      // Permission can lapse across a reload; re-requesting needs the gesture
+      // that led here (the menu click or Ctrl+S), which we still have.
+      if (!(await localFiles.ensurePermission(base.handle))) {
+        alert('Permission to write this file was declined.')
+        return
+      }
+      const { choice, cur } = await guardLocalOverwrite(doc)
+      if (choice === 'cancel') return
+      if (choice === 'theirs') return pullLocal(doc, cur)
+      // 'copy' drops the handle so the picker asks for a new file; 'overwrite'
+      // keeps it and writes the same file.
+      if (choice === 'copy') return saveToLocalAs(doc)
+    }
+    doc.localBusy = true
+    renderCloudStatus()
+    const saved = await localFiles.write({ handle: base?.handle, name: doc.name, text: doc.text })
+    doc.local = { handle: saved.handle, name: saved.name, lastModified: saved.lastModified, size: saved.size, savedAt: Date.now() }
+    doc.name = saved.name
+    doc.savedText = doc.text
+    doc.localChanged = false
+    await saveNow(doc)
+    renderTabs()
+  } catch (err) {
+    localFailed(err)
+  } finally {
+    doc.localBusy = false
+    renderCloudStatus()
+  }
+}
+
+/**
+ * "Save As": write the note to a new file the user picks and make that file its
+ * source from now on. Any previous source is left untouched on disk or in Drive —
+ * this note simply follows the new file, the way Save As does everywhere.
+ */
+async function saveToLocalAs(doc) {
+  try {
+    doc.localBusy = true
+    renderCloudStatus()
+    const saved = await localFiles.write({ handle: null, name: doc.name, text: doc.text })
+    doc.local = { handle: saved.handle, name: saved.name, lastModified: saved.lastModified, size: saved.size, savedAt: Date.now() }
+    doc.name = saved.name
+    doc.savedText = doc.text
+    doc.localChanged = false
+    // The new local file is now the note's home; drop any cloud link so Save
+    // goes here, not back to Drive.
+    doc.remote = null
+    doc.remoteChanged = doc.remoteRenamed = doc.remoteTrashed = false
+    await saveNow(doc)
+    renderTabs()
+  } catch (err) {
+    localFailed(err)
+  } finally {
+    doc.localBusy = false
+    renderCloudStatus()
+  }
+}
+
+/** "Save As" on the active note — the menu entry and its wiring. */
+function saveActiveAs() {
+  const doc = active()
+  if (doc) return saveToLocalAs(doc)
+}
+
+/** Report a local-file failure, staying quiet when the user just cancelled the
+ *  picker (AbortError). */
+function localFailed(err) {
+  if (err?.name === 'AbortError') return
+  reportError(err)
+  alert(`Could not save the file.\n\n${err.message ?? err}`)
+}
+
+/**
+ * Before overwriting a file on disk, see whether it changed since we last saved
+ * or opened it. Metadata (time or size) moving is the first hint, but the bytes
+ * may still be identical — a touch, or a re-save of the same text — so a real
+ * content difference is what makes it a conflict. Resolves to
+ * { choice: 'overwrite' | 'theirs' | 'copy' | 'cancel', cur }.
+ */
+async function guardLocalOverwrite(doc) {
+  const base = doc.local
+  let cur
+  try {
+    cur = await localFiles.read(base.handle)
+  } catch {
+    return { choice: 'overwrite' } // can't read it to compare; just write
+  }
+  const moved = cur.lastModified !== base.lastModified || cur.size !== base.size
+  if (!moved || cur.text === doc.savedText) return { choice: 'overwrite', cur }
+  return { choice: await askLocalConflict(doc, cur), cur }
+}
+
+const localConflict = {
+  dialog: document.getElementById('local-conflict'),
+  name: document.getElementById('local-conflict-name'),
+  detail: document.getElementById('local-conflict-detail'),
+  theirs: document.getElementById('local-conflict-theirs'),
+  copy: document.getElementById('local-conflict-copy'),
+  overwrite: document.getElementById('local-conflict-overwrite'),
+}
+
+/** Ask what to do about a file that changed on disk. Resolves to
+ *  'theirs' | 'copy' | 'overwrite' | 'cancel'. */
+function askLocalConflict(doc, cur) {
+  return new Promise((resolve) => {
+    let settled = false
+    const finish = (choice) => {
+      if (settled) return
+      settled = true
+      localConflict.theirs.onclick = localConflict.copy.onclick = localConflict.overwrite.onclick = null
+      localConflict.dialog.removeEventListener('close', onCancel)
+      resolve(choice)
+    }
+    const onCancel = () => finish('cancel')
+    const choose = (choice) => {
+      localConflict.dialog.removeEventListener('close', onCancel)
+      localConflict.dialog.close()
+      finish(choice)
+    }
+    localConflict.name.textContent = doc.name
+    const theirs = [fmtWhen(cur.lastModified), cur.size != null && fmtBytes(cur.size)].filter(Boolean).join(', ')
+    const yours = [fmtWhen(doc.updatedAt), fmtBytes(new Blob([doc.text]).size)].filter(Boolean).join(', ')
+    localConflict.detail.textContent = `On disk: ${theirs} · Yours: ${yours}`
+    localConflict.dialog.addEventListener('close', onCancel)
+    localConflict.theirs.onclick = () => choose('theirs')
+    localConflict.copy.onclick = () => choose('copy')
+    localConflict.overwrite.onclick = () => choose('overwrite')
+    localConflict.dialog.showModal()
+  })
+}
+
+/** Replace a note's contents with the version now on disk. `cur` is the read
+ *  already taken by the conflict check, so we don't read twice. */
+async function pullLocal(doc, cur) {
+  const fresh = cur ?? (await localFiles.read(doc.local.handle))
+  doc.text = fresh.text
+  doc.savedText = fresh.text
+  doc.name = fresh.name
+  doc.local = { handle: fresh.handle ?? doc.local.handle, name: fresh.name, lastModified: fresh.lastModified, size: fresh.size, savedAt: Date.now() }
+  doc.updatedAt = Date.now()
+  doc.localChanged = false
+  if (doc.id === state.activeId) {
+    if (editor) editor.setText(fresh.text)
+    updatePreview()
+  }
+  await saveNow(doc)
+  renderTabs()
+  renderCloudStatus()
+}
+
+/* ---------- where to save a new note ---------- */
+
+const saveTarget = {
+  dialog: document.getElementById('save-target'),
+  name: document.getElementById('save-target-name'),
+  local: document.getElementById('save-target-local'),
+  drive: document.getElementById('save-target-drive'),
+  unsupported: document.getElementById('save-target-unsupported'),
+  download: document.getElementById('save-target-download'),
+}
+
+/**
+ * A note with no source yet: ask whether it goes to this computer or to Google
+ * Drive. Where the browser can't write files directly, the local choice is
+ * disabled and the panel explains why, offering a download instead.
+ */
+function openSaveTarget() {
+  const doc = active()
+  if (!doc) return
+  const canLocal = localFiles.isSaveSupported()
+  const canDrive = availableProviders().length > 0
+  saveTarget.name.textContent = doc.name
+  saveTarget.local.disabled = !canLocal
+  saveTarget.local.classList.toggle('disabled', !canLocal)
+  saveTarget.drive.hidden = !canDrive
+  saveTarget.unsupported.hidden = canLocal
+  saveTarget.dialog.showModal()
 }
 
 /** Write a cloud-backed note straight back to its Drive file. */
@@ -1460,16 +1819,23 @@ document.getElementById('btn-new').onclick = () => {
   setMode('edit', { focus: true })
 }
 el.modeBtn.onclick = toggleMode
-document.getElementById('btn-open').onclick = () => el.fileInput.click()
+document.getElementById('btn-open').onclick = openLocal
 document.getElementById('btn-save').onclick = downloadActive
 document.getElementById('btn-close').onclick = () => { if (state.activeId) closeTab(state.activeId) }
 document.getElementById('btn-cloud-open').onclick = openFromCloud
-document.getElementById('btn-cloud-save').onclick = saveToCloud
+document.getElementById('btn-cloud-save').onclick = saveActive
+document.getElementById('btn-save-as').onclick = saveActiveAs
 document.getElementById('btn-cloud-save-as').onclick = openSaveAs
+// "Save As" writes a new local file, so it needs the picker; where that is
+// missing, Download covers saving to a file instead.
+document.getElementById('btn-save-as').hidden = !localFiles.isSaveSupported()
 document.getElementById('btn-file-info').onclick = openFileInfo
 // The status in the bar is a shortcut to the same panel.
 if (el.cloudState) el.cloudState.onclick = openFileInfo
-fi.save.onclick = () => { fi.dialog.close(); saveToCloud() }
+fi.save.onclick = () => { fi.dialog.close(); saveActive() }
+saveTarget.local.onclick = () => { saveTarget.dialog.close(); saveToLocal(active()) }
+saveTarget.drive.onclick = () => { saveTarget.dialog.close(); openSaveAs() }
+saveTarget.download.onclick = (e) => { e.preventDefault(); saveTarget.dialog.close(); downloadActive() }
 for (const t of saveAs.tabs.querySelectorAll('.cloud-tab')) t.onclick = () => openTab(t.dataset.tab)
 saveAs.newFolder.onclick = newFolder
 saveAs.addExternal.onclick = addExternalFolder
@@ -1492,8 +1858,8 @@ const SHORTCUTS = [
   { id: 'btn-mode', mod: 'ctrl', code: 'KeyE', hint: 'E' },
   { id: 'btn-new', mod: 'alt', code: 'KeyN', hint: 'N' },
   { id: 'btn-open', mod: 'ctrl', code: 'KeyO', hint: 'O' },
-  // Ctrl+S is Save to cloud: back to the same Drive file when there is one,
-  // otherwise a chooser. Download keeps its place in the menu, without a key.
+  // Ctrl+S is Save: back to the note's own file (on disk or in Drive) when it
+  // has one, otherwise a chooser. Download keeps its menu place, without a key.
   { id: 'btn-cloud-save', mod: 'ctrl', code: 'KeyS', hint: 'S' },
   { id: 'btn-file-info', mod: 'alt', code: 'KeyI', hint: 'I' },
   { id: 'btn-close', mod: 'alt', code: 'KeyW', hint: 'W' },
@@ -1544,8 +1910,36 @@ addEventListener('drop', (e) => {
   e.preventDefault()
   dragDepth = 0
   document.body.classList.remove('dragging')
+
+  // Where the browser supports it, a drop can yield a writable handle — but only
+  // if getAsFileSystemHandle() is called synchronously, before this handler
+  // returns and the items list is emptied. So the promises are gathered here and
+  // awaited in dropHandles; the plain-files path is the fallback.
+  const items = e.dataTransfer?.items
+  if (items && localFiles.isSupported()) {
+    const handles = []
+    for (const item of items) {
+      if (item.kind === 'file' && item.getAsFileSystemHandle) handles.push(item.getAsFileSystemHandle())
+    }
+    if (handles.length) return dropHandles(handles)
+  }
   if (e.dataTransfer?.files.length) openFiles([...e.dataTransfer.files])
 })
+
+/** Resolve dropped handles, read each file, and open them with their source. */
+async function dropHandles(promises) {
+  const entries = []
+  for (const p of promises) {
+    const handle = await p.catch(() => null)
+    if (handle?.kind !== 'file') continue
+    try {
+      entries.push(await localFiles.read(handle))
+    } catch (err) {
+      reportError(err)
+    }
+  }
+  if (entries.length) openLocalFiles(entries)
+}
 
 // Returning to the tab is when someone else's edit is most likely to have
 // landed, so that is when open cloud notes are re-checked for changes.
