@@ -6,6 +6,7 @@ import { register, availableProviders, providerFor } from './storage/index.js'
 import { googleDrive } from './storage/gdrive.js'
 import { localFiles } from './storage/local.js'
 import { lineDiff, diffStats, sideBySide, inlineDiff } from './diff.js'
+import { buildStandaloneHtml, extractMarkdown } from './export-html.js'
 
 register(googleDrive)
 
@@ -453,6 +454,24 @@ function localSource(f) {
     : null
 }
 
+/**
+ * Turn an opened file ({ name, text, handle?, lastModified?, size?, type? }) into
+ * the fields for a note. An exported .html carries the note's Markdown embedded —
+ * open that as a plain note named after the file (.html → .md) with no handle,
+ * since writing Markdown back into a .html would corrupt it. Anything else opens
+ * as its own text, keeping its handle as a local source when it has one.
+ */
+function noteFrom(f) {
+  if (/\.html?$/i.test(f.name) || f.type === 'text/html') {
+    const md = extractMarkdown(f.text)
+    if (md != null) {
+      const base = f.name.replace(/\.html?$/i, '')
+      return { name: /\.md$/i.test(base) ? base : `${base}.md`, text: md, local: null }
+    }
+  }
+  return { name: f.name, text: f.text, local: localSource(f) }
+}
+
 /** The open tab already backed by this file handle, if any. */
 async function openIdForHandle(handle) {
   for (const id of state.openIds) {
@@ -470,9 +489,12 @@ async function openIdForHandle(handle) {
 async function openLocalFiles(entries) {
   let lastId = null
   for (const f of entries) {
-    const open = f.handle ? await openIdForHandle(f.handle) : null
-    if (open) { lastId = open; continue }
-    lastId = addDoc(f.name, f.text, null, 'file', localSource(f))
+    const n = noteFrom(f)
+    if (n.local?.handle) {
+      const open = await openIdForHandle(n.local.handle)
+      if (open) { lastId = open; continue }
+    }
+    lastId = addDoc(n.name, n.text, null, 'file', n.local)
   }
   if (lastId) { setActive(lastId); setMode('view') } else renderTabs()
 }
@@ -482,8 +504,8 @@ async function openLocalFiles(entries) {
 async function openFiles(files) {
   let lastId = null
   for (const file of files) {
-    const text = await file.text()
-    lastId = addDoc(file.name, text, null, 'file')
+    const n = noteFrom({ name: file.name, text: await file.text(), type: file.type })
+    lastId = addDoc(n.name, n.text, null, 'file')
   }
   if (lastId) {
     setActive(lastId)
@@ -522,6 +544,23 @@ function downloadActive() {
   doc.savedText = doc.text
   persistDoc(doc).catch(reportError)
   renderTabs()
+}
+
+/**
+ * Export the note as a standalone .html that renders itself anywhere, with the
+ * Markdown embedded so the file can be dragged back in later. Unlike the .md
+ * download this is not a "save" — it does not touch the note's saved state.
+ */
+function exportHtml() {
+  const doc = active()
+  if (!doc) return
+  const base = doc.name.replace(/\.md$/i, '') || 'note'
+  const url = URL.createObjectURL(new Blob([buildStandaloneHtml(doc.name, doc.text)], { type: 'text/html' }))
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `${base}.html`
+  a.click()
+  URL.revokeObjectURL(url)
 }
 
 /* ---------- cloud ---------- */
@@ -2280,6 +2319,7 @@ document.getElementById('btn-new').onclick = () => {
 el.modeBtn.onclick = toggleMode
 document.getElementById('btn-open').onclick = openLocal
 document.getElementById('btn-save').onclick = downloadActive
+document.getElementById('btn-export-html').onclick = exportHtml
 document.getElementById('btn-close').onclick = () => { if (state.activeId) closeTab(state.activeId) }
 document.getElementById('btn-cloud-open').onclick = openFromCloud
 document.getElementById('btn-cloud-save').onclick = saveActive
@@ -2325,6 +2365,8 @@ const SHORTCUTS = [
   { id: 'btn-cloud-save', mod: 'ctrl', code: 'KeyS', hint: 'S' },
   { id: 'btn-file-info', mod: 'alt', code: 'KeyI', hint: 'I' },
   { id: 'btn-close', mod: 'alt', code: 'KeyW', hint: 'W' },
+  // Ctrl+, — the usual "preferences" key, unclaimed by the browser.
+  { id: 'btn-settings', mod: 'ctrl', code: 'Comma', hint: ',' },
 ]
 
 const isMac = /Mac|iPhone|iPad|iPod/.test(navigator.platform || navigator.userAgent)

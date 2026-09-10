@@ -15,8 +15,14 @@
 const CAN_OPEN = typeof window.showOpenFilePicker === 'function'
 const CAN_SAVE = typeof window.showSaveFilePicker === 'function'
 
+// Save writes Markdown, so the save picker offers only that. Open also accepts
+// the .html we export, so a note round-trips back in through the same picker.
 const TYPES = [
   { description: 'Markdown', accept: { 'text/markdown': ['.md', '.markdown'], 'text/plain': ['.txt'] } },
+]
+const OPEN_TYPES = [
+  ...TYPES,
+  { description: 'Exported page', accept: { 'text/html': ['.html', '.htm'] } },
 ]
 
 const stat = async (handle) => {
@@ -37,7 +43,7 @@ export const localFiles = {
   async open() {
     let handles
     try {
-      handles = await window.showOpenFilePicker({ multiple: true, types: TYPES, excludeAcceptAllOption: false })
+      handles = await window.showOpenFilePicker({ multiple: true, types: OPEN_TYPES, excludeAcceptAllOption: false })
     } catch (err) {
       if (err?.name === 'AbortError') return []
       throw err

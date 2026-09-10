@@ -179,11 +179,17 @@ Verified constraints, not assumptions:
 
 - **`.md`** is the primary format and the anti-lock-in guarantee: the note is
   always a plain text file that opens in VS Code, Obsidian or any online editor.
-- **`.html`** self-contained, with the original markdown embedded in a
-  `<script type="text/markdown">` block. The file renders anywhere with no app
-  and no network, and dragging it back in restores the exact source — no lossy
-  HTML-to-markdown conversion. (Embedding documents in the URL was considered
-  and rejected.)
+- **`.html`** a standalone page that renders the note — Markdown and TeX — on
+  its own in any browser (`src/export-html.js`). The original markdown is
+  embedded HTML-escaped in a `<script type="text/markdown">` block: escaping
+  keeps it byte-for-byte and unable to break out of the tag, so dragging the
+  file back in restores the *exact* source rather than reverse-engineering it
+  from rendered HTML. The libraries load from a CDN, pinned to the same versions
+  vendored here so the output matches the app, and the inline renderer is a
+  `.toString()` copy of `viewer.js`. This needs the network to fetch those
+  libraries — a reversal of an earlier "no network" intent: a self-contained
+  variant would inline the libraries and the ~1 MB of KaTeX fonts, and the small
+  file won. (Embedding documents in the URL was considered and rejected.)
 - **`.pdf`** via browser print, because mathematicians send PDFs.
 
 ## Presentation
