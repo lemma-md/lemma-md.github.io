@@ -5,6 +5,7 @@ import * as drafts from './drafts.js'
 import { register, availableProviders, providerFor } from './storage/index.js'
 import { googleDrive } from './storage/gdrive.js'
 import { localFiles } from './storage/local.js'
+import { lineDiff, diffStats, sideBySide, inlineDiff } from './diff.js'
 
 register(googleDrive)
 
@@ -857,6 +858,22 @@ async function fetchLiveInfo(provider, r) {
 }
 
 /**
+ * A "Changed …" label that is itself the button: clicking it opens the diff at
+ * the relevant comparison. Used for content changes — an edit in the editor, or
+ * the file moving on underneath — where seeing the difference is the natural
+ * next step; identity changes (renamed, trashed) get a plain badge instead.
+ */
+function changedBadge(doc, text, focus) {
+  const btn = document.createElement('button')
+  btn.type = 'button'
+  btn.className = 'info-badge warn badge-link'
+  btn.textContent = text
+  btn.title = 'Compare changes'
+  btn.onclick = () => openDiff(doc, { focus })
+  return btn
+}
+
+/**
  * Fill the panel for `doc` in one of three modes: 'live' (with `data`, or null
  * when the read failed), 'checking' (a read is in flight — show a spinner), or
  * 'stale' (no token yet — offer a reload). It never fetches on its own; the
@@ -866,7 +883,7 @@ function renderFileInfo(doc, mode, data) {
   const source = noteSource(doc)
   const dirty = doc.text !== doc.savedText
   const localSize = new Blob([doc.text]).size
-  const editedBadge = dirty ? { text: 'Changed in editor', cls: 'warn' } : null
+  const editedBadge = dirty ? changedBadge(doc, 'Changed in editor', 'editor') : null
   fi.grid.textContent = ''
 
   if (source === 'local') {
@@ -880,7 +897,7 @@ function renderFileInfo(doc, mode, data) {
       const moved = live.lastModified !== base.lastModified || live.size !== base.size
       const changed = moved && live.text !== doc.savedText
       if (Boolean(doc.localChanged) !== changed) { doc.localChanged = changed; renderTabs(); renderCloudStatus() }
-      addInfoRow('On disk now', infoLine(live.lastModified, live.size), changed ? { text: 'Changed on disk', cls: 'warn' } : null)
+      addInfoRow('On disk now', infoLine(live.lastModified, live.size), changed ? changedBadge(doc, 'Changed on disk', 'source') : null)
       if (changed) addInfoRow('When you saved it', infoLine(base.lastModified, base.size))
     } else {
       // Couldn't read silently, or a read is in flight: last-known figures, with
@@ -955,7 +972,7 @@ function renderFileInfo(doc, mode, data) {
       : chg.renamed
         ? { text: 'Renamed in Drive', cls: 'warn' }
         : chg.changed
-          ? { text: 'Changed in Drive', cls: 'warn' }
+          ? changedBadge(doc, 'Changed in Drive', 'source')
           : null
     addInfoRow('In Drive now', infoLine(live.modifiedTime, live.size), badge)
     if (chg.trashed || chg.renamed || chg.changed) {
@@ -986,6 +1003,255 @@ function renderFileInfo(doc, mode, data) {
 
   addInfoRow('Your copy', dirty ? infoLine(doc.updatedAt, localSize) : '(no changes)', editedBadge)
   fi.save.disabled = !(dirty || !source)
+}
+
+/* ---------- diff viewer ---------- */
+
+const diff = {
+  dialog: document.getElementById('diff'),
+  tabs: document.getElementById('diff-tabs'),
+  body: document.getElementById('diff-body'),
+  nav: document.getElementById('diff-nav'),
+  navCount: document.getElementById('diff-nav-count'),
+  prev: document.getElementById('diff-prev'),
+  next: document.getElementById('diff-next'),
+  actions: document.getElementById('diff-actions'),
+  actionsNote: document.getElementById('diff-actions-note'),
+  yours: document.getElementById('diff-yours'),
+  theirs: document.getElementById('diff-theirs'),
+}
+
+let diffTabs = [] // [{ key, aLabel, bLabel, a, b, ops, added, deleted, blocks, err }]
+let diffAt = 0
+let diffHunks = [] // block anchor elements in the current body, for the navigator
+let diffHunk = 0
+
+/** Read the file's current content for the diff. Uses the gesture that opened
+ *  the viewer, so it may prompt for permission on a local file. */
+async function readSourceText(doc) {
+  const source = noteSource(doc)
+  if (source === 'gdrive') return (await providerFor(doc).read(doc.remote.id)).text
+  if (source === 'local') return (await readLocalInfo(doc, true))?.text ?? null
+  return null
+}
+
+/**
+ * Open the diff viewer for `doc`. It compares three versions — the original
+ * (last synced), the editor's text, and the source's current content — but only
+ * shows the comparisons that actually differ: with one version matching another,
+ * the redundant tab is dropped, so a note changed only in the editor shows a
+ * single Editor vs Source tab. `opts.sourceText` skips the read when the caller
+ * already has it; `opts.onResolve` turns on the Take-yours/theirs footer;
+ * `opts.focus` ('editor' | 'source') opens on the tab about that change.
+ */
+async function openDiff(doc, opts = {}) {
+  const source = noteSource(doc)
+  const sourceLabel = source === 'gdrive' ? 'In Drive' : source === 'local' ? 'On disk' : null
+  const original = doc.savedText ?? ''
+  const editor = doc.text ?? ''
+
+  let sourceText = opts.sourceText ?? null
+  let err = null
+  if (source && sourceText == null) {
+    try {
+      sourceText = await readSourceText(doc)
+      if (sourceText == null) err = `Could not read ${source === 'gdrive' ? 'Drive' : 'the file'}.`
+    } catch (e) {
+      err = e?.message ?? String(e)
+    }
+  }
+
+  // Candidate comparisons, in the order asked for: editor-source, editor-
+  // original, source-original. A comparison whose sides are equal is dropped,
+  // and one identical to a tab already kept (because two versions match) is
+  // dropped too — leaving exactly one tab when only one thing changed.
+  const candidates = source
+    ? [
+        { key: 'es', aLabel: 'Editor', bLabel: sourceLabel, a: editor, b: sourceText },
+        { key: 'eo', aLabel: 'Editor', bLabel: 'Original', a: editor, b: original },
+        { key: 'so', aLabel: sourceLabel, bLabel: 'Original', a: sourceText, b: original },
+      ]
+    : [{ key: 'eo', aLabel: 'Editor', bLabel: 'Original', a: editor, b: original }]
+
+  diffTabs = []
+  const same = (t, a, b) => (t.a === a && t.b === b) || (t.a === b && t.b === a)
+  for (const c of candidates) {
+    if (err && c.key !== 'eo') { diffTabs.push({ ...c, err, ops: [], added: 0, deleted: 0, blocks: 0 }); continue }
+    if (c.a === c.b) continue
+    if (diffTabs.some((t) => !t.err && same(t, c.a, c.b))) continue
+    const ops = lineDiff(c.a, c.b)
+    diffTabs.push({ ...c, ...diffStats(ops), ops })
+  }
+  // Nothing differs (or nothing readable): still show one tab so the window is
+  // never blank; it reads "No changes".
+  if (diffTabs.length === 0) diffTabs.push({ ...candidates[0], ops: [], added: 0, deleted: 0, blocks: 0, err })
+
+  // Land on the relevant tab: the conflict's editor-vs-source, or the tab a
+  // File-info badge pointed at; otherwise the first (highest-priority) tab.
+  const pick = opts.onResolve ? ['es'] : opts.focus === 'source' ? ['so', 'es'] : opts.focus === 'editor' ? ['eo', 'es'] : []
+  diffAt = 0
+  for (const key of pick) {
+    const i = diffTabs.findIndex((t) => t.key === key)
+    if (i >= 0) { diffAt = i; break }
+  }
+
+  if (opts.onResolve) {
+    // The same two actions as the conflict dialog, named the same way — not the
+    // "take yours/theirs" of a merge, which would imply picking sides without
+    // writing anything.
+    const where = source === 'gdrive' ? 'Drive' : 'disk'
+    const inWhere = source === 'gdrive' ? 'in Drive' : 'on disk'
+    diff.actions.hidden = false
+    diff.theirs.textContent = `Reload file from ${where}`
+    diff.yours.textContent = 'Overwrite'
+    diff.theirs.title = `Replace the editor with the version ${inWhere}, discarding your changes`
+    diff.yours.title = `Overwrite the file ${inWhere} with the editor's version`
+    diff.actionsNote.textContent = `Reload replaces the editor with the version ${inWhere}, discarding your changes; Overwrite writes your version to the file.`
+    diff.theirs.onclick = () => { if (confirm(`Discard your changes and reload this file from ${where}?`)) { diff.dialog.close(); opts.onResolve('theirs') } }
+    diff.yours.onclick = () => { if (confirm(`Overwrite the file ${inWhere} with your version?`)) { diff.dialog.close(); opts.onResolve('yours') } }
+  } else {
+    diff.actions.hidden = true
+    diff.theirs.onclick = diff.yours.onclick = null
+  }
+
+  renderDiffTabs()
+  renderDiffBody()
+  if (!diff.dialog.open) diff.dialog.showModal()
+  // The body now has layout, so land on the first changed block for real.
+  scrollToHunk()
+}
+
+function renderDiffTabs() {
+  diff.tabs.textContent = ''
+  diffTabs.forEach((t, i) => {
+    const b = document.createElement('button')
+    b.type = 'button'
+    b.className = 'diff-tab' + (i === diffAt ? ' active' : '')
+    const label = document.createElement('span')
+    label.className = 'diff-tab-label'
+    label.textContent = `${t.aLabel} ↔ ${t.bLabel}`
+    b.append(label)
+    if (!t.err && (t.added || t.deleted)) {
+      const stat = document.createElement('span')
+      stat.className = 'diff-stat'
+      if (t.added) { const a = document.createElement('span'); a.className = 'diff-plus'; a.textContent = `+${t.added}`; stat.append(a) }
+      if (t.deleted) { const d = document.createElement('span'); d.className = 'diff-minus'; d.textContent = `-${t.deleted}`; stat.append(d) }
+      b.append(stat)
+    }
+    b.onclick = () => { diffAt = i; renderDiffTabs(); renderDiffBody() }
+    diff.tabs.append(b)
+  })
+}
+
+function renderDiffBody() {
+  const t = diffTabs[diffAt]
+  diff.body.textContent = ''
+  diffHunks = []
+  diffHunk = 0
+
+  if (t.err) return showDiffMessage(t.err)
+  if (!t.blocks) return showDiffMessage('No changes')
+
+  // Column headings, then the aligned rows. The first row of each block is
+  // remembered so the navigator can jump between them.
+  const head = document.createElement('div')
+  head.className = 'diff-row diff-head'
+  head.append(gutter(''), cell(t.aLabel, 'head'), gutter(''), cell(t.bLabel, 'head'))
+  diff.body.append(head)
+
+  let inBlock = false
+  for (const row of sideBySide(t.ops)) {
+    const el = document.createElement('div')
+    el.className = 'diff-row'
+    let leftCell
+    let rightCell
+    if (row.kind === 'change' && row.left != null && row.right != null) {
+      // A line changed in place: highlight the parts that differ within it.
+      const inl = inlineDiff(row.left, row.right)
+      leftCell = segmentCell(inl.left, 'del')
+      rightCell = segmentCell(inl.right, 'add')
+    } else {
+      leftCell = cell(row.left, row.left == null ? 'blank' : row.kind === 'change' ? 'del' : 'same')
+      rightCell = cell(row.right, row.right == null ? 'blank' : row.kind === 'change' ? 'add' : 'same')
+    }
+    el.append(gutter(row.ln), leftCell, gutter(row.rn), rightCell)
+    if (row.kind === 'change') {
+      if (!inBlock) { el.classList.add('diff-block-start'); diffHunks.push(el); inBlock = true }
+    } else {
+      inBlock = false
+    }
+    diff.body.append(el)
+  }
+
+  diff.nav.hidden = false
+  updateDiffNav()
+  // Start on the first changed block, not the top, so the change is in view even
+  // when far down. On the initial open the dialog has no layout yet, so openDiff
+  // scrolls again after showModal.
+  scrollToHunk()
+}
+
+function showDiffMessage(text) {
+  diff.nav.hidden = true
+  const p = document.createElement('p')
+  p.className = 'diff-empty'
+  p.textContent = text
+  diff.body.append(p)
+}
+
+function updateDiffNav() {
+  const n = diffHunks.length
+  diff.navCount.textContent = n > 1 ? `Block ${diffHunk + 1} of ${n}` : n === 1 ? '1 changed block' : ''
+  diff.prev.disabled = diff.next.disabled = n <= 1
+  diffHunks.forEach((el, i) => el.classList.toggle('current', i === diffHunk))
+}
+
+/** Scroll the current block to the middle of the view, if it has laid out. */
+function scrollToHunk() {
+  const el = diffHunks[diffHunk]
+  if (el) diff.body.scrollTop = Math.max(0, el.offsetTop - diff.body.clientHeight / 2 + el.offsetHeight / 2)
+}
+
+/** Move to the next/previous changed block and scroll it into view. */
+function gotoHunk(step) {
+  if (diffHunks.length === 0) return
+  diffHunk = (diffHunk + step + diffHunks.length) % diffHunks.length
+  scrollToHunk()
+  updateDiffNav()
+}
+
+function gutter(n) {
+  const g = document.createElement('span')
+  g.className = 'diff-num'
+  g.textContent = n == null ? '' : String(n)
+  return g
+}
+
+/** A diff cell. An empty string still needs height, so a blank line renders a
+ *  non-breaking space; a missing side (kind 'blank') renders nothing. */
+function cell(text, kind) {
+  const c = document.createElement('span')
+  c.className = `diff-cell diff-${kind}`
+  if (kind !== 'blank') c.textContent = text === '' ? ' ' : text
+  return c
+}
+
+/** A changed cell whose differing parts (from inlineDiff) are highlighted. */
+function segmentCell(segments, kind) {
+  const c = document.createElement('span')
+  c.className = `diff-cell diff-${kind}`
+  if (!segments.length) { c.textContent = ' '; return c }
+  for (const s of segments) {
+    if (s.changed) {
+      const sp = document.createElement('span')
+      sp.className = 'diff-inline'
+      sp.textContent = s.text
+      c.append(sp)
+    } else {
+      c.append(document.createTextNode(s.text))
+    }
+  }
+  return c
 }
 
 /** How a Drive file now differs from the baseline a note remembers. */
@@ -1077,6 +1343,7 @@ const conflict = {
   dialog: document.getElementById('cloud-conflict'),
   name: document.getElementById('conflict-name'),
   detail: document.getElementById('conflict-detail'),
+  compare: document.getElementById('conflict-compare'),
   theirs: document.getElementById('conflict-theirs'),
   copy: document.getElementById('conflict-copy'),
   overwrite: document.getElementById('conflict-overwrite'),
@@ -1117,7 +1384,7 @@ function askConflict(doc, current) {
     const finish = (choice) => {
       if (settled) return
       settled = true
-      conflict.theirs.onclick = conflict.copy.onclick = conflict.overwrite.onclick = null
+      conflict.theirs.onclick = conflict.copy.onclick = conflict.overwrite.onclick = conflict.compare.onclick = null
       conflict.dialog.removeEventListener('close', onCancel)
       resolve(choice)
     }
@@ -1133,9 +1400,13 @@ function askConflict(doc, current) {
     const yours = [fmtWhen(doc.updatedAt), fmtBytes(new Blob([doc.text]).size)].filter(Boolean).join(', ')
     conflict.detail.textContent = `Theirs: ${theirs} · Yours: ${yours}`
     conflict.dialog.addEventListener('close', onCancel)
-    conflict.theirs.onclick = () => choose('theirs')
+    conflict.theirs.onclick = () => { if (confirm('Discard your changes and reload this file from Drive?')) choose('theirs') }
     conflict.copy.onclick = () => choose('copy')
-    conflict.overwrite.onclick = () => choose('overwrite')
+    conflict.overwrite.onclick = () => { if (confirm('Overwrite the file in Drive with your version?')) choose('overwrite') }
+    // "Take yours" writes our editor version (overwrite); "Take theirs" loads
+    // the Drive version. openDiff reads the Drive text itself, and asks for its
+    // own confirmation before resolving.
+    conflict.compare.onclick = () => openDiff(doc, { onResolve: (side) => choose(side === 'yours' ? 'overwrite' : 'theirs') })
     conflict.dialog.showModal()
   })
 }
@@ -1388,6 +1659,7 @@ const localConflict = {
   dialog: document.getElementById('local-conflict'),
   name: document.getElementById('local-conflict-name'),
   detail: document.getElementById('local-conflict-detail'),
+  compare: document.getElementById('local-conflict-compare'),
   theirs: document.getElementById('local-conflict-theirs'),
   copy: document.getElementById('local-conflict-copy'),
   overwrite: document.getElementById('local-conflict-overwrite'),
@@ -1401,7 +1673,7 @@ function askLocalConflict(doc, cur) {
     const finish = (choice) => {
       if (settled) return
       settled = true
-      localConflict.theirs.onclick = localConflict.copy.onclick = localConflict.overwrite.onclick = null
+      localConflict.theirs.onclick = localConflict.copy.onclick = localConflict.overwrite.onclick = localConflict.compare.onclick = null
       localConflict.dialog.removeEventListener('close', onCancel)
       resolve(choice)
     }
@@ -1416,9 +1688,13 @@ function askLocalConflict(doc, cur) {
     const yours = [fmtWhen(doc.updatedAt), fmtBytes(new Blob([doc.text]).size)].filter(Boolean).join(', ')
     localConflict.detail.textContent = `On disk: ${theirs} · Yours: ${yours}`
     localConflict.dialog.addEventListener('close', onCancel)
-    localConflict.theirs.onclick = () => choose('theirs')
+    localConflict.theirs.onclick = () => { if (confirm('Discard your changes and reload this file from disk?')) choose('theirs') }
     localConflict.copy.onclick = () => choose('copy')
-    localConflict.overwrite.onclick = () => choose('overwrite')
+    localConflict.overwrite.onclick = () => { if (confirm('Overwrite the file on disk with your version?')) choose('overwrite') }
+    // The conflict already read the file, so hand its text straight to the diff,
+    // which asks for its own confirmation before resolving.
+    localConflict.compare.onclick = () =>
+      openDiff(doc, { sourceText: cur.text, onResolve: (side) => choose(side === 'yours' ? 'overwrite' : 'theirs') })
     localConflict.dialog.showModal()
   })
 }
@@ -1833,6 +2109,9 @@ document.getElementById('btn-file-info').onclick = openFileInfo
 // The status in the bar is a shortcut to the same panel.
 if (el.cloudState) el.cloudState.onclick = openFileInfo
 fi.save.onclick = () => { fi.dialog.close(); saveActive() }
+diff.prev.onclick = () => gotoHunk(-1)
+diff.next.onclick = () => gotoHunk(1)
+document.getElementById('diff-close').onclick = () => diff.dialog.close()
 saveTarget.local.onclick = () => { saveTarget.dialog.close(); saveToLocal(active()) }
 saveTarget.drive.onclick = () => { saveTarget.dialog.close(); openSaveAs() }
 saveTarget.download.onclick = (e) => { e.preventDefault(); saveTarget.dialog.close(); downloadActive() }

@@ -52,6 +52,12 @@
     <path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/>
     <path d="m8 17 4-4 4 4"/>
   </symbol>
+  <symbol id="icon-chevron-up" viewBox="0 0 24 24">
+    <path d="m6 15 6-6 6 6"/>
+  </symbol>
+  <symbol id="icon-chevron-down" viewBox="0 0 24 24">
+    <path d="m6 9 6 6 6-6"/>
+  </symbol>
   <symbol id="icon-save" viewBox="0 0 24 24">
     <path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/>
     <path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"/>
@@ -267,8 +273,9 @@
       Overwriting keeps your version and discards theirs.
     </p>
     <p class="note detail" id="conflict-detail"></p>
+    <p class="note"><button id="conflict-compare" type="button" class="linklike">Compare changes…</button></p>
     <div class="conflict-actions">
-      <button id="conflict-theirs" type="button" class="action">Load their version</button>
+      <button id="conflict-theirs" type="button" class="action">Reload file from Drive</button>
       <button id="conflict-copy" type="button" class="action">Save as a copy</button>
       <button id="conflict-overwrite" type="button" class="primary danger">Overwrite</button>
     </div>
@@ -321,11 +328,40 @@
       version and discards the one on disk.
     </p>
     <p class="note detail" id="local-conflict-detail"></p>
+    <p class="note"><button id="local-conflict-compare" type="button" class="linklike">Compare changes…</button></p>
     <div class="conflict-actions">
-      <button id="local-conflict-theirs" type="button" class="action">Load the file’s version</button>
+      <button id="local-conflict-theirs" type="button" class="action">Reload file from disk</button>
       <button id="local-conflict-copy" type="button" class="action">Save a copy…</button>
       <button id="local-conflict-overwrite" type="button" class="primary danger">Overwrite</button>
     </div>
+  </section>
+</dialog>
+
+<!-- Diff viewer: compares three versions of a note — the original (as last
+     synced), the editor's current text, and the file's current content on disk
+     or in Drive — one per tab. Opened from File info, or from a save conflict,
+     where it also offers to take one side. Tabs and body are built by app.js. -->
+<dialog id="diff">
+  <div class="diff-head-row">
+    <h2>Compare changes</h2>
+    <div class="diff-tabs" id="diff-tabs" role="tablist"></div>
+    <button id="diff-close" class="dlg-close" title="Close" aria-label="Close">&times;</button>
+  </div>
+
+  <section>
+    <div class="diff-nav" id="diff-nav" hidden>
+      <span id="diff-nav-count"></span>
+      <span class="diff-nav-btns">
+        <button id="diff-prev" type="button" title="Previous change" aria-label="Previous change"><svg class="icon"><use href="#icon-chevron-up"/></svg></button>
+        <button id="diff-next" type="button" title="Next change" aria-label="Next change"><svg class="icon"><use href="#icon-chevron-down"/></svg></button>
+      </span>
+    </div>
+    <div class="diff-body" id="diff-body"></div>
+    <menu class="diff-actions" id="diff-actions" hidden>
+      <span class="diff-actions-note" id="diff-actions-note"></span>
+      <button id="diff-theirs" type="button" class="action"></button>
+      <button id="diff-yours" type="button" class="primary danger"></button>
+    </menu>
   </section>
 </dialog>
 
