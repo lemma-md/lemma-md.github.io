@@ -156,8 +156,7 @@
 
   <div class="settings-body">
     <nav class="settings-tabs" role="tablist" aria-label="Settings sections">
-      <button type="button" class="settings-tab active" data-panel="panel-general" role="tab">General</button>
-      <button type="button" class="settings-tab" data-panel="panel-storage" role="tab">Storage</button>
+      <button type="button" class="settings-tab active" data-panel="panel-general" role="tab">Storage</button>
       <button type="button" class="settings-tab" data-panel="panel-cloud" role="tab">Cloud</button>
     </nav>
 
@@ -171,15 +170,22 @@
         </p>
         <p id="storage-usage" class="figure"></p>
         <div id="storage-persist"></div>
-      </section>
 
-      <section id="panel-storage" class="settings-panel" role="tabpanel" hidden>
-        <h3>Your notes</h3>
+        <h3 class="section-sep">Bin</h3>
         <p class="note">
-          Everything saved in this browser, newest first. Closing a tab does not
-          delete a note — it stays here until you delete it deliberately.
+          Closing a note puts it here, not straight into the void. Restore it to
+          a tab, or leave it — the bin empties itself after a while.
         </p>
-        <ul id="recent-list"></ul>
+        <p id="bin-usage" class="figure"></p>
+        <div class="bin-controls">
+          <label class="field">
+            <span>Empty the bin after</span>
+            <input id="bin-retention" type="number" min="1" step="1" inputmode="numeric">
+            <span>days</span>
+          </label>
+          <button id="bin-cleanup" type="button" class="action">Clean up now</button>
+        </div>
+        <ul id="bin-list"></ul>
       </section>
 
       <section id="panel-cloud" class="settings-panel" role="tabpanel" hidden>
@@ -239,6 +245,23 @@
     <div class="info-status">
       <button id="fi-save" type="button" class="primary">Save</button>
     </div>
+  </section>
+</dialog>
+
+<!-- Closing a note that has unsaved edits. Save keeps them; Discard drops them
+     (the note still goes to the bin, recoverable for a while); × / Escape keeps
+     the note open. The link opens the diff. -->
+<dialog id="close-warn">
+  <form method="dialog" class="dlg-head">
+    <h2>Unsaved changes</h2>
+    <button class="dlg-close" title="Close" aria-label="Close">&times;</button>
+  </form>
+
+  <section>
+    <p class="note">“<span id="close-warn-name"></span>” has changes you haven’t saved.</p>
+    <p class="note" id="close-warn-source" hidden></p>
+    <p class="note"><button id="close-warn-compare" type="button" class="linklike">Compare changes…</button></p>
+    <div class="conflict-actions" id="close-warn-actions"></div>
   </section>
 </dialog>
 
@@ -359,8 +382,7 @@
     <div class="diff-body" id="diff-body"></div>
     <menu class="diff-actions" id="diff-actions" hidden>
       <span class="diff-actions-note" id="diff-actions-note"></span>
-      <button id="diff-theirs" type="button" class="action"></button>
-      <button id="diff-yours" type="button" class="primary danger"></button>
+      <span class="diff-actions-btns" id="diff-actions-btns"></span>
     </menu>
   </section>
 </dialog>

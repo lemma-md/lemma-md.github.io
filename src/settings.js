@@ -6,7 +6,10 @@ const el = {
   open: document.getElementById('btn-settings'),
   usage: document.getElementById('storage-usage'),
   persist: document.getElementById('storage-persist'),
-  recent: document.getElementById('recent-list'),
+  binUsage: document.getElementById('bin-usage'),
+  bin: document.getElementById('bin-list'),
+  retention: document.getElementById('bin-retention'),
+  cleanup: document.getElementById('bin-cleanup'),
   cloud: document.getElementById('cloud-status'),
 }
 
@@ -38,8 +41,8 @@ async function renderStorage() {
 
   const notes = status.count === 1 ? '1 note' : `${status.count} notes`
   el.usage.textContent = status.count
-    ? `${notes}, ${formatBytes(status.bytes)} in total.`
-    : 'No notes yet.'
+    ? `${notes} open, ${formatBytes(status.bytes)} in total.`
+    : 'No notes open.'
   if (status.nearlyFull) {
     el.usage.textContent += ' This browser is running low on storage space.'
   }
@@ -78,68 +81,62 @@ async function renderStorage() {
   el.persist.append(line)
 }
 
+/** Fill the retention field with the stored value. */
+async function renderRetention() {
+  el.retention.value = String(await drafts.getRetentionDays())
+}
+
 /**
- * Lists every stored note, not just the closed ones. Someone asking "where are
- * my notes?" wants the whole answer; a filtered view that says "nothing here"
- * whenever every note happens to be open reads as "you have none".
+ * The bin: notes discarded from the workspace, newest deletion first. Each can
+ * be restored (back into a tab) or deleted for good; the whole bin is emptied
+ * from the button above the list, and is purged on its own after the retention
+ * window.
  */
-async function renderNotes({ getOpenIds, onOpen, onDeleted }) {
-  const openIds = new Set(getOpenIds())
-  const all = (await drafts.listDocs()).sort((a, b) => b.updatedAt - a.updatedAt)
+async function renderBin({ onRestore }) {
+  const all = await drafts.listBin()
 
-  el.recent.textContent = ''
+  const notes = all.length === 1 ? '1 note' : `${all.length} notes`
+  el.binUsage.textContent = all.length
+    ? `${notes} in the bin, ${formatBytes(all.reduce((s, d) => s + new Blob([d.text ?? '']).size, 0))}.`
+    : 'The bin is empty.'
 
-  if (!all.length) {
-    const li = document.createElement('li')
-    li.className = 'empty'
-    li.textContent = 'No notes yet.'
-    el.recent.append(li)
-    return
-  }
+  el.bin.textContent = ''
+
+  if (!all.length) return
 
   for (const doc of all) {
-    const isOpen = openIds.has(doc.id)
     const li = document.createElement('li')
 
     const name = document.createElement('span')
     name.className = 'name'
     name.textContent = doc.name
-    if (isOpen) {
-      const badge = document.createElement('span')
-      badge.className = 'badge'
-      badge.textContent = 'open'
-      name.append(' ', badge)
-    }
     li.append(name)
 
     const meta = document.createElement('span')
     meta.className = 'meta'
-    meta.textContent = `${formatDate(doc.updatedAt)} · ${formatBytes(new Blob([doc.text]).size)}`
+    // The time shown is when it was binned, not when it was last edited.
+    meta.textContent = `deleted ${formatDate(doc.binnedAt)} · ${formatBytes(new Blob([doc.text]).size)}`
     li.append(meta)
 
-    const show = document.createElement('button')
-    show.textContent = isOpen ? 'Show' : 'Open'
-    show.onclick = () => {
-      onOpen(doc)
+    const restore = document.createElement('button')
+    restore.textContent = 'Restore'
+    restore.onclick = () => {
+      onRestore(doc)
       el.dialog.close()
     }
-    li.append(show)
+    li.append(restore)
 
     const remove = document.createElement('button')
     remove.className = 'danger'
     remove.textContent = 'Delete'
     remove.onclick = async () => {
-      // The only irreversible action in the app, so it asks first.
-      if (!confirm(`Delete “${doc.name}” permanently?`)) return
-      // Drop the tab before the record, so a pending autosave cannot write the
-      // note back after it has been deleted.
-      onDeleted(doc.id)
+      if (!confirm(`Permanently delete “${doc.name}”? This cannot be undone.`)) return
       await drafts.deleteDoc(doc.id)
       refresh()
     }
     li.append(remove)
 
-    el.recent.append(li)
+    el.bin.append(li)
   }
 }
 
@@ -213,14 +210,13 @@ let context = null
 
 export async function refresh() {
   if (!context) return
-  await Promise.all([renderCloud(context), renderStorage(), renderNotes(context)])
+  await Promise.all([renderCloud(context), renderStorage(), renderBin(context), renderRetention()])
 }
 
 /**
  * @param {object} ctx
  * @param {() => string[]} ctx.getOpenIds  ids currently shown as tabs
- * @param {(doc: object) => void} ctx.onOpen  open a stored note, or focus it
- * @param {(id: string) => void} ctx.onDeleted  drop a note from the tab strip
+ * @param {(doc: object) => void} ctx.onRestore  bring a binned note back into a tab
  */
 export function initSettings(ctx) {
   const missing = Object.entries(el).filter(([, node]) => !node).map(([name]) => name)
@@ -232,6 +228,22 @@ export function initSettings(ctx) {
   }
 
   context = ctx
+
+  // The bin's retention period. Only a whole number of days ≥ 1 is accepted; a
+  // bad entry is reverted. Shortening it purges anything already past the line.
+  el.retention.onchange = async () => {
+    const n = parseInt(el.retention.value, 10)
+    if (!Number.isInteger(n) || n < 1) return renderRetention()
+    await drafts.setRetentionDays(n)
+    await drafts.purgeExpiredBin(n)
+    refresh()
+  }
+
+  el.cleanup.onclick = async () => {
+    if (!confirm('Empty the bin? This permanently deletes everything in it.')) return
+    await drafts.emptyBin()
+    refresh()
+  }
 
   // Left-hand tabs: clicking one shows its panel and hides the rest.
   for (const tab of el.dialog.querySelectorAll('.settings-tab')) {

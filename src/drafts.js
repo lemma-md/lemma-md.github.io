@@ -53,6 +53,52 @@ export const listDocs = () => run(DOCS, 'readonly', (s) => s.getAll())
 export const putDoc = (doc) => run(DOCS, 'readwrite', (s) => s.put(doc))
 export const deleteDoc = (id) => run(DOCS, 'readwrite', (s) => s.delete(id))
 
+// The bin.
+//
+// A note discarded from the workspace is not deleted outright: its record stays
+// in the docs store, stamped with `binnedAt` (the moment it was binned), and the
+// workspace ignores anything so stamped. It can be restored, is emptied on
+// demand, and is purged automatically once it has sat past the retention window.
+
+/** Notes currently in the workspace — everything not in the bin. */
+export const listActive = () => listDocs().then((docs) => docs.filter((d) => !d.binnedAt))
+
+/** Notes in the bin, newest deletion first. */
+export const listBin = () =>
+  listDocs().then((docs) => docs.filter((d) => d.binnedAt).sort((a, b) => b.binnedAt - a.binnedAt))
+
+/** How many notes are in the bin and how much they weigh. */
+export async function binStatus() {
+  const docs = await listBin().catch(() => [])
+  const bytes = docs.reduce((sum, d) => sum + new Blob([d.text ?? '']).size, 0)
+  return { count: docs.length, bytes }
+}
+
+/** Delete every note in the bin. */
+export async function emptyBin() {
+  for (const d of await listBin()) await deleteDoc(d.id)
+}
+
+/** Delete binned notes older than `days`. Returns how many were removed. */
+export async function purgeExpiredBin(days) {
+  const cutoff = Date.now() - days * 86_400_000
+  let removed = 0
+  for (const d of await listBin()) {
+    if (d.binnedAt < cutoff) { await deleteDoc(d.id); removed++ }
+  }
+  return removed
+}
+
+const RETENTION_KEY = 'binRetentionDays'
+export const DEFAULT_RETENTION_DAYS = 15
+
+/** How many days the bin holds a note before purging it. A stored value that is
+ *  not a whole number of days ≥ 1 falls back to the default. */
+export const getRetentionDays = () =>
+  getMeta(RETENTION_KEY).then((v) => (Number.isInteger(v) && v >= 1 ? v : DEFAULT_RETENTION_DAYS))
+
+export const setRetentionDays = (n) => putMeta(RETENTION_KEY, n)
+
 /**
  * Ask the browser to keep this origin's storage rather than evicting it when
  * the disk fills up. Without this, drafts are "best effort" and can be dropped
@@ -108,7 +154,8 @@ export async function requestPersistenceOnce() {
  * mathematician nothing useful.
  */
 export async function storageStatus() {
-  const docs = await listDocs().catch(() => [])
+  // The workspace only — notes in the bin are reported separately.
+  const docs = await listActive().catch(() => [])
   const bytes = docs.reduce((sum, doc) => sum + new Blob([doc.text ?? '']).size, 0)
 
   let persisted = false

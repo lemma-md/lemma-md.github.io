@@ -309,13 +309,44 @@ function setActive(id) {
 }
 
 /**
- * Close a tab without destroying anything. The note stays in storage and can
- * be reopened from Settings — until cloud saving exists this database is the
- * only copy a note has, so a close button must not be a delete button.
+ * Close a tab. A note with unsaved changes asks first — save, or discard it to
+ * the bin, from where it can be restored. A note with nothing unsaved is simply
+ * removed: its contents are already safe (in its file, or never worth keeping),
+ * so there is nothing to recover and no reason to fill the bin with it.
  */
 function closeTab(id) {
-  saveNow(state.docs.get(id))
+  const doc = state.docs.get(id)
+  if (!doc) return
+  if (doc.text === doc.savedText) return deleteAndDrop(id)
+  if (id !== state.activeId) setActive(id) // show the note the prompt is about
+  openCloseWarn(doc)
+}
+
+/** Remove a note from storage and the tab strip — for a clean close, where
+ *  there is nothing to recover. */
+function deleteAndDrop(id) {
+  dropTab(id) // first, so a pending autosave cannot write it back
+  drafts.deleteDoc(id).catch(reportError)
+}
+
+/** Move a note to the bin (stamped with the time, minus transient flags) and
+ *  remove it from the tab strip. */
+async function binAndDrop(id) {
+  const doc = state.docs.get(id)
+  if (!doc) return
+  const clean = { ...doc, binnedAt: Date.now() }
+  for (const k of TRANSIENT_KEYS) delete clean[k]
+  delete clean.closeAfterSave
+  await drafts.putDoc(clean).catch(reportError)
   dropTab(id)
+}
+
+/** Bring a note back from the bin into the workspace and open it. */
+async function restoreFromBin(doc) {
+  const clean = { ...doc }
+  delete clean.binnedAt
+  await drafts.putDoc(clean).catch(reportError)
+  openStoredDoc(clean)
 }
 
 /**
@@ -1017,8 +1048,37 @@ const diff = {
   next: document.getElementById('diff-next'),
   actions: document.getElementById('diff-actions'),
   actionsNote: document.getElementById('diff-actions-note'),
-  yours: document.getElementById('diff-yours'),
-  theirs: document.getElementById('diff-theirs'),
+  actionsBtns: document.getElementById('diff-actions-btns'),
+}
+
+/**
+ * Build a dialog action button from a spec: { label, value, primary, danger,
+ * title, confirm }. `run(value)` fires on click, after an optional confirm. The
+ * close dialog and the diff footer share this, so their buttons match exactly.
+ */
+function makeActionButton(a, run) {
+  const b = document.createElement('button')
+  b.type = 'button'
+  b.className = a.primary ? (a.danger ? 'primary danger' : 'primary') : 'action'
+  b.textContent = a.label
+  if (a.title) b.title = a.title
+  b.onclick = () => {
+    if (a.confirm && !confirm(a.confirm)) return
+    run(a.value)
+  }
+  return b
+}
+
+/** The Reload/Overwrite footer a conflict's "Compare changes" opens the diff
+ *  with — matching the conflict dialog's own buttons. Resolves 'theirs'|'yours'. */
+function conflictDiffActions(where, inWhere) {
+  return {
+    note: `Reload replaces the editor with the version ${inWhere}, discarding your changes; Overwrite writes your version to the file.`,
+    actions: [
+      { label: `Reload file from ${where}`, value: 'theirs', title: `Replace the editor with the version ${inWhere}, discarding your changes`, confirm: `Discard your changes and reload this file from ${where}?` },
+      { label: 'Overwrite', value: 'yours', primary: true, danger: true, title: `Overwrite the file ${inWhere} with the editor's version`, confirm: `Overwrite the file ${inWhere} with your version?` },
+    ],
+  }
 }
 
 let diffTabs = [] // [{ key, aLabel, bLabel, a, b, ops, added, deleted, blocks, err }]
@@ -1041,8 +1101,9 @@ async function readSourceText(doc) {
  * shows the comparisons that actually differ: with one version matching another,
  * the redundant tab is dropped, so a note changed only in the editor shows a
  * single Editor vs Source tab. `opts.sourceText` skips the read when the caller
- * already has it; `opts.onResolve` turns on the Take-yours/theirs footer;
- * `opts.focus` ('editor' | 'source') opens on the tab about that change.
+ * already has it; `opts.actions` (with `opts.onAction` and `opts.note`) shows a
+ * footer of buttons — the same set the opener's own dialog carries; `opts.focus`
+ * ('editor' | 'source') opens on the tab about that change.
  */
 async function openDiff(doc, opts = {}) {
   const source = noteSource(doc)
@@ -1086,32 +1147,24 @@ async function openDiff(doc, opts = {}) {
   // never blank; it reads "No changes".
   if (diffTabs.length === 0) diffTabs.push({ ...candidates[0], ops: [], added: 0, deleted: 0, blocks: 0, err })
 
-  // Land on the relevant tab: the conflict's editor-vs-source, or the tab a
-  // File-info badge pointed at; otherwise the first (highest-priority) tab.
-  const pick = opts.onResolve ? ['es'] : opts.focus === 'source' ? ['so', 'es'] : opts.focus === 'editor' ? ['eo', 'es'] : []
+  // Land on the relevant tab: the conflict/close editor-vs-source, or the tab a
+  // File-info label pointed at; otherwise the first (highest-priority) tab.
+  const pick = opts.focus === 'source' ? ['so', 'es'] : opts.focus === 'editor' ? ['eo', 'es'] : opts.actions ? ['es'] : []
   diffAt = 0
   for (const key of pick) {
     const i = diffTabs.findIndex((t) => t.key === key)
     if (i >= 0) { diffAt = i; break }
   }
 
-  if (opts.onResolve) {
-    // The same two actions as the conflict dialog, named the same way — not the
-    // "take yours/theirs" of a merge, which would imply picking sides without
-    // writing anything.
-    const where = source === 'gdrive' ? 'Drive' : 'disk'
-    const inWhere = source === 'gdrive' ? 'in Drive' : 'on disk'
+  diff.actionsBtns.textContent = ''
+  if (opts.actions?.length) {
     diff.actions.hidden = false
-    diff.theirs.textContent = `Reload file from ${where}`
-    diff.yours.textContent = 'Overwrite'
-    diff.theirs.title = `Replace the editor with the version ${inWhere}, discarding your changes`
-    diff.yours.title = `Overwrite the file ${inWhere} with the editor's version`
-    diff.actionsNote.textContent = `Reload replaces the editor with the version ${inWhere}, discarding your changes; Overwrite writes your version to the file.`
-    diff.theirs.onclick = () => { if (confirm(`Discard your changes and reload this file from ${where}?`)) { diff.dialog.close(); opts.onResolve('theirs') } }
-    diff.yours.onclick = () => { if (confirm(`Overwrite the file ${inWhere} with your version?`)) { diff.dialog.close(); opts.onResolve('yours') } }
+    diff.actionsNote.textContent = opts.note ?? ''
+    for (const a of opts.actions) {
+      diff.actionsBtns.append(makeActionButton(a, (v) => { diff.dialog.close(); opts.onAction(v) }))
+    }
   } else {
     diff.actions.hidden = true
-    diff.theirs.onclick = diff.yours.onclick = null
   }
 
   renderDiffTabs()
@@ -1403,10 +1456,10 @@ function askConflict(doc, current) {
     conflict.theirs.onclick = () => { if (confirm('Discard your changes and reload this file from Drive?')) choose('theirs') }
     conflict.copy.onclick = () => choose('copy')
     conflict.overwrite.onclick = () => { if (confirm('Overwrite the file in Drive with your version?')) choose('overwrite') }
-    // "Take yours" writes our editor version (overwrite); "Take theirs" loads
-    // the Drive version. openDiff reads the Drive text itself, and asks for its
-    // own confirmation before resolving.
-    conflict.compare.onclick = () => openDiff(doc, { onResolve: (side) => choose(side === 'yours' ? 'overwrite' : 'theirs') })
+    // The diff carries the same Reload/Overwrite buttons as this dialog. It
+    // reads the Drive text itself, and asks its own confirmation before resolving.
+    conflict.compare.onclick = () =>
+      openDiff(doc, { ...conflictDiffActions('Drive', 'in Drive'), onAction: (v) => choose(v === 'yours' ? 'overwrite' : 'theirs') })
     conflict.dialog.showModal()
   })
 }
@@ -1692,9 +1745,9 @@ function askLocalConflict(doc, cur) {
     localConflict.copy.onclick = () => choose('copy')
     localConflict.overwrite.onclick = () => { if (confirm('Overwrite the file on disk with your version?')) choose('overwrite') }
     // The conflict already read the file, so hand its text straight to the diff,
-    // which asks for its own confirmation before resolving.
+    // which carries the same Reload/Overwrite buttons and confirms them itself.
     localConflict.compare.onclick = () =>
-      openDiff(doc, { sourceText: cur.text, onResolve: (side) => choose(side === 'yours' ? 'overwrite' : 'theirs') })
+      openDiff(doc, { sourceText: cur.text, ...conflictDiffActions('disk', 'on disk'), onAction: (v) => choose(v === 'yours' ? 'overwrite' : 'theirs') })
     localConflict.dialog.showModal()
   })
 }
@@ -1745,6 +1798,136 @@ function openSaveTarget() {
   saveTarget.drive.hidden = !canDrive
   saveTarget.unsupported.hidden = canLocal
   saveTarget.dialog.showModal()
+}
+
+/* ---------- closing with unsaved changes ---------- */
+
+const closeWarn = {
+  dialog: document.getElementById('close-warn'),
+  name: document.getElementById('close-warn-name'),
+  source: document.getElementById('close-warn-source'),
+  compare: document.getElementById('close-warn-compare'),
+  actions: document.getElementById('close-warn-actions'),
+}
+
+/**
+ * Has the note's source changed under it since we opened or last saved? A fresh
+ * check where one can be made silently (a local file we may already read, a
+ * connected Drive), otherwise the flag the background checks keep.
+ */
+async function sourceChanged(doc) {
+  const src = noteSource(doc)
+  try {
+    if (src === 'local') {
+      const cur = await readLocalInfo(doc, false) // silent: only if already permitted
+      if (!cur) return Boolean(doc.localChanged)
+      const base = doc.local
+      const moved = cur.lastModified !== base.lastModified || cur.size !== base.size
+      return moved && cur.text !== doc.savedText
+    }
+    if (src === 'gdrive') {
+      const provider = providerFor(doc)
+      if (!provider?.isConnected()) return Boolean(doc.remoteChanged)
+      const cur = await provider.revision(doc.remote.id)
+      return cur.headRevisionId !== doc.remote.headRevisionId
+    }
+  } catch {
+    return Boolean(doc.remoteChanged || doc.localChanged)
+  }
+  return false
+}
+
+/**
+ * The buttons the unsaved-changes dialog (and the diff opened from it) carry.
+ * With the source unchanged it is Discard + Save; with it changed the save
+ * splits into Save-a-copy + Overwrite, exactly as a conflict does.
+ */
+function closeActionSet(doc, srcChanged) {
+  const src = noteSource(doc)
+  const inWhere = src === 'gdrive' ? 'in Google Drive' : 'on disk'
+  const discard = { label: 'Discard changes', value: 'discard', title: 'Moves the note to the bin, where you can restore it from Settings.' }
+  if (srcChanged) {
+    return [
+      discard,
+      { label: 'Save a copy', value: 'copy', title: 'Keep both — save your version as a new file, leaving the changed one alone.' },
+      { label: 'Overwrite', value: 'overwrite', primary: true, danger: true, title: `Overwrite the file ${inWhere} with your version, discarding the change made to it.`, confirm: `Overwrite the file ${inWhere} with your version?` },
+    ]
+  }
+  return [discard, { label: 'Save', value: 'save', primary: true, title: src ? `Save your changes ${inWhere}.` : 'Choose where to save this note.' }]
+}
+
+/** Carry out a choice from the unsaved-changes dialog or its diff. A save that
+ *  leaves the note clean finishes the close; a cancelled one keeps it open. */
+async function handleCloseAction(doc, value) {
+  if (value === 'discard') return binAndDrop(doc.id)
+  if (value === 'save') { await saveActive(); if (doc.text === doc.savedText) binAndDrop(doc.id); return }
+  if (value === 'copy') { await copyToSource(doc); if (doc.text === doc.savedText) binAndDrop(doc.id); return }
+  if (value === 'overwrite') { await overwriteSource(doc); if (doc.text === doc.savedText) binAndDrop(doc.id) }
+}
+
+/**
+ * The note being closed has unsaved edits. Offer to save, discard (to the bin,
+ * recoverable from Settings), or — via × / Escape — cancel and keep it open.
+ * When the source changed too, the save splits as above. The link opens the
+ * diff, which carries the same buttons.
+ */
+async function openCloseWarn(doc) {
+  const changed = await sourceChanged(doc)
+  const src = noteSource(doc)
+  closeWarn.name.textContent = doc.name
+  closeWarn.source.hidden = !changed
+  if (changed) {
+    closeWarn.source.textContent = `It also changed ${src === 'gdrive' ? 'in Google Drive' : 'on disk'} after you opened it here.`
+  }
+  const actions = closeActionSet(doc, changed)
+  const run = (v) => { closeWarn.dialog.close(); handleCloseAction(doc, v) }
+  closeWarn.actions.textContent = ''
+  for (const a of actions) closeWarn.actions.append(makeActionButton(a, run))
+  closeWarn.compare.onclick = () => openDiff(doc, { focus: 'editor', actions, onAction: run })
+  closeWarn.dialog.showModal()
+}
+
+/** Overwrite the note straight over its source — no conflict check, the caller
+ *  has already chosen to. */
+async function overwriteSource(doc) {
+  const src = noteSource(doc)
+  try {
+    if (src === 'local') {
+      if (!(await localFiles.ensurePermission(doc.local.handle))) return
+      const saved = await localFiles.write({ handle: doc.local.handle, name: doc.name, text: doc.text })
+      doc.local = { handle: saved.handle, name: saved.name, lastModified: saved.lastModified, size: saved.size, savedAt: Date.now() }
+      doc.localChanged = false
+    } else if (src === 'gdrive') {
+      const provider = providerFor(doc)
+      const saved = await provider.write({ id: doc.remote.id, name: doc.name, text: doc.text })
+      doc.remote = remoteLink(provider, saved)
+      doc.remoteChanged = doc.remoteRenamed = doc.remoteTrashed = false
+    }
+    doc.savedText = doc.text
+  } catch (err) {
+    if (src === 'gdrive') cloudFailed('save to the cloud', err)
+    else localFailed(err)
+  }
+}
+
+/** Save the note as a new copy, leaving the changed source alone. */
+async function copyToSource(doc) {
+  const src = noteSource(doc)
+  if (src === 'local') return saveToLocalAs(doc)
+  if (src === 'gdrive') {
+    const provider = providerFor(doc)
+    try {
+      const folder = await ensureAppFolder(provider)
+      if (!folder) return
+      const saved = await createInAppFolder(provider, { name: copyName(doc.name), text: doc.text }, folder)
+      doc.remote = remoteLink(provider, saved)
+      doc.name = saved.name
+      doc.savedText = doc.text
+      doc.remoteChanged = doc.remoteRenamed = doc.remoteTrashed = false
+    } catch (err) {
+      cloudFailed('save to the cloud', err)
+    }
+  }
 }
 
 /** Write a cloud-backed note straight back to its Drive file. */
@@ -2242,9 +2425,17 @@ el.splitter.onmousedown = (down) => {
 /* ---------- start ---------- */
 
 async function init() {
+  // Purge anything that has outstayed the bin's retention window before reading.
+  try {
+    await drafts.purgeExpiredBin(await drafts.getRetentionDays())
+  } catch (err) {
+    reportError(err)
+  }
+
   let stored = []
   try {
-    stored = await drafts.listDocs()
+    // Only the workspace notes; binned ones are Settings' concern, not tabs'.
+    stored = await drafts.listActive()
   } catch (err) {
     // A blocked or unavailable IndexedDB must not leave a blank screen.
     reportError(err)
@@ -2259,11 +2450,18 @@ async function init() {
 
   let openIds = (session?.openIds ?? []).filter((id) => byId.has(id))
   if (!openIds.length && stored.length) {
-    // No usable session, but notes exist. Since closing a tab now keeps the
-    // note, reopening every note ever written would be wrong — take the one
-    // that was edited last.
+    // No usable session, but notes exist — resume the one edited last.
     const newest = stored.reduce((a, b) => (b.updatedAt > a.updatedAt ? b : a))
     openIds = [newest.id]
+  }
+
+  // One-time tidy-up: an earlier build kept a note in storage when its tab was
+  // closed, so the workspace could hold notes that are neither open nor binned.
+  // The invariant now is "not binned ⇔ open", so move any such stragglers to the
+  // bin, where they can still be restored. This makes the open-notes count true.
+  const open = new Set(openIds)
+  for (const doc of stored) {
+    if (!open.has(doc.id)) drafts.putDoc({ ...doc, binnedAt: Date.now() }).catch(reportError)
   }
 
   // Only open notes are held in memory; Settings reads the rest from storage.
@@ -2287,8 +2485,7 @@ async function init() {
     updateCloudButtons()
     initSettings({
       getOpenIds: () => state.openIds,
-      onOpen: openStoredDoc,
-      onDeleted: dropTab,
+      onRestore: restoreFromBin,
       onCloudChange: updateCloudButtons,
       cloud: {
         isConnected: isCloudConnected,

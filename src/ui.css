@@ -309,11 +309,23 @@ body[data-mode="view"] #preview { padding-top: 36px; }
 .state.ok { color: #1a7f37; }
 .state.warn { color: #9a6700; }
 
+/* A second heading within a settings panel (the bin, under storage). The
+   selector needs the #settings id to outrank "#settings h3 { margin-top: 0 }". */
+#settings h3.section-sep { margin-top: 26px; padding-top: 18px; border-top: 1px solid var(--line); }
+
+/* The retention control and the empty-now button, above the bin list. */
+.bin-controls { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 4px; }
+.bin-controls .field { font-size: .9em; gap: 6px; }
+.bin-controls .field > span:first-child { width: auto; }
+#bin-retention { width: 64px; font: inherit; font-size: .9em; padding: 3px 6px; border: 1px solid var(--line); border-radius: 4px; background: var(--bg); color: inherit; }
+.bin-controls .action { margin-left: auto; font: inherit; font-size: 12px; padding: 4px 10px; border: 1px solid var(--line); border-radius: 4px; background: var(--bg); cursor: pointer; }
+.bin-controls .action:hover { border-color: var(--muted); }
+
 /* The list no longer scrolls on its own — the panel is the scroll region, so
    the dialog stays one fixed size whichever tab is open. */
-#recent-list { list-style: none; padding: 0; }
+#bin-list { list-style: none; padding: 0; }
 
-#recent-list li {
+#bin-list li {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -322,21 +334,12 @@ body[data-mode="view"] #preview { padding-top: 36px; }
   font-size: .9em;
 }
 
-#recent-list .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-#recent-list .meta { color: var(--muted); font-size: .85em; white-space: nowrap; }
-#recent-list .badge {
-  font-size: .75em;
-  padding: 1px 6px;
-  border-radius: 9px;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  color: var(--muted);
-  vertical-align: 1px;
-}
-#recent-list .empty { color: var(--muted); border-top: 0; }
-#recent-list button { font: inherit; font-size: 12px; padding: 3px 9px; border: 1px solid var(--line); border-radius: 4px; background: var(--bg); cursor: pointer; }
-#recent-list button:hover { border-color: var(--muted); }
-#recent-list button.danger:hover { border-color: #b00020; color: #b00020; }
+#bin-list .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#bin-list .meta { color: var(--muted); font-size: .85em; white-space: nowrap; }
+#bin-list .empty { color: var(--muted); border-top: 0; }
+#bin-list button { font: inherit; font-size: 12px; padding: 3px 9px; border: 1px solid var(--line); border-radius: 4px; background: var(--bg); cursor: pointer; }
+#bin-list button:hover { border-color: var(--muted); }
+#bin-list button.danger:hover { border-color: #b00020; color: #b00020; }
 
 /* ---------- cloud dialogs ---------- */
 
@@ -349,6 +352,7 @@ body[data-mode="view"] #preview { padding-top: 36px; }
 #cloud-identity,
 #save-target,
 #local-conflict,
+#close-warn,
 #diff {
   margin: auto;
   width: min(460px, calc(100vw - 32px));
@@ -366,6 +370,7 @@ body[data-mode="view"] #preview { padding-top: 36px; }
 #cloud-identity::backdrop,
 #save-target::backdrop,
 #local-conflict::backdrop,
+#close-warn::backdrop,
 #diff::backdrop { background: rgba(0, 0, 0, .35); }
 
 #cloud-save-as section,
@@ -374,6 +379,7 @@ body[data-mode="view"] #preview { padding-top: 36px; }
 #cloud-identity section,
 #save-target section,
 #local-conflict section,
+#close-warn section,
 #diff section { margin-top: 18px; display: flex; flex-direction: column; gap: 14px; }
 
 /* ---------- diff viewer ---------- */
@@ -506,7 +512,8 @@ body[data-mode="view"] #preview { padding-top: 36px; }
   align-items: center;
   justify-content: flex-end;
 }
-.diff-actions-note { margin-right: auto; font-size: 12px; color: var(--muted); max-width: 60%; }
+.diff-actions-note { margin-right: auto; font-size: 12px; color: var(--muted); max-width: 55%; }
+.diff-actions-btns { display: flex; gap: 8px; flex: none; }
 /* A class rule for display outranks the UA [hidden] style, so restore it. */
 .diff-actions[hidden] { display: none; }
 #diff .action,
@@ -542,13 +549,15 @@ button.info-badge {
 #cloud-conflict .note,
 #cloud-identity .note,
 #save-target .note,
-#local-conflict .note { font-size: .9em; color: var(--muted); margin: 0; }
+#local-conflict .note,
+#close-warn .note { font-size: .9em; color: var(--muted); margin: 0; }
 #cloud-conflict .detail,
 #local-conflict .detail { font-size: .82em; }
 .conflict-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
 #cloud-conflict .action,
 #cloud-identity .action,
-#local-conflict .action {
+#local-conflict .action,
+#close-warn .action {
   font: inherit;
   font-size: 13px;
   padding: 6px 12px;
@@ -560,9 +569,11 @@ button.info-badge {
 }
 #cloud-conflict .action:hover,
 #cloud-identity .action:hover,
-#local-conflict .action:hover { border-color: var(--muted); }
+#local-conflict .action:hover,
+#close-warn .action:hover { border-color: var(--muted); }
 #cloud-conflict .primary.danger,
-#local-conflict .primary.danger { border-color: #b00020; background: #b00020; }
+#local-conflict .primary.danger,
+#close-warn .primary.danger { border-color: #b00020; background: #b00020; }
 
 /* The save-target chooser: two big buttons side by side. */
 .save-choices { display: flex; gap: 12px; }
@@ -692,7 +703,8 @@ button.info-badge {
 #cloud-setup .primary,
 #cloud-conflict .primary,
 #cloud-identity .primary,
-#local-conflict .primary {
+#local-conflict .primary,
+#close-warn .primary {
   font: inherit;
   font-size: 13px;
   padding: 6px 16px;
@@ -706,7 +718,8 @@ button.info-badge {
 #cloud-setup .primary:hover,
 #cloud-conflict .primary:hover,
 #cloud-identity .primary:hover,
-#local-conflict .primary:hover { filter: brightness(1.06); }
+#local-conflict .primary:hover,
+#close-warn .primary:hover { filter: brightness(1.06); }
 #cloud-save-as .primary:disabled,
 #cloud-setup .primary:disabled { opacity: .6; cursor: default; }
 
