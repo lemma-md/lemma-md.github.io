@@ -194,10 +194,71 @@ Verified constraints, not assumptions:
 
 ## Presentation
 
-reveal.js with `reveal.js-chalkboard` (pen and annotation, drawings included in
-the printed PDF) and `reveal.js-notes-pointer` (laser pointer). Its speaker view
-is an ordinary popup window synchronised by messages, not the Chromium-only
-Window Management API — so presenting on two screens works in Firefox.
+A note presents as slides in a **separate projector window** (`present/`), never
+mixed with the editor. The slide engine is **reveal.js** — vendored, a classic
+`<script>` global, loaded only by that page so a reader never pays for it. It
+earns its place on the parts that are dear to build well: scaling a fixed
+960×700 slide box to any projector, navigation, transitions, and print-to-PDF.
+The full design, data model, meta keys and hard-won lessons are written up in
+[PRESENTER.md](PRESENTER.md) — start there when touching the presenter.
+
+Two things are deliberately **not** reveal's:
+
+- **Rendering.** reveal's markdown/highlight/math plugins stay off; each slide is
+  produced by the app's own `render()` (`src/viewer.js`). One markdown+TeX
+  pipeline, so a slide is byte-identical to the same note read in the editor —
+  the same reason the landing page and the editor share `render()`. Slides are
+  split on a line of `---` (never inside a `$$…$$` or fenced-code block), with an
+  optional YAML front-matter block becoming a title slide; both are borrowed
+  conventions (Jekyll, Marp), not a borrowed renderer.
+- **Three modes** (`src/present/ink.js`): Present (laser only, no toolbar),
+  Annotate (draw over the slides) and Board. They are on a rail top-left and in
+  the menu, and on `Alt+P`/`Alt+A`/`Alt+B` (intercepted before reveal, whose
+  `Alt+B` would blank the screen — that is a menu item instead). Each drawing mode
+  remembers its own tool and colour; a fresh show starts Annotate on a red pen and
+  Board on white chalk.
+- **Annotation.** Drawing is a small custom SVG layer, one `<svg>` in slide space
+  inside each `<section>` so the ink rides reveal's scale transform. Tools: laser
+  pointer, pen, chalk, semi-transparent highlighter, and an eraser that trims
+  strokes at its rim rather than dropping them whole. Pen and chalk are
+  variable-width (speed, or stylus pressure) and so render as filled ribbons.
+  Widths live in slide-space units, so a stroke is the same weight at any
+  projector resolution. A stroke stores its colour as a **palette slot**, not a
+  hex, so one base colour follows the surface — black ink on a slide, white chalk
+  on the blackboard — and re-resolves when the board flips light/dark. Strokes are
+  vectors, stored per note in their own IndexedDB store (`annotations`), so the
+  `.md` stays plain text and the ink returns next time.
+- **A side-car board.** Alongside the deck is a stack of blank pages to work on
+  mid-talk (blackboard by default, whiteboard from *Settings*). Each page is just
+  another drawing surface: the whole per-surface machinery — strokes, per-surface
+  undo/redo, persistence — is keyed by surface id, so a board page is the key
+  `'board:N'` next to the slide numbers, and needed no second drawing path. Only
+  the current page is in view (`[hidden]` on the rest); the count is restored from
+  the highest saved `'board:N'`.
+- **Overview.** `=` opens a custom thumbnail grid — reveal's own overview lays a
+  linear deck out in a single horizontal row, so a multi-row, vertically scrolled
+  grid with arrow-key selection is ours (`.overview` in `ink.js`). It serves both
+  surfaces: slide thumbnails are scaled clones of the rendered content, board
+  thumbnails a clone of the page's strokes.
+- **Keyboard.** Reveal's own keyboard is turned **off** (`keyboard: false`); a
+  single capture-phase handler in `ink.js` drives everything — mode switches
+  (`Alt+P/A/B`), tools (`1`–`5`, drawing modes only), overview (`=`), settings
+  (`Ctrl+,`), fullscreen (`F`), undo/redo (off in Present), our own **Blank screen**
+  overlay (reveal's pause only covers the deck, hidden on the board), and slide/board
+  navigation (arrows, space, PgUp/PgDn, Home/End) via the reveal API. Turning
+  reveal's keyboard off is what fixes Escape: reveal `preventDefault`s any key it
+  binds (even a disabled one), and `preventDefault` on Escape stops the browser
+  leaving **F11** fullscreen — so with reveal out of the way, our handler leaves
+  Escape completely untouched when nothing is open, and F11's Esc-to-exit works.
+  A **Help** dialog lists the bindings.
+
+This reverses the earlier sketch of `reveal.js-chalkboard` +
+`reveal.js-notes-pointer`. Chalkboard owns its own drawing model and chalk look,
+and a distinct translucent-highlighter tool sits awkwardly in it; more decisively
+it would have been a second rendering path beside `render()`. A single-window
+projector with the presenter drawing directly on it was chosen over a
+speaker/second-screen view, which is left for later — as is baking the ink into
+the printed PDF.
 
 ## Deployment
 

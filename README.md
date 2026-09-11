@@ -43,21 +43,90 @@ Working today:
 - a Settings window listing every saved note — reopen or delete any of them —
   along with how much space they take and whether the browser has agreed to
   keep them permanently
-- download as `.md`
+- download as `.md`, or export a self-contained `.html` that renders the note —
+  Markdown and TeX — anywhere, and can be dragged back in to recover the source
+- open and save real files on disk where the browser allows it; elsewhere, open
+  by drag-and-drop and "save" means download
+- save notes to Google Drive and open them back, with conflicts and outside
+  changes noticed before anything is overwritten
+- present a note as slides — split on `---`, shown in a separate projector
+  window with a laser pointer, pen, chalk, highlighter and eraser you can draw
+  over the slide with, plus a multi-page blank board (black or white) to work on
+  mid-talk; the ink is vector and saved per note
+- new notes from a template — a blank note, the welcome guide, or a slide demo
 
 Planned, roughly in order:
 
-1. export to a self-contained `.html` (formulas included, opens anywhere) and to PDF
-2. slide presentation with pen, highlighter and laser pointer
-3. opening and saving real files on disk, where the browser allows it
-4. optional syncing to a private GitHub repository or a cloud drive
+1. a proper **PDF** export (for now, your browser's Print dialog does it — from
+   the projector, that prints the slides)
+2. optional syncing to a private **GitHub** repository
+
+Further out:
+
+- **presentation themes** — swappable colour / spacing / font sets, each a
+  separate CSS file layered over the shared slide styles (the slide look already
+  lives in its own CSS, and reveal.js themes via CSS custom properties, so this
+  is mostly packaging). Chosen per deck with a `theme:` line in the front-matter
+  — the first deck-wide setting — and switchable from the projector via a menu.
 
 ## Drafts are local
 
-Notes live in **this browser on this computer** and are not uploaded anywhere.
-Clearing site data removes them. Use *Download* to keep a copy. Syncing is on
-the roadmap above, deliberately last — see
+Drafts live in **this browser on this computer**: they are not uploaded anywhere
+on their own, and clearing site data removes them. Keep a copy by downloading it,
+saving it to disk, or saving it to Google Drive — until you do, the browser holds
+the only copy. Why cloud saving came late, and how narrowly it is scoped, is in
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+## Presenting
+
+*Present* (in the menu, or `Alt+P`) opens the current note as slides in a
+separate window — the projector — leaving the editor where it is. Slides are the
+same rendered Markdown and TeX you see while reading; only the layout changes.
+
+- **Slides** are separated by a line containing just `---`. A note with none is a
+  single slide.
+- **A title slide** is made from a front-matter block at the very top —
+  `title`, `author`, `affiliation`, `place`, `date`:
+
+  ```markdown
+  ---
+  title: Dessins d'enfants and the Galois action
+  author: N. Adrianov
+  affiliation: Moscow State University
+  place: Oberwolfach
+  date: 2026-09-11
+  ---
+
+  # First slide
+  ...
+  ```
+
+- **Per-slide tweaks** go in a comment at the top of a slide: `<!-- center -->`
+  centres it, `<!-- class: foo -->` adds a CSS class, `<!-- bg: #fff -->` sets a
+  background.
+- **Three modes**, on the buttons top-left (and in the menu top-right):
+  **Present** (`Alt+P`) shows the slides with only the laser pointer;
+  **Annotate** (`Alt+A`) adds the drawing toolbar so you can mark up the slides;
+  **Board** (`Alt+B`) is a blank surface to work on mid-talk. Each mode remembers
+  its own tool and colour, and the mode you were in is restored when you reopen.
+- **Drawing.** The toolbar down the left has a laser pointer, a pen, chalk, a
+  highlighter and an eraser (which rubs out just the part you drag over). Pen and
+  chalk vary their width as you draw — thin when quick, thick when slow, or by
+  stylus pressure. Marks are vectors, kept per note in this browser — not written
+  into the `.md`, which stays plain text — so they come back the next time you
+  present the same note. `Ctrl+Z` / `Ctrl+Y` undo and redo on the current surface.
+- **The board** is a blackboard by default (chalk colours, notebook squares);
+  *Settings* (in the menu) turns it into a whiteboard or hides the grid. It holds
+  as many pages as you like — page through them with the navigator on the right (or
+  the arrow / `PgUp` / `PgDn` keys); once a page has ink on it, its down arrow
+  grows a **+** that adds a fresh page. A colour keeps its identity across
+  surfaces: the same swatch is black ink on a slide or whiteboard and white chalk
+  on the blackboard.
+- **Overview.** `=` (or a click on the page number, right) opens a scrollable
+  grid of thumbnails — the deck's slides, or the board's pages when you are on the
+  board. Arrow keys move, `Enter` or a click opens one.
+- **Keys.** Tools are on `1`–`5` (laser, pen, chalk, highlighter, eraser). The
+  menu lists every shortcut, and **Help** in it opens the full reference.
 
 ## Running it
 
@@ -127,12 +196,14 @@ The site has a front page and, under it, one directory per tool.
 ```
 index.html          front page: what markdown is, and where the tools are
 editor/index.html   the editor; loads the vendored libraries and the sprite
+present/index.html  the projector window; loads reveal.js and the ink layer
 
 src/landing.js      renders the front page's examples with viewer.js
 src/app.js          tabs, drag & drop, autosave, pane splitter
 src/viewer.js       markdown + TeX -> sanitised HTML
 src/editor.js       Ace, loaded on demand
-src/drafts.js       IndexedDB persistence
+src/present/        slide splitting, reveal.js setup and the drawing tools
+src/drafts.js       IndexedDB persistence (notes and presentation ink)
 src/settings.js     the Settings window
 src/storage/        cloud providers behind one interface (see docs/CLOUD-SETUP.md)
 src/config.js       the app's own Google ids — empty until you fill them in
@@ -141,6 +212,7 @@ src/theme.css       colours, reset, base type — every page
 src/markdown.css    how rendered markdown looks — every page that renders it
 src/landing.css     the front page
 src/ui.css          the editor's chrome
+src/present.css     the projector and its tools, on top of reveal.js
 
 vendor/             third-party libraries, committed (see VENDOR.md)
 _tools/             scripts for working on the site, never published — see

@@ -7,41 +7,10 @@ import { googleDrive } from './storage/gdrive.js'
 import { localFiles } from './storage/local.js'
 import { lineDiff, diffStats, sideBySide, inlineDiff } from './diff.js'
 import { buildStandaloneHtml, extractMarkdown } from './export-html.js'
+import { WELCOME, templates } from './templates.js'
+import { parseDeck, buildTitleBody } from './present/slides.js'
 
 register(googleDrive)
-
-const SAMPLE = `# Welcome to lemma-md
-
-You are reading this note as a finished page. Press **Edit** to see the plain
-text behind it: source on the left, result on the right, changing as you type.
-
-Inline formulas go between single dollars: $e^{i\\pi} + 1 = 0$.
-Display formulas go between double dollars:
-
-$$
-\\int_{-\\infty}^{\\infty} e^{-x^2}\\,dx = \\sqrt{\\pi}
-$$
-
-## The markdown you actually need
-
-- \`#\` starts a heading, \`##\` a subheading
-- \`*italic*\` gives *italic*, \`**bold**\` gives **bold**
-- a line starting with \`-\` becomes a list item
-
-That is the whole language. Everything else is optional.
-
-## Anything TeX-shaped works
-
-$$
-\\begin{aligned}
-  (a+b)^2 &= a^2 + 2ab + b^2 \\\\
-  \\zeta(s) &= \\sum_{n=1}^{\\infty} \\frac{1}{n^s}
-\\end{aligned}
-$$
-
-> Drafts live in **this browser only** — nothing is uploaded anywhere.
-> Use *Download as .md* in the menu to keep a copy as a file.
-`
 
 const state = { docs: new Map(), openIds: [], activeId: null, mode: 'view' }
 let editor = null
@@ -114,9 +83,113 @@ const EMPTY_STATE =
   'load a file with <strong>Open</strong>, or reopen a closed note from ' +
   '<strong>Settings</strong>.</p>'
 
+/** The first non-blank line of a note, trimmed — what the auto-detect reads. */
+function firstNonEmptyLine(text) {
+  for (const line of String(text ?? '').split('\n')) {
+    if (line.trim() !== '') return line.trim()
+  }
+  return ''
+}
+
+/**
+ * How a note is shown: as a flowing page ('note') or slide-by-slide ('slides').
+ * An explicit choice stored on the note (from File info) wins; otherwise it is
+ * auto-detected — a note whose first non-blank line is `---` (a front-matter
+ * block, or a leading slide separator) is a deck. `doc.view` holds only an
+ * explicit override, so removing it returns the note to auto.
+ */
+function viewOf(doc) {
+  if (doc.view === 'note' || doc.view === 'slides') return doc.view
+  return firstNonEmptyLine(doc.text) === '---' ? 'slides' : 'note'
+}
+
 function updatePreview() {
   const doc = active()
-  el.preview.innerHTML = doc ? render(doc.text) : EMPTY_STATE
+  if (!doc) {
+    el.preview.className = 'md'
+    el.preview.innerHTML = EMPTY_STATE
+  } else if (viewOf(doc) === 'slides') {
+    renderDeckPreview(doc)
+  } else {
+    el.preview.className = 'md'
+    el.preview.innerHTML = render(doc.text)
+  }
+}
+
+/** One preview card: a slide-shaped frame around a body, numbered in the corner. */
+function slideCard(body, mods, num, bg) {
+  const card = document.createElement('div')
+  card.className = ('slide-card ' + mods).trim()
+  if (bg) card.style.background = bg
+  card.append(body)
+  const badge = document.createElement('span')
+  badge.className = 'slide-num'
+  badge.textContent = num
+  card.append(badge)
+  return card
+}
+
+// Rendered slide cards from the last deck preview, keyed by slide content, so a
+// keystroke re-renders only the slide that changed — the rest are reused as-is.
+// Bounded to the current deck: it is rebuilt from the cards used each pass.
+let deckCache = new Map()
+
+/**
+ * Render the note as a column of slide cards — the same parseDeck() and render()
+ * the projector uses, a rendered title page, and the per-slide directives — so
+ * editing a deck is visibly slide-by-slide. Not pixel-scaled to the projector;
+ * that is a later refinement.
+ *
+ * Only slides whose content changed are re-rendered: each card is cached by its
+ * content (markdown + directives, not its number — numbering is cheap and set
+ * separately), so a card whose key still matches is moved into place untouched
+ * and `render()` never runs for it.
+ */
+function renderDeckPreview(doc) {
+  const deck = parseDeck(doc.text)
+  el.preview.className = 'deck'
+
+  const next = new Map() // the cache to keep for next time — only what we use now
+  const children = []
+  let n = 0
+
+  // Reuse the cached card for `key` if there is one and it is not already placed
+  // this pass (two identical slides cannot share one node); else build it. The
+  // number is refreshed either way, so a moved slide is not re-rendered.
+  const place = (key, build) => {
+    const node = deckCache.has(key) && !next.has(key) ? deckCache.get(key) : build()
+    next.set(key, node)
+    node.querySelector('.slide-num').textContent = ++n
+    children.push(node)
+  }
+
+  if (deck.title && Object.keys(deck.title).length) {
+    place('t:' + JSON.stringify(deck.title), () => slideCard(buildTitleBody(deck.title), 'title center', 0))
+  }
+  for (const s of deck.slides) {
+    const mods = [s.center ? 'center' : '', s.cls || ''].filter(Boolean).join(' ')
+    place('s:' + JSON.stringify([s.md, mods, s.bg || '']), () => {
+      const body = document.createElement('div')
+      body.className = 'slide-body md'
+      body.innerHTML = render(s.md)
+      return slideCard(body, mods, 0, s.bg)
+    })
+  }
+
+  deckCache = next
+
+  if (!n) { el.preview.className = 'md'; el.preview.innerHTML = EMPTY_STATE; return }
+
+  // Keep the same wrapper across renders and swap only its children, so reused
+  // cards stay put and the pane's scroll position survives an edit.
+  let wrap = el.preview.firstElementChild
+  if (!wrap || !wrap.classList.contains('deck-preview')) {
+    el.preview.textContent = ''
+    wrap = document.createElement('div')
+    wrap.className = 'deck-preview'
+    el.preview.append(wrap)
+  }
+  wrap.replaceChildren(...children)
 }
 
 // Remembers the last tab-name click so a double-click can be recognised across
@@ -563,6 +636,20 @@ function exportHtml() {
   URL.revokeObjectURL(url)
 }
 
+/**
+ * Present the active note as a slide show in a separate projector window — its
+ * own page (present/), never mixed with the editor. Only the note id travels in
+ * the URL; the projector reads the text and any saved ink straight from
+ * IndexedDB, so the pending autosave is flushed first. The window is named after
+ * the note, so re-presenting the same note reuses its window.
+ */
+function present() {
+  const doc = active()
+  if (!doc) return
+  saveNow(doc) // flush the debounced write so the projector reads the latest text
+  window.open(`../present/?id=${encodeURIComponent(doc.id)}`, `lemma-present-${doc.id}`)
+}
+
 /* ---------- cloud ---------- */
 
 function updateCloudButtons() {
@@ -949,12 +1036,49 @@ function changedBadge(doc, text, focus) {
  * 'stale' (no token yet — offer a reload). It never fetches on its own; the
  * caller owns the read, so the 300ms open race and a manual reload share one.
  */
+/**
+ * The "Show as" control in File info: Auto / Note / Slides. Auto follows the
+ * first-line heuristic (its label says what that resolves to); Note and Slides
+ * pin the choice on the note. Changing it saves the note and re-renders the
+ * preview at once, without rebuilding the whole panel.
+ */
+function viewControl(doc) {
+  const seg = document.createElement('div')
+  seg.className = 'seg'
+  const current = doc.view === 'note' || doc.view === 'slides' ? doc.view : 'auto'
+  const opts = [
+    ['auto', `Auto (${viewOf({ ...doc, view: undefined })})`],
+    ['note', 'Note'],
+    ['slides', 'Slides'],
+  ]
+  for (const [val, label] of opts) {
+    const b = document.createElement('button')
+    b.type = 'button'
+    b.className = 'seg-btn' + (current === val ? ' active' : '')
+    b.textContent = label
+    b.onclick = () => {
+      if (val === 'auto') delete doc.view
+      else doc.view = val
+      saveNow(doc)
+      for (const x of seg.querySelectorAll('.seg-btn')) x.classList.remove('active')
+      b.classList.add('active')
+      updatePreview()
+    }
+    seg.append(b)
+  }
+  return seg
+}
+
 function renderFileInfo(doc, mode, data) {
   const source = noteSource(doc)
   const dirty = doc.text !== doc.savedText
   const localSize = new Blob([doc.text]).size
   const editedBadge = dirty ? changedBadge(doc, 'Changed in editor', 'editor') : null
   fi.grid.textContent = ''
+
+  // How the note previews and presents: auto-detected, or overridden here. Shown
+  // for every note, so it sits first, before the source-specific rows below.
+  addInfoRow('Show as', viewControl(doc))
 
   if (source === 'local') {
     const base = doc.local
@@ -2308,6 +2432,35 @@ async function confirmSaveAs() {
   }
 }
 
+/* ---------- templates ---------- */
+
+const templatePicker = {
+  dialog: document.getElementById('template-picker'),
+  choices: document.getElementById('template-choices'),
+}
+
+/** Create a note from a template and open it — blank notes land in the editor,
+ *  the rest in reading view so their result is what shows first. */
+function newFromTemplate(t) {
+  setActive(addDoc(t.name, t.text, null, 'new'))
+  setMode(t.mode ?? 'view', { focus: t.mode === 'edit' })
+}
+
+// Build the picker's cards once, from the template list, so adding a template is
+// a one-line change in templates.js.
+for (const t of templates) {
+  const b = document.createElement('button')
+  b.type = 'button'
+  b.className = 'save-choice'
+  b.innerHTML =
+    `<svg class="icon"><use href="#${t.icon}"/></svg>` +
+    `<span class="sc-title"></span><span class="sc-desc"></span>`
+  b.querySelector('.sc-title').textContent = t.label
+  b.querySelector('.sc-desc').textContent = t.description
+  b.onclick = () => { templatePicker.dialog.close(); newFromTemplate(t) }
+  templatePicker.choices.append(b)
+}
+
 /* ---------- wiring ---------- */
 
 document.getElementById('btn-new').onclick = () => {
@@ -2316,10 +2469,12 @@ document.getElementById('btn-new').onclick = () => {
   // always lands in the editor.
   setMode('edit', { focus: true })
 }
+document.getElementById('btn-new-template').onclick = () => templatePicker.dialog.showModal()
 el.modeBtn.onclick = toggleMode
 document.getElementById('btn-open').onclick = openLocal
 document.getElementById('btn-save').onclick = downloadActive
 document.getElementById('btn-export-html').onclick = exportHtml
+document.getElementById('btn-present').onclick = present
 document.getElementById('btn-close').onclick = () => { if (state.activeId) closeTab(state.activeId) }
 document.getElementById('btn-cloud-open').onclick = openFromCloud
 document.getElementById('btn-cloud-save').onclick = saveActive
@@ -2364,6 +2519,7 @@ const SHORTCUTS = [
   // has one, otherwise a chooser. Download keeps its menu place, without a key.
   { id: 'btn-cloud-save', mod: 'ctrl', code: 'KeyS', hint: 'S' },
   { id: 'btn-file-info', mod: 'alt', code: 'KeyI', hint: 'I' },
+  { id: 'btn-present', mod: 'alt', code: 'KeyP', hint: 'P' },
   { id: 'btn-close', mod: 'alt', code: 'KeyW', hint: 'W' },
   // Ctrl+, — the usual "preferences" key, unclaimed by the browser.
   { id: 'btn-settings', mod: 'ctrl', code: 'Comma', hint: ',' },
@@ -2511,7 +2667,7 @@ async function init() {
   state.openIds = openIds
   state.activeId = openIds.includes(session?.activeId) ? session.activeId : openIds[0] ?? null
 
-  if (!state.openIds.length) state.activeId = addDoc('welcome.md', SAMPLE)
+  if (!state.openIds.length) state.activeId = addDoc('welcome.md', WELCOME)
 
   renderTabs()
   updatePreview()

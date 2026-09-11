@@ -196,22 +196,15 @@ body[data-mode="view"] #preview { padding-top: 36px; }
    the front page loads too. Only the pane around it belongs here. */
 #preview .empty-note { color: var(--muted); margin-top: 2em; }
 
-/* ---------- settings dialog ---------- */
+/* ---------- dialogs (shared base) ---------- */
 
-#settings {
-  /* Browsers centre a modal dialog with `margin: auto` against `inset: 0`.
-     The `* { margin: 0 }` reset above overrides that and pins it to the top
-     left corner, so the centring has to be restored explicitly. */
+/* Every <dialog> shares this box, so a new one needs no style of its own and an
+   existing one overrides only what it changes — usually just the width. The
+   `* { margin: 0 }` reset above kills the browser's auto-centring of a modal, so
+   `margin: auto` restores it. */
+dialog {
   margin: auto;
-  /* Fixed so switching tabs never resizes the dialog: up to two-thirds of the
-     viewport, capped, with the panel scrolling inside rather than the window
-     growing. */
-  height: clamp(360px, 66vh, 620px);
-  /* Width grows with the screen up to a 4:3 ratio against the max height. */
-  width: clamp(320px, 66vw, calc(620px * 4 / 3));
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
+  width: min(460px, calc(100vw - 32px));
   padding: 0 22px 22px;
   border: 1px solid var(--line);
   border-radius: 10px;
@@ -219,12 +212,27 @@ body[data-mode="view"] #preview { padding-top: 36px; }
   background: var(--bg);
   box-shadow: 0 12px 40px rgba(0, 0, 0, .18);
 }
+dialog::backdrop { background: rgba(0, 0, 0, .35); }
+/* Direct children only, so this never reaches the <section> panels nested inside
+   the settings dialog. */
+dialog > section { margin-top: 18px; display: flex; flex-direction: column; gap: 14px; }
+
+/* ---------- settings dialog ---------- */
+
+#settings {
+  /* Fixed so switching tabs never resizes the dialog: up to two-thirds of the
+     viewport, capped, with the panel scrolling inside rather than the window
+     growing. Width grows with the screen up to a 4:3 ratio against that height. */
+  height: clamp(360px, 66vh, 620px);
+  width: clamp(320px, 66vw, calc(620px * 4 / 3));
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
 
 /* A closed <dialog> is display:none by default; the flex display above would
    otherwise keep it on screen, so restore that for the closed state. */
 #settings:not([open]) { display: none; }
-
-#settings::backdrop { background: rgba(0, 0, 0, .35); }
 
 .dlg-head {
   display: flex;
@@ -343,44 +351,9 @@ body[data-mode="view"] #preview { padding-top: 36px; }
 
 /* ---------- cloud dialogs ---------- */
 
-/* The setup and save-as dialogs share the settings dialog's look (see the
-   margin/centring note there) but stay small: a line of prose, a name, a
-   folder. */
-#cloud-save-as,
-#cloud-setup,
-#cloud-conflict,
-#cloud-identity,
-#save-target,
-#local-conflict,
-#close-warn,
-#diff {
-  margin: auto;
-  width: min(460px, calc(100vw - 32px));
-  padding: 0 22px 22px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  color: var(--fg);
-  background: var(--bg);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, .18);
-}
-
-#cloud-save-as::backdrop,
-#cloud-setup::backdrop,
-#cloud-conflict::backdrop,
-#cloud-identity::backdrop,
-#save-target::backdrop,
-#local-conflict::backdrop,
-#close-warn::backdrop,
-#diff::backdrop { background: rgba(0, 0, 0, .35); }
-
-#cloud-save-as section,
-#cloud-setup section,
-#cloud-conflict section,
-#cloud-identity section,
-#save-target section,
-#local-conflict section,
-#close-warn section,
-#diff section { margin-top: 18px; display: flex; flex-direction: column; gap: 14px; }
+/* These take the shared dialog box above; only their contents are styled here,
+   and the two that are not 460px wide (#diff, #cloud-save-as) set their own
+   width below. */
 
 /* ---------- diff viewer ---------- */
 
@@ -577,6 +550,13 @@ button.info-badge {
 
 /* The save-target chooser: two big buttons side by side. */
 .save-choices { display: flex; gap: 12px; }
+/* The template picker lists its choices as full-width rows instead — a list that
+   grows reads better stacked than crammed side by side. */
+#template-picker .save-choices { flex-direction: column; }
+/* Larger type for the template cards than the shared save-choice default. */
+#template-picker .sc-title { font-size: 1.1em; }
+#template-picker .sc-desc { font-size: .92em; }
+#template-picker .save-choice { padding: 16px; }
 .save-choice {
   flex: 1;
   display: grid;
@@ -725,18 +705,60 @@ button.info-badge {
 
 /* ---------- file info dialog ---------- */
 
-#file-info {
-  margin: auto;
-  width: min(520px, calc(100vw - 32px));
-  padding: 0 22px 22px;
+#file-info { width: min(520px, calc(100vw - 32px)); }
+#file-info > section { gap: 16px; } /* a touch more breathing room than the shared 14px */
+
+/* ---------- slide preview ---------- */
+
+/* When a note is shown as slides, #preview holds a column of slide-shaped cards
+   instead of flowing markdown. Content and title styling come from slides.css
+   (shared with the projector); only the card frame and the container-dependent
+   centring are here. Not pixel-scaled to the projector — a later refinement. */
+.deck-preview { display: flex; flex-direction: column; gap: 18px; }
+
+.slide-card {
+  position: relative;
+  aspect-ratio: 960 / 700;
+  overflow: hidden;
+  padding: 20px 22px;
   border: 1px solid var(--line);
-  border-radius: 10px;
-  color: var(--fg);
+  border-radius: 8px;
   background: var(--bg);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, .18);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .08);
+  font-size: 16px;
+  text-align: left;
 }
-#file-info::backdrop { background: rgba(0, 0, 0, .35); }
-#file-info section { margin-top: 18px; display: flex; flex-direction: column; gap: 16px; }
+.slide-card.center { display: flex; flex-direction: column; justify-content: center; }
+.slide-card.center .slide-body { height: auto; text-align: center; }
+.slide-card.title { align-items: center; text-align: center; }
+/* The title body fills the card and is a flex column that centres its blocks
+ * horizontally while slides.css spaces them vertically with auto margins. */
+.slide-card.title .slide-body {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  overflow: hidden;
+}
+
+.slide-num { position: absolute; bottom: 6px; right: 9px; font-size: 11px; color: var(--muted); opacity: .7; }
+
+/* ---------- segmented control (File info "Show as") ---------- */
+
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.seg-btn {
+  font: inherit;
+  font-size: .85em;
+  padding: 3px 10px;
+  border: 0;
+  border-left: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--fg);
+  cursor: pointer;
+}
+.seg-btn:first-child { border-left: 0; }
+.seg-btn:hover { background: var(--surface); }
+.seg-btn.active { background: var(--accent); color: #fff; }
 
 .info-grid { display: grid; grid-template-columns: auto 1fr; gap: 8px 16px; margin: 0; font-size: .9em; }
 .info-grid dt { color: var(--muted); white-space: nowrap; }

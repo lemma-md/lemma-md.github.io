@@ -11,6 +11,58 @@ Everything came from jsDelivr (which mirrors npm) at the pinned versions below.
 | [DOMPurify](https://github.com/cure53/DOMPurify) | 3.4.13 | `purify.min.js` | marked does not sanitise; this closes the XSS hole |
 | [KaTeX](https://katex.org) | 0.18.2 | `katex/katex.min.js`, `katex/katex.min.css`, `katex/fonts/*.woff2` | formula rendering |
 | [Ace](https://ace.c9.io) | 1.44.0 | `ace/ace.js`, `ace/mode-markdown.js`, `ace/theme-textmate.js`, `ace/ext-searchbox.js` | editor with line numbers |
+| [reveal.js](https://revealjs.com) | 5.2.1 | `reveal/reveal.min.js`, `reveal/reveal.min.css`, `reveal/reset.min.css` | slide framework for presentation mode |
+
+reveal.js is loaded only by the projector page (`present/index.html`), which
+opens in its own window, so a reader who never presents never fetches it — the
+same on-demand principle as Ace, achieved here just by living on a separate
+page. Its own markdown/highlight/math plugins are left off: slides are rendered
+by our single `render()` pipeline (`src/viewer.js`), and drawing is a custom SVG
+layer, not a reveal plugin. No reveal theme is vendored — `src/present.css` is
+the theme, built on the app's own tokens.
+
+## Licenses
+
+Every vendored library is under a permissive licence. The project redistributes
+these files (committed here, and served from GitHub Pages), so each library's
+copyright and permission notice is preserved below. Some minified builds keep a
+banner of their own — DOMPurify's `@license` line and reveal.js's copyright
+comment survive minification; marked, KaTeX and Ace ship no banner, which is why
+their notices are recorded here rather than only in the files.
+
+| library | SPDX | copyright |
+|---|---|---|
+| marked | MIT | © 2018+ MarkedJS; © 2011–2018 Christopher Jeffrey |
+| DOMPurify | Apache-2.0 OR MPL-2.0 | © Cure53 and other contributors |
+| KaTeX | MIT | © 2013–2020 Khan Academy and other contributors |
+| Ace | BSD-3-Clause | © 2010 Ajax.org B.V. |
+| reveal.js | MIT | © 2011–2024 Hakim El Hattab and reveal.js contributors |
+
+The **MIT** libraries (marked, KaTeX, reveal.js) share the standard MIT
+permission text — the same wording as this repository's own root `LICENSE` — so
+it is not repeated per library; the copyright lines above are the part that
+differs, and together with that text satisfy the notice each requires.
+
+**Ace** is BSD-3-Clause, whose text differs:
+
+> Copyright (c) 2010, Ajax.org B.V. All rights reserved. Redistribution and use
+> in source and binary forms, with or without modification, are permitted
+> provided that the following conditions are met: redistributions of source code
+> retain the above copyright notice, this list of conditions and the following
+> disclaimer; redistributions in binary form reproduce it in the documentation;
+> and neither the name of Ajax.org B.V. nor the names of its contributors may be
+> used to endorse or promote derived products without prior written permission.
+> THE SOFTWARE IS PROVIDED "AS IS" AND ANY WARRANTIES ARE DISCLAIMED; IN NO EVENT
+> SHALL THE COPYRIGHT HOLDERS BE LIABLE FOR ANY DAMAGES ARISING FROM ITS USE.
+
+**DOMPurify** is dual Apache-2.0 / MPL-2.0; its `@license` banner is kept inside
+`purify.min.js`, and the full texts are at
+<https://www.apache.org/licenses/LICENSE-2.0> and <https://www.mozilla.org/MPL/2.0/>.
+The MPL is file-level copyleft, but the file is vendored unmodified, so it places
+no condition on the rest of the project.
+
+The icons' ISC licence is reproduced in the Icons section below. The project's
+own code is MIT — see the root `LICENSE`.
 
 ## Icons
 
@@ -66,6 +118,7 @@ MARKED=18.0.9
 PURIFY=3.4.13
 KATEX=0.18.2
 ACE=1.44.0
+REVEAL=5.2.1
 CDN=https://cdn.jsdelivr.net/npm
 
 get() { curl -sSfL --create-dirs -o "$2" "$1"; }
@@ -78,6 +131,10 @@ get $CDN/katex@$KATEX/dist/katex.min.css           vendor/katex/katex.min.css
 for m in ace mode-markdown theme-textmate ext-searchbox; do
   get $CDN/ace-builds@$ACE/src-min-noconflict/$m.js vendor/ace/$m.js
 done
+
+get $CDN/reveal.js@$REVEAL/dist/reveal.min.js      vendor/reveal/reveal.min.js
+get $CDN/reveal.js@$REVEAL/dist/reveal.min.css     vendor/reveal/reveal.min.css
+get $CDN/reveal.js@$REVEAL/dist/reset.min.css      vendor/reveal/reset.min.css
 
 for f in AMS-Regular Caligraphic-Bold Caligraphic-Regular Fraktur-Bold \
          Fraktur-Regular Main-Bold Main-BoldItalic Main-Italic Main-Regular \

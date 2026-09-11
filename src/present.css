@@ -1,0 +1,538 @@
+/* Presentation theme. No reveal.js theme is vendored — this file is the theme,
+ * built on the app's own tokens (theme.css) so a slide reads like a lemma-md
+ * page. Slide content itself is styled by markdown.css (each slide body carries
+ * the `.md` class), exactly as the editor preview is. */
+
+:root {
+  /* reveal.js reads these custom properties in place of a vendored theme. The
+   * backdrop around the slide is a light grey so the white slide's edges — and
+   * therefore the drawable area — are visible. */
+  --r-background-color: #e5e7eb;
+  --r-main-font: -apple-system, "Segoe UI", Roboto, sans-serif;
+  --r-main-color: var(--fg);
+  --r-heading-font: var(--r-main-font);
+  --r-heading-color: var(--fg);
+  --r-link-color: var(--accent);
+  --r-link-color-hover: var(--accent);
+  --r-selection-color: #fff;
+  --r-selection-background-color: var(--accent);
+  --r-controls-color: var(--muted);
+  --r-progress-color: var(--accent);
+}
+
+html, body { height: 100%; }
+/* The `hidden` attribute must win over the explicit `display` some overlays set
+ * (#message, .settings-modal) — author rules otherwise beat the UA default. */
+[hidden] { display: none !important; }
+/* We vendor no reveal theme, so the `--r-*` variables above are not consumed by
+ * anything — paint the backdrop (around the slide) ourselves. reveal.css sets a
+ * background on the viewport, and present.css loads after it, so this wins. */
+body,
+.reveal-viewport,
+.reveal { background: var(--r-background-color); }
+
+/* Base slide type size, in slide space (the 960x700 box). reveal scales the
+ * whole box to the screen, so this is the one place the "font size" lives;
+ * markdown.css sizes headings in em, off this. */
+.reveal { font-size: 32px; }
+
+/* Our own page navigator (right edge) replaces reveal's corner controls and slide
+ * number, so hide those to avoid two of everything. !important beats reveal's own
+ * display rules that turn the controls on per deck-direction. */
+.reveal .controls, .reveal .slide-number { display: none !important; }
+
+/* Reveal normalises headings to the body weight (400); the reading view keeps the
+ * browser default (bold), so restore that so a slide matches the viewer. */
+.reveal .slide-body :is(h1, h2, h3, h4, h5, h6) { font-weight: 700; }
+
+.reveal .slides section {
+  height: 100%;
+  text-align: left;
+}
+/* A white slide on the grey backdrop, so its edges (and where the drawable area
+ * ends) are visible. A slide with an explicit `bg:` keeps its own colour. */
+.reveal .slides section:not([data-background]) {
+  background: var(--bg);
+  box-shadow: 0 1px 14px rgba(0, 0, 0, 0.12);
+}
+
+/* Breathing room inside the slide, so text does not run to the edges. This is
+ * where the slide's "margin" lives now that the outer frame is gone; the ink
+ * layer still covers the whole slide, so you can annotate into it. */
+.reveal .slides section > .slide-body { padding: 28px 48px; }
+
+/* A tall slide (a long note shown whole) scrolls, but the ink overlay sits on top
+ * and swallows pointer input for the laser/drawing tools — so a native scrollbar
+ * under it can't be grabbed (you'd draw instead) and the laser dot lights it up.
+ * Hide it: the slide scrolls with the wheel/trackpad, which ink.js forwards
+ * through the overlay. (Same trick as the tool palette above.) */
+.reveal .slides section > .slide-body { scrollbar-width: none; }
+.reveal .slides section > .slide-body::-webkit-scrollbar { width: 0; height: 0; }
+
+/* Content styling (.slide-body, .deck-*) is shared with the editor preview and
+ * lives in slides.css. Here we add only the container-dependent layout: how a
+ * `center` slide and the title slide fill a reveal section. */
+.reveal .slides section.center { display: flex; flex-direction: column; justify-content: center; }
+.reveal .slides section.center .slide-body { height: auto; text-align: center; }
+.reveal .slides section.title { align-items: center; text-align: center; }
+/* The title body fills the slide and is a flex column that centres its blocks
+ * horizontally (align-items) while slides.css spaces them vertically with auto
+ * margins. The bottom padding keeps the place/date group clear of the floating
+ * tool palette, and overflow:hidden avoids a stray scrollbar from sub-pixel
+ * rounding of the full-height column. */
+.reveal .slides section.title .slide-body {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  overflow: hidden;
+  padding-bottom: 3.2em;
+}
+
+/* ---------- ink layer ---------- */
+
+.reveal .slides section > svg.ink {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden; /* clip ink to the slide, so scrolled strokes don't spill out */
+  pointer-events: none; /* clicks reach the slide (links, controls) by default */
+  z-index: 5;
+}
+/* Only the current slide takes input (reveal marks it `.present`). Holding
+ * Ctrl/Cmd (body.ink-through) drops that so a click reaches the slide beneath (a
+ * link, text); the Escape overview drops it on every slide so a click lands on a
+ * thumbnail. The cursor per tool is set in JS (ink.js) so it can carry the
+ * current colour. */
+.reveal .slides section.present > svg.ink { pointer-events: auto; touch-action: none; }
+body.ink-through .reveal .slides section.present > svg.ink,
+body.overview .reveal .slides section > svg.ink { pointer-events: none; }
+
+/* pen/chalk are filled ribbons (fill = colour via attribute); marker is a
+ * fixed-width line (fill:none via attribute) — so no global fill rule here. */
+.stroke-chalk { fill-opacity: 0.9; }
+/* On the whiteboard chalk should read brighter than on a slide — full opacity so
+ * the colour is vivid under the grainy texture. */
+.board-ink.surface-light .stroke-chalk, .ov-board.surface-light .stroke-chalk { fill-opacity: 1; }
+.stroke-marker { mix-blend-mode: multiply; stroke-opacity: 0.5; }
+/* On the dark board multiply would darken the board to nothing, so the
+ * highlighter lightens (screen) instead — reading as a glow rather than a wash. */
+.board-ink.surface-dark .stroke-marker { mix-blend-mode: screen; }
+.eraser-cursor { fill: rgba(130, 130, 130, 0.18); stroke: #555; stroke-width: 2; pointer-events: none; }
+.board-ink.surface-dark .eraser-cursor { fill: rgba(255, 255, 255, 0.12); stroke: #cbd5e1; }
+.laser { pointer-events: none; }
+.laser-dot { fill: #ff3b30; filter: drop-shadow(0 0 3px rgba(255, 0, 0, 0.85)); }
+.laser-trail { stroke: #ff3b30; stroke-width: 3; stroke-linecap: round; fill: none; }
+
+/* ---------- side-car board ---------- */
+
+/* A blank surface the presenter can flip to mid-show (Board, in the menu). It
+ * overlays the whole window and, in board mode, the deck is hidden beneath it.
+ * The panel itself is slide-sized and centred on the same grey backdrop, so the
+ * drawable area matches what you see — like a slide. */
+.board { position: fixed; inset: 0; z-index: 40; display: none; align-items: center; justify-content: center; pointer-events: none; }
+body.board-mode .board { display: flex; }
+body.board-mode .reveal { display: none; } /* the deck steps aside while the board is up */
+
+.board-ink {
+  /* Same 960x700 aspect as a slide, grown to fit the window; the element box thus
+   * matches the coordinate box, so pointer math (ink.js) needs no letterbox fix. */
+  aspect-ratio: 960 / 700;
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  pointer-events: auto;
+  touch-action: none;
+  border-radius: 4px;
+  box-shadow: 0 2px 22px rgba(0, 0, 0, 0.35);
+}
+.board-ink.surface-dark { background: #14231d; } /* dark green-black chalkboard */
+.board-ink.surface-light { background: #fff; }
+
+/* ---------- page navigation (vertical, right edge) ---------- */
+
+/* Like the chalkboard plugin: previous above, next below, the page number
+ * between. On the right edge, vertically centred; drives slides or board pages. */
+.board-nav {
+  position: fixed;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 55;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 3px;
+  padding: 4px;
+  background: rgba(28, 28, 30, 0.9);
+  border-radius: 14px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.32);
+  opacity: 0.65;
+  transition: opacity 0.15s;
+}
+.board-nav:hover { opacity: 1; }
+body.ov .board-nav { display: none; } /* out of the way in the overview */
+.board-nav button {
+  width: 38px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: #ff5069; /* red arrows, echoing the chalkboard reference */
+  cursor: pointer;
+}
+.board-nav button:hover { background: rgba(255, 255, 255, 0.14); }
+.board-nav button:disabled { opacity: 0.3; cursor: default; }
+.board-nav button:disabled:hover { background: transparent; }
+.board-nav .tool-icon { width: 20px; height: 20px; }
+/* The page number: current bold and centred; total smaller and fainter, tucked
+ * into the bottom-right corner (toward the screen's right edge). */
+.board-count {
+  position: relative;
+  display: block;
+  line-height: 1;
+  padding: 6px 4px 8px;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+.bc-cur { font-size: 1rem; font-weight: 600; color: #f4f4f5; }
+.bc-tot { position: absolute; right: 1px; bottom: 1px; font-size: 0.62rem; color: rgba(244, 244, 245, 0.5); }
+.board-count:hover .bc-cur { color: #fff; }
+
+/* ---------- mode rail (top-left) + menu (top-right) + settings ---------- */
+
+/* Vertical, at the top-left. */
+.mode-rail {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 4px;
+  background: rgba(28, 28, 30, 0.9);
+  border-radius: 12px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.32);
+  opacity: 0.6;
+  transition: opacity 0.15s;
+}
+.mode-rail:hover { opacity: 1; }
+.mode-rail button {
+  width: 38px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: #f2f2f2;
+  cursor: pointer;
+}
+.mode-rail button:hover { background: rgba(255, 255, 255, 0.14); }
+.mode-rail button.active { background: rgba(255, 255, 255, 0.28); }
+.mode-rail .tool-icon { width: 20px; height: 20px; }
+body.overview .mode-rail { display: none; }
+
+.menu-wrap { position: fixed; top: 12px; right: 12px; z-index: 60; }
+.menu-btn {
+  width: 38px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 10px;
+  background: rgba(28, 28, 30, 0.9);
+  color: #f2f2f2;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.32);
+  cursor: pointer;
+  opacity: 0.6;
+  transition: opacity 0.15s;
+}
+.menu-btn:hover { opacity: 1; }
+.menu-btn .tool-icon { width: 20px; height: 20px; }
+.menu-dropdown {
+  position: absolute;
+  top: 46px;
+  right: 0;
+  left: auto;
+  min-width: 172px;
+  padding: 5px;
+  background: rgba(32, 32, 36, 0.98);
+  border-radius: 11px;
+  box-shadow: 0 8px 26px rgba(0, 0, 0, 0.4);
+}
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  text-align: left;
+  padding: 9px 12px 9px 10px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: #f2f2f2;
+  font: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+.menu-item:hover { background: rgba(255, 255, 255, 0.14); }
+.menu-item.active { background: rgba(255, 255, 255, 0.16); }
+.menu-item .tool-icon { width: 18px; height: 18px; flex: none; }
+.mi-label { flex: 1; }
+/* The shortcut hint, right-aligned and faint. */
+.mi-key { margin-left: 14px; font-size: 0.76rem; color: rgba(242, 242, 242, 0.5); white-space: nowrap; }
+.menu-sep { height: 1px; margin: 5px 8px; background: rgba(255, 255, 255, 0.16); }
+
+/* The dialog mirrors the editor's Settings (see ui.css): a fixed-size box with a
+ * left tab rail and the selected panel on the right, so it never resizes. */
+.settings-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.35);
+}
+.settings-dialog {
+  height: clamp(300px, 60vh, 520px);
+  width: clamp(320px, 60vw, calc(520px * 4 / 3));
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.28);
+  padding: 0 22px 22px;
+}
+.dlg-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 0 12px;
+  border-bottom: 1px solid var(--line);
+}
+.dlg-head h2 { margin: 0; font-size: 1.15em; font-weight: 700; }
+.dlg-close {
+  border: 0;
+  background: none;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--muted);
+  padding: 2px 6px;
+  border-radius: 5px;
+}
+.dlg-close:hover { background: var(--surface); color: var(--fg); }
+
+.settings-body { display: flex; margin-top: 14px; flex: 1; min-height: 0; }
+.settings-tabs { display: flex; flex-direction: column; flex: none; width: 130px; border-right: 1px solid var(--line); }
+.settings-tab {
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  padding: 8px 12px;
+  border: 0;
+  background: none;
+  color: var(--fg);
+  cursor: pointer;
+}
+.settings-tab:hover { background: var(--surface); }
+.settings-tab.active { background: var(--surface); box-shadow: inset 2px 0 0 var(--accent); font-weight: 600; }
+.settings-panels { flex: 1; min-width: 0; padding: 0 4px 0 20px; overflow-y: auto; }
+.settings-panel h3 { font-size: 0.95em; margin: 0 0 12px; }
+
+.settings-row { display: flex; align-items: center; justify-content: space-between; gap: 12px 16px; margin-bottom: 14px; flex-wrap: wrap; }
+.settings-check { cursor: pointer; }
+
+/* Narrow: the tab rail becomes a row above the panel (as in the editor), giving
+   the controls the dialog's full width. */
+@media (max-width: 560px) {
+  .settings-body { flex-direction: column; }
+  .settings-tabs { flex-direction: row; width: auto; flex-wrap: wrap; border-right: 0; border-bottom: 1px solid var(--line); }
+  .settings-tab.active { box-shadow: inset 0 -2px 0 var(--accent); }
+  .settings-panels { padding: 12px 0 0; }
+}
+.settings-label { font-size: 0.92rem; }
+.seg { display: inline-flex; padding: 3px; background: var(--surface); border-radius: 9px; }
+.seg button {
+  padding: 5px 15px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--fg);
+  font: inherit;
+  font-size: 0.86rem;
+  cursor: pointer;
+}
+.seg button.active { background: var(--bg); box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18); }
+.settings-check input { width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer; }
+
+/* Help dialog: a two-column table (key badges → what they do), scrolling in the box. */
+.help-scroll { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; margin: 14px 0 0; padding-right: 4px; }
+.help-table { width: 100%; border-collapse: collapse; }
+.help-table td { padding: 8px 0; border-top: 1px solid var(--line); vertical-align: middle; }
+.help-table tr:first-child td { border-top: 0; }
+.help-table .hk { padding-right: 16px; line-height: 1.9; }
+.help-table .hd { font-size: 0.9rem; }
+.help-table kbd {
+  display: inline-block;
+  min-width: 1.1em;
+  padding: 2px 6px;
+  margin: 1px 0;
+  font: inherit;
+  font-size: 0.78rem;
+  text-align: center;
+  color: var(--fg);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+}
+
+/* The blank screen: an opaque black overlay above everything; click or Esc dismisses.
+ * A faint centred hint tells the presenter how to get back without shouting it at
+ * the audience. */
+.blank-screen { position: fixed; inset: 0; z-index: 90; background: #000; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.blank-hint { color: rgba(255, 255, 255, 0.26); font-size: 0.95rem; letter-spacing: 0.02em; user-select: none; }
+
+/* ---------- overview (thumbnail grid) ---------- */
+
+/* A scrollable grid of slide (or board-page) thumbnails, over a dimmed backdrop.
+ * Opened with Escape for the current mode; arrows move, Enter/click opens. */
+.overview {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  overflow-y: auto;
+  padding: 24px;
+  background: #17181a; /* opaque, so the deck/board behind never bleeds through */
+}
+.overview-grid { display: flex; flex-wrap: wrap; gap: 16px; align-content: flex-start; justify-content: center; }
+body.ov .ink-palette, body.ov .board-nav { display: none; } /* chrome out of the way */
+
+.ov-card {
+  position: relative;
+  /* Padding gives a ring of gap between the card border and the thumbnail, so a
+     selection outline reads clearly even over a white slide thumb. */
+  padding: 4px;
+  border: 2px solid transparent;
+  border-radius: 11px;
+  background: none;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+.ov-card:hover { border-color: rgba(255, 255, 255, 0.35); }
+.ov-card.selected { border-color: var(--accent); background: rgba(37, 99, 235, 0.22); box-shadow: 0 0 0 1px var(--accent); }
+
+/* The thumbnail is a 960x700 surface scaled to a small fixed card. */
+.ov-page { width: 240px; height: 175px; overflow: hidden; border-radius: 6px; box-shadow: 0 2px 12px rgba(0, 0, 0, 0.45); }
+.ov-page-slide { background: #fff; }
+.ov-scale { width: 960px; height: 700px; transform: scale(0.25); transform-origin: top left; }
+.ov-scale .slide-body { padding: 28px 48px; }
+.ov-scale.center { display: flex; flex-direction: column; justify-content: center; }
+.ov-scale.center .slide-body { text-align: center; }
+.ov-board { display: block; width: 240px; height: 175px; }
+.ov-board.surface-dark { background: #14231d; }
+.ov-board.surface-light { background: #fff; }
+.ov-board.surface-dark .stroke-marker { mix-blend-mode: screen; }
+
+.ov-label {
+  position: absolute;
+  right: 6px;
+  bottom: 5px;
+  padding: 1px 7px;
+  border-radius: 7px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 0.72rem;
+}
+
+/* ---------- tool palette ---------- */
+
+/* A vertical strip down the left edge — over the grey margin, and clear of the
+   slide's bottom. Faint until hovered so it never competes with the content. */
+.ink-palette {
+  position: fixed;
+  left: 12px;
+  /* Anchored just below the vertical mode rail (top-left), so the two never
+     overlap even on a very short window; it hugs its content and scrolls if the
+     window is too short to show every tool. */
+  top: 152px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  align-items: center;
+  padding: 4px;
+  max-height: calc(100vh - 164px);
+  overflow-y: auto;
+  /* Hide the scrollbar so a short window (where the strip must scroll) doesn't
+     widen it past the mode rail; it still scrolls by wheel. */
+  scrollbar-width: none;
+  background: rgba(28, 28, 30, 0.9);
+  border-radius: 14px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.32);
+  z-index: 50;
+  opacity: 0.5;
+  transition: opacity 0.15s;
+}
+.ink-palette::-webkit-scrollbar { width: 0; height: 0; }
+.ink-palette:hover { opacity: 1; }
+body.overview .ink-palette { display: none; } /* out of the way in the slide overview */
+/* Present mode has no drawing tools — only the laser — so the toolbar is hidden. */
+body[data-mode="present"] .ink-palette { display: none; }
+
+.ink-palette button {
+  width: 38px;
+  height: 38px;
+  flex: none; /* keep full size; a short palette scrolls rather than squashing */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: #f2f2f2;
+  cursor: pointer;
+}
+.ink-palette button:hover { background: rgba(255, 255, 255, 0.14); }
+.ink-palette button.active { background: rgba(255, 255, 255, 0.28); }
+.ink-palette .tool-icon { width: 20px; height: 20px; display: block; }
+
+.ink-palette button.swatch { width: 22px; height: 22px; border-radius: 50%; border: 2px solid transparent; }
+.ink-palette button.swatch.active { border-color: #fff; }
+
+.ink-sep { height: 1px; width: 26px; margin: 2px 0; background: rgba(255, 255, 255, 0.22); }
+
+/* ---------- start-up message ---------- */
+
+#message {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  text-align: center;
+  white-space: pre-line;
+  color: var(--muted);
+  font-size: 1.1rem;
+}
+
+@media print {
+  .ink-palette { display: none; }
+}

@@ -18,9 +18,14 @@
  * its contents across first.
  */
 const DB_NAME = 'lemma-md'
-const DB_VERSION = 1
+// Bumped 1 -> 2 only to add the `annotations` store: IndexedDB runs
+// onupgradeneeded solely when this number rises, so an existing v1 database
+// would otherwise never gain the store. There is no data to migrate (nothing
+// released), so the bump carries no copy logic — just the create below.
+const DB_VERSION = 2
 const DOCS = 'docs'
 const META = 'meta'
+const ANNOT = 'annotations'
 
 let dbPromise = null
 
@@ -32,8 +37,16 @@ function open() {
       const db = req.result
       if (!db.objectStoreNames.contains(DOCS)) db.createObjectStore(DOCS, { keyPath: 'id' })
       if (!db.objectStoreNames.contains(META)) db.createObjectStore(META, { keyPath: 'key' })
+      // Presentation ink, one record per note, keyed by the note id. Kept out of
+      // the note itself so the .md stays plain text.
+      if (!db.objectStoreNames.contains(ANNOT)) db.createObjectStore(ANNOT, { keyPath: 'id' })
     }
-    req.onsuccess = () => resolve(req.result)
+    req.onsuccess = () => {
+      // If another tab later opens the database at a higher version (a future
+      // schema bump), close this connection so its upgrade is not blocked.
+      req.result.onversionchange = () => req.result.close()
+      resolve(req.result)
+    }
     req.onerror = () => reject(req.error)
   })
   return dbPromise
@@ -50,8 +63,20 @@ async function run(storeName, mode, fn) {
 }
 
 export const listDocs = () => run(DOCS, 'readonly', (s) => s.getAll())
+export const getDoc = (id) => run(DOCS, 'readonly', (s) => s.get(id)).then((d) => d ?? null)
 export const putDoc = (doc) => run(DOCS, 'readwrite', (s) => s.put(doc))
-export const deleteDoc = (id) => run(DOCS, 'readwrite', (s) => s.delete(id))
+// Deleting a note takes its presentation ink with it — the one place a note is
+// hard-removed (a clean close, a Settings delete, a bin purge), so ink never
+// outlives its note. The bin path uses putDoc, not this, so binning keeps it.
+export const deleteDoc = (id) =>
+  Promise.all([run(DOCS, 'readwrite', (s) => s.delete(id)), deleteAnnotations(id)])
+
+// Presentation ink, keyed by note id. A record is
+// { id, slides: { [index]: Stroke[] }, updatedAt }. The projector reads and
+// writes these directly; the note's own record never carries them.
+export const getAnnotations = (id) => run(ANNOT, 'readonly', (s) => s.get(id)).then((r) => r ?? null)
+export const putAnnotations = (record) => run(ANNOT, 'readwrite', (s) => s.put(record))
+export const deleteAnnotations = (id) => run(ANNOT, 'readwrite', (s) => s.delete(id))
 
 // The bin.
 //

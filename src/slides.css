@@ -1,0 +1,32 @@
+/* The look of slide *content* — the title page and the slide body — shared by
+ * the projector (present.css) and the editor's slide preview (ui.css). Only the
+ * container-dependent layout (how a slide fills the projector vs a small preview
+ * card, and the centring that depends on it) lives in those two files; what must
+ * look the same in both lives here. Loaded after markdown.css, which styles the
+ * `.md` body inside a slide. */
+
+/* reveal.js (and its reset) set line-height to 1 on the slide; the editor gets
+ * 1.6 from theme.css but the projector does not, so set a readable leading here
+ * for slide content in both. */
+.slide-body { height: 100%; overflow: auto; padding: 0 8px; line-height: 1.42; }
+/* markdown.css gives a leading heading a top margin; a slide should sit flush. */
+.slide-body.md > :first-child { margin-top: 0; }
+
+/* Title page fields, in two groups — "who" (author, affiliation) and
+ * "when / where" (place, date). The gap between the groups lives on the block,
+ * not on any one field, so it stays put whichever fields are present: leaving out
+ * `place` no longer lets the date drift up against the author. */
+.deck-title { font-size: 1.6em; font-weight: 700; line-height: 1.2; max-width: 22em; }
+.deck-author { font-size: 1.1em; }
+.deck-affiliation, .deck-place, .deck-date { color: var(--muted); }
+
+/* Vertical placement. The title body is a full-height flex column (set in
+ * present.css / ui.css), so these auto margins position the blocks: equal space
+ * above the title and below the author group leaves title + author centred in
+ * the upper area, while the place/date group is pushed to the bottom edge. The
+ * title -> author gap is a real gap on top of that. */
+.deck-title { margin-top: auto; }
+.deck-who { margin-top: 2em; }
+.deck-when { margin-top: auto; }
+/* Tight spacing within a group; the space between groups is the block margins. */
+.deck-who > * + *, .deck-when > * + * { margin-top: 0.15em; }

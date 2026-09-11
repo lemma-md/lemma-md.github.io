@@ -15,6 +15,7 @@
 <link rel="stylesheet" href="../vendor/katex/katex.min.css">
 <link rel="stylesheet" href="../src/theme.css">
 <link rel="stylesheet" href="../src/markdown.css">
+<link rel="stylesheet" href="../src/slides.css">
 <link rel="stylesheet" href="../src/ui.css">
 
 <!-- Vendored libraries expose globals; our own code in src/ is ES modules. -->
@@ -89,6 +90,11 @@
     <path d="M18 6 6 18"/>
     <path d="m6 6 12 12"/>
   </symbol>
+  <symbol id="icon-present" viewBox="0 0 24 24">
+    <path d="M2 3h20"/>
+    <path d="M21 3v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V3"/>
+    <path d="m7 21 5-5 5 5"/>
+  </symbol>
 </svg>
 
 <header id="bar">
@@ -121,6 +127,7 @@
            cannot drift apart. -->
       <div id="menu" role="menu" hidden>
         <button id="btn-new" role="menuitem"><svg class="icon"><use href="#icon-new"/></svg><span class="label">New note</span><span class="key"></span></button>
+        <button id="btn-new-template" role="menuitem"><svg class="icon"><use href="#icon-new"/></svg><span class="label">New from template…</span><span class="key"></span></button>
         <button id="btn-open" role="menuitem"><svg class="icon"><use href="#icon-open"/></svg><span class="label">Open a file…</span><span class="key"></span></button>
         <button id="btn-cloud-save" role="menuitem"><svg class="icon"><use href="#icon-save"/></svg><span class="label">Save</span><span class="key"></span></button>
         <button id="btn-save-as" role="menuitem"><svg class="icon"><use href="#icon-save"/></svg><span class="label">Save As…</span><span class="key"></span></button>
@@ -131,6 +138,8 @@
         <hr>
         <button id="btn-save" role="menuitem"><svg class="icon"><use href="#icon-download"/></svg><span class="label">Download as .md</span><span class="key"></span></button>
         <button id="btn-export-html" role="menuitem"><svg class="icon"><use href="#icon-download"/></svg><span class="label">Download as .html</span><span class="key"></span></button>
+        <hr>
+        <button id="btn-present" role="menuitem"><svg class="icon"><use href="#icon-present"/></svg><span class="label">Present</span><span class="key"></span></button>
         <hr>
         <button id="btn-file-info" role="menuitem"><svg class="icon"><use href="#icon-info"/></svg><span class="label">File info</span><span class="key"></span></button>
         <button id="btn-settings" role="menuitem"><svg class="icon"><use href="#icon-settings"/></svg><span class="label">Settings</span><span class="key"></span></button>
@@ -200,6 +209,19 @@
       </section>
     </div>
   </div>
+</dialog>
+
+<!-- New from template: a short list of starter notes (blank, welcome, a slide
+     demo). The cards are built by app.js from the list in src/templates.js. -->
+<dialog id="template-picker">
+  <form method="dialog" class="dlg-head">
+    <h2>New from template</h2>
+    <button class="dlg-close" title="Close" aria-label="Close">&times;</button>
+  </form>
+
+  <section>
+    <div class="save-choices" id="template-choices"></div>
+  </section>
 </dialog>
 
 <!-- First cloud use: explain that a folder is about to be made on the user's
