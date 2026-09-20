@@ -32,9 +32,13 @@ body,
 .reveal { background: var(--r-background-color); }
 
 /* Base slide type size, in slide space (the 960x700 box). reveal scales the
- * whole box to the screen, so this is the one place the "font size" lives;
- * markdown.css sizes headings in em, off this. */
-.reveal { font-size: 32px; }
+ * whole box to the screen, so this is the "font size" for the deck; markdown.css
+ * sizes headings in em, off this. Expressed in points (16pt = ~21px), the unit a
+ * presenter reaches for; a deck can override it with `fontsize:` front-matter
+ * (present.js). Keep this default in step with the editor preview's fallback
+ * (the `--slide-fs` fallback in ui.css), so a slide looks the same in the
+ * preview as on stage. */
+.reveal { font-size: 16pt; }
 
 /* Our own page navigator (right edge) replaces reveal's corner controls and slide
  * number, so hide those to avoid two of everything. !important beats reveal's own
@@ -56,12 +60,11 @@ body,
   box-shadow: 0 1px 14px rgba(0, 0, 0, 0.12);
 }
 
-/* Breathing room inside the slide, so text does not run to the edges. This is
- * where the slide's "margin" lives now that the outer frame is gone; the ink
- * layer still covers the whole slide, so you can annotate into it. */
-.reveal .slides section > .slide-body { padding: 28px 48px; }
-
-/* A tall slide (a long note shown whole) scrolls, but the ink overlay sits on top
+/* Breathing room inside the slide is the em padding on .slide-body (slides.css):
+ * where the slide's "margin" lives now that the outer frame is gone. The ink
+ * layer still covers the whole slide, so you can annotate into it.
+ *
+ * A tall slide (a long note shown whole) scrolls, but the ink overlay sits on top
  * and swallows pointer input for the laser/drawing tools — so a native scrollbar
  * under it can't be grabbed (you'd draw instead) and the laser dot lights it up.
  * Hide it: the slide scrolls with the wheel/trackpad, which ink.js forwards
@@ -292,6 +295,9 @@ body.overview .mode-rail { display: none; }
 /* The shortcut hint, right-aligned and faint. */
 .mi-key { margin-left: 14px; font-size: 0.76rem; color: rgba(242, 242, 242, 0.5); white-space: nowrap; }
 .menu-sep { height: 1px; margin: 5px 8px; background: rgba(255, 255, 255, 0.16); }
+
+/* The PDF export preview modal styles are shared with the editor and live in
+ * src/pdf-preview.css (linked by both present/ and editor/). */
 
 /* The dialog mirrors the editor's Settings (see ui.css): a fixed-size box with a
  * left tab rail and the selected panel on the right, so it never resizes. */

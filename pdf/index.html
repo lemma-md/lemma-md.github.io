@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Export PDF — lemma-md</title>
+
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="icon" href="../favicon-32.png" sizes="32x32" type="image/png">
+<link rel="icon" href="../favicon-16.png" sizes="16x16" type="image/png">
+<link rel="apple-touch-icon" href="../apple-touch-icon.png">
+
+<!-- The slide *look* is shared with the projector: the app's tokens, markdown
+     styles, and the slide content styles (slides.css) and presentation theme
+     (present.css, which sets the base type on `.reveal`). reveal.js itself is NOT
+     loaded — this page lays out its own fixed 960x700 print pages (pdf.css),
+     rather than driving reveal's screen scaling. -->
+<link rel="stylesheet" href="../vendor/katex/katex.min.css">
+<link rel="stylesheet" href="../src/theme.css">
+<link rel="stylesheet" href="../src/markdown.css">
+<link rel="stylesheet" href="../src/slides.css">
+<link rel="stylesheet" href="../src/present.css">
+<link rel="stylesheet" href="../src/pdf.css">
+
+<!-- Vendored globals: the same three viewer.js expects (marked, DOMPurify,
+     KaTeX). No reveal.js. Our own code in src/ is ES modules. -->
+<script src="../vendor/marked.min.js"></script>
+<script src="../vendor/purify.min.js"></script>
+<script src="../vendor/katex/katex.min.js"></script>
+</head>
+
+<body>
+
+<!-- The `.reveal > .slides` wrapper so the shared slide styles (present.css,
+     scoped under `.reveal .slides section`) apply. Filled by pdf.js. -->
+<div class="reveal"><div class="slides" id="deck"></div></div>
+
+<!-- The preparation / error panel. Shown on screen only; hidden while printing
+     (pdf.css). Filled by pdf.js. -->
+<div id="stage" class="pdf-stage"></div>
+
+<script type="module" src="../src/pdf/pdf.js"></script>
+</body>
+</html>

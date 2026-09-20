@@ -198,11 +198,11 @@ A note presents as slides in a **separate projector window** (`present/`), never
 mixed with the editor. The slide engine is **reveal.js** — vendored, a classic
 `<script>` global, loaded only by that page so a reader never pays for it. It
 earns its place on the parts that are dear to build well: scaling a fixed
-960×700 slide box to any projector, navigation, transitions, and print-to-PDF.
+960×700 slide box to any projector, navigation, and transitions.
 The full design, data model, meta keys and hard-won lessons are written up in
 [PRESENTER.md](PRESENTER.md) — start there when touching the presenter.
 
-Two things are deliberately **not** reveal's:
+Some things are deliberately **not** reveal's:
 
 - **Rendering.** reveal's markdown/highlight/math plugins stay off; each slide is
   produced by the app's own `render()` (`src/viewer.js`). One markdown+TeX
@@ -257,8 +257,19 @@ This reverses the earlier sketch of `reveal.js-chalkboard` +
 and a distinct translucent-highlighter tool sits awkwardly in it; more decisively
 it would have been a second rendering path beside `render()`. A single-window
 projector with the presenter drawing directly on it was chosen over a
-speaker/second-screen view, which is left for later — as is baking the ink into
-the printed PDF.
+speaker/second-screen view, which is left for later.
+
+- **PDF export** is its own static page (`pdf/`), not reveal's print path —
+  reveal's print stylesheet is not vendored, so it lays each slide out as one
+  fixed `960×700` page itself (`src/pdf.css`) and prints through the browser. It
+  reuses the projector's section builder (`deck-dom.js`) and ink renderer
+  (`ink-svg.js`), so the same deck and the same strokes come out; the ink is baked
+  in as vector SVG (chalk's rasterising filter dropped, blend modes avoided) while
+  text and KaTeX stay selectable. The presenter's **Export as PDF…** flushes the
+  ink to IndexedDB and shows that page in an in-page preview modal (an iframe),
+  which reads it back — no cross-window snapshot; printing the iframe prints only
+  its pages. Non-empty board pages follow the slides; a slide taller than one page
+  is flagged, to clip or continue across pages. See [PRESENTER.md](PRESENTER.md).
 
 ## Deployment
 

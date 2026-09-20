@@ -7,33 +7,33 @@
 // in IndexedDB, never in the .md.
 
 import * as drafts from '../drafts.js'
+import { openPdfPreview } from '../pdf/preview.js'
+import {
+  W,
+  H,
+  WIDTHS,
+  VARIABLE,
+  BOARD_DARK,
+  PALETTES,
+  ribbonPath,
+  pathData,
+  markerColor,
+  strokeElement,
+  buildDefs,
+} from './ink-svg.js'
 
-// Must equal the width/height reveal is initialised with (see present.js), so a
-// pointer position maps into the same space the slide content lives in.
-export const W = 960
-export const H = 700
+// The slide-space geometry, palettes and pure stroke rendering now live in
+// ink-svg.js, shared with the PDF export. Re-export the size so present.js can go
+// on importing { W, H } from here.
+export { W, H }
 
 const SVGNS = 'http://www.w3.org/2000/svg'
 
-// Per-tool stroke geometry, in slide-space units. Marker is wide and drawn
-// translucent with a multiply blend (see present.css) so it reads as a
-// highlighter over text rather than paint on top of it.
-const WIDTHS = { pen: 3, chalk: 5.5, marker: 20 }
 const ERASER_RADIUS = 12
 
 // Reveal's own keyboard is turned off entirely (see createInk); we handle every
 // key in one capture-phase handler. This keeps reveal's hands off Escape, whose
 // preventDefault would otherwise stop the browser leaving F11 fullscreen.
-
-// The blackboard's colour (kept in sync with present.css `.board-ink.surface-dark`).
-const BOARD_DARK = '#14231d'
-// Notebook grid: cell size in slide-space units, so it scales with the board (the
-// same proportion at any projector resolution) rather than a fixed screen size.
-const GRID_CELL = 38
-
-// Tools whose width varies along the stroke (stored per point). The marker stays
-// a uniform highlighter.
-const VARIABLE = new Set(['pen', 'chalk'])
 
 // The browser's own fullscreen key, shown only as a hint (we never trigger it —
 // JavaScript can only start element-fullscreen, whose Esc-exit is the awkward
@@ -57,115 +57,6 @@ function liveWidth(e, base) {
   return base * Math.max(W_MIN, Math.min(W_MAX, f))
 }
 
-// A filled outline for a variable-width stroke: offset each centre point by half
-// its width along the normal, trace one side forward and the other back, with
-// round end caps. `dw` is the fallback width for points that carry none (old data).
-function ribbonPath(points, dw) {
-  const n = points.length
-  const wOf = (p) => p[2] ?? dw
-  if (n === 1) {
-    const r = wOf(points[0]) / 2
-    const x = points[0][0]
-    const y = points[0][1]
-    return `M${(x - r).toFixed(1)} ${y.toFixed(1)}a${r.toFixed(1)} ${r.toFixed(1)} 0 1 0 ${(2 * r).toFixed(1)} 0a${r.toFixed(1)} ${r.toFixed(1)} 0 1 0 ${(-2 * r).toFixed(1)} 0Z`
-  }
-  const left = []
-  const right = []
-  for (let i = 0; i < n; i++) {
-    const a = points[Math.max(0, i - 1)]
-    const b = points[Math.min(n - 1, i + 1)]
-    let dx = b[0] - a[0]
-    let dy = b[1] - a[1]
-    const len = Math.hypot(dx, dy) || 1
-    dx /= len
-    dy /= len
-    const hw = wOf(points[i]) / 2
-    left.push([points[i][0] - dy * hw, points[i][1] + dx * hw])
-    right.push([points[i][0] + dy * hw, points[i][1] - dx * hw])
-  }
-  const f = (p) => `${p[0].toFixed(1)} ${p[1].toFixed(1)}`
-  const rE = (wOf(points[n - 1]) / 2).toFixed(1)
-  const rS = (wOf(points[0]) / 2).toFixed(1)
-  // Trace one edge as a quadratic curve through the offset points (control at each
-  // point, on-curve at the midpoints) so the silhouette is smooth, not a polygon
-  // of facets — which read as a ragged edge on a high-contrast (light) surface.
-  const smooth = (pts) => {
-    let s = ''
-    for (let i = 1; i < pts.length - 1; i++) {
-      const mx = (pts[i][0] + pts[i + 1][0]) / 2
-      const my = (pts[i][1] + pts[i + 1][1]) / 2
-      s += `Q${f(pts[i])} ${mx.toFixed(1)} ${my.toFixed(1)}`
-    }
-    s += `L${f(pts[pts.length - 1])}`
-    return s
-  }
-  // The end caps are round and bulge OUTWARD (sweep flag 0 goes forward over the
-  // tip, not back into a notch).
-  let d = `M${f(left[0])}` + smooth(left)
-  d += `A${rE} ${rE} 0 0 0 ${f(right[n - 1])}`
-  d += smooth(right.slice().reverse())
-  d += `A${rS} ${rS} 0 0 0 ${f(left[0])}Z`
-  return d
-}
-
-// Two swatch palettes, aligned slot-for-slot so switching surface keeps a
-// colour's "role". `light` is ink for white surfaces (slides, whiteboard);
-// `dark` is chalk for the blackboard — light pastels, and the near-black slot
-// becomes white. The active palette is chosen by surface (see palKey).
-const PALETTES = {
-  light: ['#e11d48', '#2563eb', '#059669', '#111827', '#f59e0b'],
-  dark: ['#ff6b7d', '#6cb2ff', '#46d6a1', '#f4f4f5', '#ffce6b'],
-}
-
-// Colour helpers: turn a pen swatch into a highlighter tint — same hue, but
-// bright and light, so a marker reads like a highlighter over white rather than
-// a muddy low-opacity version of a dark, saturated pen colour.
-function hexToHsl(hex) {
-  const n = parseInt(hex.slice(1), 16)
-  const r = ((n >> 16) & 255) / 255
-  const g = ((n >> 8) & 255) / 255
-  const b = (n & 255) / 255
-  const max = Math.max(r, g, b)
-  const min = Math.min(r, g, b)
-  const l = (max + min) / 2
-  const d = max - min
-  let h = 0
-  let s = 0
-  if (d) {
-    s = l > 0.5 ? d / (2 - max - min) : d / (max + min)
-    if (max === r) h = (g - b) / d + (g < b ? 6 : 0)
-    else if (max === g) h = (b - r) / d + 2
-    else h = (r - g) / d + 4
-    h /= 6
-  }
-  return [h, s, l]
-}
-function hslToHex(h, s, l) {
-  const f = (n) => {
-    const k = (n + h * 12) % 12
-    const a = s * Math.min(l, 1 - l)
-    const c = l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1))
-    return Math.round(c * 255).toString(16).padStart(2, '0')
-  }
-  return `#${f(0)}${f(8)}${f(4)}`
-}
-// Hand-tuned highlighter tint per swatch — light and bright, but true to the
-// swatch (a red that reads red, not pink). Any other colour falls back to a
-// computed bright/light version of the same hue.
-const MARKER_TINTS = {
-  '#e11d48': '#ff5c66', // red
-  '#2563eb': '#5c9dff', // blue
-  '#059669': '#2fd39b', // green
-  '#111827': '#8592a8', // near-black -> slate
-  '#f59e0b': '#ffc44d', // amber
-}
-function markerColor(hex) {
-  if (MARKER_TINTS[hex]) return MARKER_TINTS[hex]
-  const [h, s, l] = hexToHsl(hex)
-  if (l > 0.7) return hex // already a light chalk colour — tinting would distort its hue
-  return hslToHex(h, Math.max(s, 0.85), 0.62)
-}
-
 // Palette icons (Lucide, ISC — see VENDOR.md), inlined as SVG because the
 // projector page carries no icon sprite. The laser has a red beam and dot so it
 // reads as a laser pointer at a glance.
@@ -180,6 +71,7 @@ const ICONS = {
   slides: '<rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 20h8"/>',
   board: '<rect x="3" y="4" width="18" height="14" rx="2"/><path d="M7 9.5h6"/><path d="M7 13.5h10"/>',
   close: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+  download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/>',
   chevronLeft: '<path d="m15 18-6-6 6-6"/>',
   chevronRight: '<path d="m9 18 6-6-6-6"/>',
   chevronUp: '<path d="m18 15-6-6-6 6"/>',
@@ -265,29 +157,10 @@ export async function createInk(reveal, noteId) {
     wirePointer(svg, i)
     return svg
   })
-  // The chalk texture filter, defined once and referenced by url(#chalk) from any
-  // slide's strokes. userSpaceOnUse anchors the noise to slide coordinates, so the
-  // grain does not shimmer as a stroke grows.
-  const defs = document.createElementNS(SVGNS, 'svg')
-  defs.setAttribute('width', '0')
-  defs.setAttribute('height', '0')
-  defs.style.position = 'absolute'
-  defs.innerHTML =
-    `<defs><filter id="chalk" filterUnits="userSpaceOnUse" x="0" y="0" width="${W}" height="${H}">` +
-    '<feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="7" stitchTiles="stitch" result="fine"/>' +
-    '<feDisplacementMap in="SourceGraphic" in2="fine" scale="2.6" xChannelSelector="R" yChannelSelector="G" result="rough"/>' +
-    '<feTurbulence type="fractalNoise" baseFrequency="0.45" numOctaves="3" seed="3" stitchTiles="stitch" result="grain"/>' +
-    '<feComponentTransfer in="grain" result="grainA"><feFuncA type="discrete" tableValues="0.15 0.55 0.8 1"/></feComponentTransfer>' +
-    '<feComposite in="rough" in2="grainA" operator="in"/>' +
-    '</filter>' +
-    // Two notebook grids (one per surface): faint squares, cell size in slide
-    // units so the grid scales with the board, not the screen.
-    `<pattern id="grid-dark" width="${GRID_CELL}" height="${GRID_CELL}" patternUnits="userSpaceOnUse">` +
-    `<path d="M${GRID_CELL} 0H0V${GRID_CELL}" fill="none" stroke="#ffffff" stroke-opacity="0.10" stroke-width="1"/></pattern>` +
-    `<pattern id="grid-light" width="${GRID_CELL}" height="${GRID_CELL}" patternUnits="userSpaceOnUse">` +
-    `<path d="M${GRID_CELL} 0H0V${GRID_CELL}" fill="none" stroke="#2563eb" stroke-opacity="0.16" stroke-width="1"/></pattern>` +
-    '</defs>'
-  document.body.appendChild(defs)
+  // The chalk texture filter and notebook-grid patterns, defined once and
+  // referenced by url(#chalk) / url(#grid-*). Built by ink-svg.js so the export
+  // reuses the same defs.
+  document.body.appendChild(buildDefs())
 
   // The side-car board: a stack of blank pages, not tied to any slide. Each page
   // is a slide-sized panel and its own drawing surface, keyed 'board:N'; only the
@@ -656,32 +529,12 @@ export async function createInk(reveal, noteId) {
     return [x, y + scrollOf(i)]
   }
 
-  function pathData(points) {
-    if (!points.length) return ''
-    return points.map((p, i) => `${i ? 'L' : 'M'}${p[0].toFixed(1)} ${p[1].toFixed(1)}`).join(' ')
-  }
-
-  // `pal` is the palette of the surface the stroke is drawn on, so its slot
-  // resolves to the right hex for that surface. (Old data may carry a hex.)
+  // The static path builder lives in ink-svg.js (shared with the PDF export). The
+  // presenter draws with the chalk filter on; the export turns it off. A function
+  // declaration (not a const) so the initial redraw, which runs above this line,
+  // can still reach it.
   function strokeEl(s, pal) {
-    const hex = s.slot != null ? pal[s.slot] : s.color
-    const el = document.createElementNS(SVGNS, 'path')
-    if (VARIABLE.has(s.tool)) {
-      // Variable width: a filled ribbon rather than a fixed-width line.
-      el.setAttribute('d', ribbonPath(s.points, s.width))
-      el.setAttribute('fill', hex)
-      el.setAttribute('stroke', 'none')
-    } else {
-      el.setAttribute('d', pathData(s.points))
-      el.setAttribute('fill', 'none')
-      el.setAttribute('stroke', s.tool === 'marker' ? markerColor(hex) : hex)
-      el.setAttribute('stroke-width', s.width)
-      el.setAttribute('stroke-linecap', 'round')
-      el.setAttribute('stroke-linejoin', 'round')
-    }
-    el.setAttribute('class', `stroke stroke-${s.tool}`)
-    if (s.tool === 'chalk') el.setAttribute('filter', 'url(#chalk)') // grainy, rough edge
-    return el
+    return strokeElement(s, pal)
   }
 
   function redraw(i) {
@@ -1097,9 +950,19 @@ export async function createInk(reveal, noteId) {
     menuItem(label, ic, `Alt+${['P', 'A', 'B'][k]}`, () => { menu.hidden = true; setMode(m) }))
   const overviewItem = menuItem('Overview', 'grid', '=', () => { menu.hidden = true; openOverview(boardMode ? 'board' : 'slides') })
   const blankItem = menuItem('Blank screen', 'square', '', () => { menu.hidden = true; toggleBlank() })
+  // Export the deck to PDF. The preview is an in-page modal (openPdfPreview) — an
+  // iframe onto the static export page (pdf/), which reads the note and its
+  // annotations back from IndexedDB, so the last stroke must be flushed first.
+  async function exportPdf() {
+    menu.hidden = true
+    try { await flush() } catch (e) { console.error(e) }
+    // The projector always exports slides, with its annotations and boards.
+    openPdfPreview(noteId, { ink: true, mode: 'slides' })
+  }
+  const exportItem = menuItem('Export as PDF…', 'download', '', exportPdf)
   const settingsItem = menuItem('Settings', 'gear', 'Ctrl+,', () => { menu.hidden = true; openSettings() })
   const helpItem = menuItem('Help', 'help', '', () => { menu.hidden = true; help.hidden = false })
-  menu.append(...modeItems, sepEl(), overviewItem, blankItem, sepEl(), settingsItem, sepEl(), helpItem)
+  menu.append(...modeItems, sepEl(), overviewItem, blankItem, exportItem, sepEl(), settingsItem, sepEl(), helpItem)
   menuBtn.onclick = (e) => { e.stopPropagation(); menu.hidden = !menu.hidden }
   document.addEventListener('click', () => { menu.hidden = true })
   menuWrap.append(menuBtn, menu)

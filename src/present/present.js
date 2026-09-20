@@ -7,9 +7,8 @@
 // globals viewer.js expects — all loaded by present/index.html before this
 // module.
 
-import { render } from '../viewer.js'
 import * as drafts from '../drafts.js'
-import { parseDeck, buildTitleBody } from './slides.js'
+import { buildDeckSections } from './deck-dom.js'
 import { createInk, W, H } from './ink.js'
 
 const slidesEl = document.getElementById('slides')
@@ -18,28 +17,6 @@ const messageEl = document.getElementById('message')
 function fail(text) {
   messageEl.textContent = text
   messageEl.hidden = false
-}
-
-/** Build the opening title slide from front-matter fields. Only the fields that
- *  are present appear; text is set with textContent, never innerHTML. */
-function titleSection(meta) {
-  const section = document.createElement('section')
-  section.className = 'title center'
-  section.appendChild(buildTitleBody(meta))
-  return section
-}
-
-/** One content slide: rendered markdown, plus any directive it declared. */
-function contentSection(slide) {
-  const section = document.createElement('section')
-  if (slide.center) section.classList.add('center')
-  if (slide.cls) section.classList.add(...slide.cls.split(/\s+/).filter(Boolean))
-  if (slide.bg) section.dataset.background = slide.bg
-  const body = document.createElement('div')
-  body.className = 'slide-body md' // `md` so markdown.css styles the content
-  body.innerHTML = render(slide.md)
-  section.appendChild(body)
-  return section
 }
 
 async function main() {
@@ -51,22 +28,23 @@ async function main() {
 
   document.title = `${doc.name} — lemma-md`
 
-  const deck = parseDeck(doc.text)
-  const meta = deck.title || {}
-  const sections = []
-  // A title slide only when there is something to put on it — so a deck whose
-  // front-matter carries only options (e.g. `fontsize:`) gets no blank title.
-  const hasTitle = ['title', 'author', 'affiliation', 'place', 'date'].some((k) => meta[k])
-  if (hasTitle) sections.push(titleSection(meta))
-  for (const slide of deck.slides) sections.push(contentSection(slide))
+  // buildDeckSections is shared with the PDF export (deck-dom.js), so the section
+  // order — and thus the ordinal that each slide's annotations are keyed by — is
+  // identical in both.
+  const { sections, meta } = buildDeckSections(doc.text)
   if (!sections.length) return fail('This note is empty — nothing to present.')
 
   for (const s of sections) slidesEl.appendChild(s)
 
-  // Optional base type size from the front-matter, e.g. `fontsize: 40` — the one
-  // place the whole deck's "font size" lives, since reveal scales the slide box.
-  if (meta.fontsize) {
-    const fs = /^\d+(\.\d+)?$/.test(meta.fontsize) ? `${meta.fontsize}px` : meta.fontsize
+  // Optional base type size from the front-matter, e.g. `fontsize: 24` (or the
+  // `font-size` spelling) — the one place the whole deck's "font size" lives,
+  // since reveal scales the slide box. A bare number is px on the 960x700 slide;
+  // any CSS length (e.g. `18pt`) is passed through, so a familiar point size
+  // works too (CSS makes 18pt = 24px). The editor preview honours the same value
+  // (app.js), so the two agree.
+  const fontsize = meta.fontsize ?? meta['font-size']
+  if (fontsize) {
+    const fs = /^\d+(\.\d+)?$/.test(fontsize) ? `${fontsize}px` : fontsize
     document.querySelector('.reveal').style.fontSize = fs
   }
 

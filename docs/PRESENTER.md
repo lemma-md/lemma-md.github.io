@@ -20,11 +20,15 @@ exist" over ghost `ReferenceError`s in the console buffer.
 | File | Role |
 |------|------|
 | [`present/index.html`](../present/index.html) | Projector page. Loads vendored globals (`marked`, `purify`, `katex`, **`reveal`**) then the CSS chain and the ES-module entry. Lives at `/present/` (no underscore → Jekyll publishes it; port stays 8001). |
-| [`src/present/present.js`](../src/present/present.js) | Entry point. Reads `?id`, loads the doc from IndexedDB, builds `<section>`s, initialises reveal, calls `createInk`. |
+| [`src/present/present.js`](../src/present/present.js) | Entry point. Reads `?id`, loads the doc from IndexedDB, builds `<section>`s (via `deck-dom.js`), initialises reveal, calls `createInk`. |
 | [`src/present/slides.js`](../src/present/slides.js) | `parseDeck` / `splitSlides` / front-matter / `<!-- directives -->` / `buildTitleBody`. |
-| [`src/present/ink.js`](../src/present/ink.js) | **Everything else** — the ink layer, tools, palette, modes, board, navigator, overview, settings/help dialogs, blank screen, and the one keyboard handler. The big file. |
+| [`src/present/deck-dom.js`](../src/present/deck-dom.js) | `buildDeckSections(markdown)` — the ordered `<section>` list (title + content) **shared** by the projector and the PDF export, so the ordinal that ink is keyed by is identical in both. |
+| [`src/present/ink-svg.js`](../src/present/ink-svg.js) | Pure ink geometry & static SVG rendering (`ribbonPath`, `strokeElement`, `createAnnotationSvg`, `createBoardSvg`, `nonEmptyBoards`, `annotationBottom`, palettes, defs) — **shared** by `ink.js` and the PDF export. No duplicate ink renderer. |
+| [`src/present/ink.js`](../src/present/ink.js) | **Everything else** — the live ink layer, tools, palette, modes, board, navigator, overview, settings/help dialogs, blank screen, the **Export as PDF…** menu item, and the one keyboard handler. The big file. Imports its stroke rendering from `ink-svg.js`. |
+| [`pdf/index.html`](../pdf/index.html) · [`src/pdf/pdf.js`](../src/pdf/pdf.js) · [`src/pdf.css`](../src/pdf.css) | The PDF export page (see below). No reveal.js — it lays out its own fixed pages. |
+| [`src/pdf/preview.js`](../src/pdf/preview.js) · [`src/pdf-preview.css`](../src/pdf-preview.css) | The in-page preview **modal** (an iframe onto `pdf/`), **shared** by the projector (`ink.js`) and the editor (`app.js`, menu item **Export as PDF…** after *Download as .html*). |
 | [`src/present.css`](../src/present.css) | The theme + all the projector chrome. No reveal theme is vendored — this *is* the theme. |
-| [`src/slides.css`](../src/slides.css) | Slide-body / `deck-*` styles **shared** with the editor's reading-view preview. |
+| [`src/slides.css`](../src/slides.css) | Slide-body / `deck-*` styles **shared** with the editor's reading-view preview and the PDF export. |
 | [`src/drafts.js`](../src/drafts.js) | IndexedDB (`docs` / `meta` / `annotations` stores). |
 
 Rendering a slide reuses the app's own `render()` from `src/viewer.js` — one
@@ -37,9 +41,10 @@ We built the ink, tools, modes, board, navigator, overview, dialogs and keyboard
 ourselves, hid reveal's controls/slide-number/theme, and turned its keyboard
 **off**. Reveal still earns its place for: **scaling** the fixed `960×700` box to
 any screen (letterboxed) — our SVG rides that transform; the **active-slide state
-machine** (`.present`, `getIndices/slide/prev/next`); slide **transitions**; the
-**progress bar**; and **PDF** print. Replacing it means re-implementing scaling +
-transitions + PDF, so it stays for now.
+machine** (`.present`, `getIndices/slide/prev/next`); slide **transitions**; and
+the **progress bar**. Replacing it means re-implementing scaling + transitions, so
+it stays for now. **PDF is not reveal's** — reveal's print stylesheet isn't
+vendored, so the export lays out its own pages (see below).
 
 `present.js` config worth knowing: `width/height = W/H (960×700)`, `margin: 0`,
 `center: false` (top-aligned; the `center` directive opts a slide in),
@@ -201,6 +206,73 @@ trap:** an open projector flushes its ink on `pagehide`, so navigating one tab
 away can re-create a record you just deleted from another. When cleaning up a
 test note, delete it *after* the projector tab is gone (or navigate that tab off
 the note first).
+
+## PDF export
+
+**Export as PDF…** prints the deck through the browser, so text and KaTeX stay
+selectable and the ink stays vector — no rasterising, no new dependency. It is a
+**separate static page** (`pdf/`), shown as an in-page preview modal (an
+`<iframe>`), reachable from the **presenter menu** and from the **editor's menu**
+(after *Download as .html*). The modal opener (`src/pdf/preview.js`) and its
+styles (`src/pdf-preview.css`) are shared by both:
+
+   The URL carries two switches: **`ink=1`** includes the annotations and board
+   pages (only the projector sets it — the editor never prints ink, because it
+   belongs to a presentation, not the document), and **`mode`** picks the layout
+   (`slides` or `doc`, below).
+
+1. The caller **flushes** what it holds — the presenter its ink, the editor its
+   debounced text (`saveNow`) — so the export reads current data from IndexedDB,
+   then `openPdfPreview(id, { ink, mode })` opens the modal (`.pdf-modal`) whose
+   `<iframe>` points at `pdf/?id=<note>&embed=1&…`. No separate browser window, so
+   no popup-blocker dance. Printing is invoked **from inside the iframe** (its
+   Save-as-PDF button → `window.print()`), which prints only that frame's pages.
+   The modal closes on its ×, on `Esc`, on a backdrop click, or when the iframe
+   posts `{type:'pdf-close'}` (its Close/Cancel). `embed=1` also suppresses
+   auto-print (the user reviews, then prints) and, in slides mode, scales the
+   preview to fit (`--pdf-zoom`, `@media screen` only, so paper stays 960×700).
+2. **Two layouts.**
+   - **`mode=slides`** (the projector, and a deck exported from the editor): the
+     **shared** `buildDeckSections` builds the `<section>`s (so the ink ordinal
+     matches the projector); with `ink`, a static `createAnnotationSvg` is overlaid
+     per slide, `nonEmptyBoards` are appended as trailing pages (real background
+     `<rect>`, grid, strokes), and the shared `buildDefs()` is added so the
+     `url(#grid-*)` patterns resolve. Pagination is by slide (below).
+   - **`mode=doc`** (a plain note exported from the editor): the whole markdown is
+     rendered **once** (`render()` on the body, front-matter stripped) into one
+     `.pdf-doc` article and left to flow. No slides, no ink, no boards, no overflow
+     choice — print pagination breaks it across pages by itself.
+3. **No reveal; two page geometries via named `@page`.** `pdf.css` declares the
+   default `@page` as **A4 portrait** (document mode) and a named `@page slide` of
+   `960×700`; a slide `<section>` opts in with `page: slide` and `break-after:
+   page`. The slide *look* still comes from `slides.css` + `present.css` (the
+   `.reveal > .slides` wrapper is kept so those rules apply). The document uses the
+   base type size from `fontsize` front-matter (a bare number is points; default
+   `12pt`), keeps a picture/table/code block whole across a page break
+   (`break-inside: avoid`), and keeps a heading with what follows it.
+4. **Print-safe ink profile** (`chalkFilter: false`, plus `pdf.css`): the chalk
+   `feTurbulence`/`feDisplacement` filter is dropped (it would rasterise the
+   layer), and `mix-blend-mode` is not relied on — `markerColor()` already bakes
+   the highlighter tint, so a plain semi-transparent line reads right on any
+   surface. The board background is a real SVG `<rect>` (+ `print-color-adjust:
+   exact`) so a dark board prints without the user ticking "Background graphics".
+5. **Readiness before `print()`:** `document.fonts.ready`, every image
+   `load`/`error` (with a timeout that also flags an image still not loaded), then
+   two `requestAnimationFrame`s (an automated/background tab parks rAF, so each
+   frame wait is raced against a 300 ms timeout). Failed images do **not** block:
+   they are listed on the ready panel — one per line, page number + the source as
+   a link — and auto-print is only skipped so a missing image is noticed first.
+   A Gmail attachment URL is the usual culprit: it needs the user's Google session
+   and cannot be fetched from anywhere else.
+6. **Overflow (tall slides).** A slide whose content **or ink** reaches past 700
+   is detected (`annotationBottom` covers ink below the fold) and never silently
+   clipped: the panel shows thumbnails of the offenders and offers **Clip** (one
+   page, the rest hidden) or **Continue** — deterministic bands where band *k* is
+   the body shifted up `k·700` and clipped, with the ink `viewBox` moved to
+   `0 k·700 960 700` so content and ink stay locked together.
+
+Nothing in the export touches the note's saved text, dirty state, source metadata
+or annotations; cancelling the print dialog is not an error.
 
 ## Hard-won lessons (why the code looks the way it does)
 

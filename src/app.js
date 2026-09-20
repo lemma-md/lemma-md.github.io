@@ -7,6 +7,7 @@ import { googleDrive } from './storage/gdrive.js'
 import { localFiles } from './storage/local.js'
 import { lineDiff, diffStats, sideBySide, inlineDiff } from './diff.js'
 import { buildStandaloneHtml, extractMarkdown } from './export-html.js'
+import { openPdfPreview } from './pdf/preview.js'
 import { WELCOME, templates } from './templates.js'
 import { parseDeck, buildTitleBody } from './present/slides.js'
 
@@ -145,6 +146,24 @@ let deckCache = new Map()
  * separately), so a card whose key still matches is moved into place untouched
  * and `render()` never runs for it.
  */
+/**
+ * Resolve a front-matter `fontsize` value to a px number for the preview's cqw
+ * calc (ui.css), matching how the projector renders it (present.js). A bare
+ * number is px on the 960x700 slide; `Npx` is the same; `Npt` uses the CSS rule
+ * 1pt = 4/3 px, so a familiar point size lands on the same pixels the browser
+ * would give the projector. Anything else returns null, leaving the ui.css
+ * default in force rather than guessing.
+ */
+function fontSizeToPx(value) {
+  if (value == null) return null
+  const s = String(value).trim()
+  let m
+  if ((m = /^(\d+(?:\.\d+)?)$/.exec(s))) return +m[1]
+  if ((m = /^(\d+(?:\.\d+)?)px$/i.exec(s))) return +m[1]
+  if ((m = /^(\d+(?:\.\d+)?)pt$/i.exec(s))) return (+m[1] * 4) / 3
+  return null
+}
+
 function renderDeckPreview(doc) {
   const deck = parseDeck(doc.text)
   el.preview.className = 'deck'
@@ -189,6 +208,13 @@ function renderDeckPreview(doc) {
     wrap.className = 'deck-preview'
     el.preview.append(wrap)
   }
+  // The deck's base type size (front-matter `fontsize:` / `font-size:`), which
+  // the cards scale to their width so the preview matches the projector (ui.css).
+  // The cqw calc needs a plain px number, so resolve the value to px; anything we
+  // cannot (an exotic unit) clears the override and the ui.css default holds.
+  const px = fontSizeToPx(deck.title?.fontsize ?? deck.title?.['font-size'])
+  if (px != null) wrap.style.setProperty('--slide-fs', String(px))
+  else wrap.style.removeProperty('--slide-fs')
   wrap.replaceChildren(...children)
 }
 
@@ -648,6 +674,20 @@ function present() {
   if (!doc) return
   saveNow(doc) // flush the debounced write so the projector reads the latest text
   window.open(`../present/?id=${encodeURIComponent(doc.id)}`, `lemma-present-${doc.id}`)
+}
+
+/**
+ * Export the active note to PDF, shown in the in-page preview modal (an iframe
+ * onto pdf/). The debounced text write is flushed first so the export reads the
+ * latest markdown. No ink is exported from the editor — annotations and the board
+ * belong to a presentation session, not the document. A deck prints as slides; a
+ * plain note prints as a flowing A4 document. No effect on saved/dirty state.
+ */
+function exportPdf() {
+  const doc = active()
+  if (!doc) return
+  saveNow(doc)
+  openPdfPreview(doc.id, { mode: viewOf(doc) === 'slides' ? 'slides' : 'doc' })
 }
 
 /* ---------- cloud ---------- */
@@ -2474,6 +2514,7 @@ el.modeBtn.onclick = toggleMode
 document.getElementById('btn-open').onclick = openLocal
 document.getElementById('btn-save').onclick = downloadActive
 document.getElementById('btn-export-html').onclick = exportHtml
+document.getElementById('btn-export-pdf').onclick = exportPdf
 document.getElementById('btn-present').onclick = present
 document.getElementById('btn-close').onclick = () => { if (state.activeId) closeTab(state.activeId) }
 document.getElementById('btn-cloud-open').onclick = openFromCloud

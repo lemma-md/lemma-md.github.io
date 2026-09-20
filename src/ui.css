@@ -720,14 +720,26 @@ button.info-badge {
   position: relative;
   aspect-ratio: 960 / 700;
   overflow: hidden;
-  padding: 20px 22px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--bg);
   box-shadow: 0 1px 3px rgba(0, 0, 0, .08);
-  font-size: 16px;
   text-align: left;
+  /* A container so the slide body can size its type to the card's width, making
+   * the card a true scaled miniature of the projector's fixed 960x700 slide
+   * rather than an independent reflow. The padding lives on .slide-body (in em,
+   * slides.css), so it scales with the type. */
+  container-type: inline-size;
 }
+/* The projector's slide is 960px wide (present.css sets the base type on it), so
+ * the base type is (base/960) of the slide width. Reproducing that ratio here —
+ * 100cqw is the card's width — makes what fits (or overflows) in the preview
+ * exactly what the projector shows, at any card width. `--slide-fs` carries a
+ * deck's `fontsize:` front-matter, set on the wrapper in app.js; its fallback is
+ * the default base size and must match present.css's `.reveal` font-size — 16pt,
+ * written as `16 * 4 / 3` px (CSS defines 1pt = 4/3 px) so the "16" stays legible
+ * and exact. */
+.slide-card .slide-body { font-size: calc(var(--slide-fs, calc(16 * 4 / 3)) / 960 * 100cqw); }
 .slide-card.center { display: flex; flex-direction: column; justify-content: center; }
 .slide-card.center .slide-body { height: auto; text-align: center; }
 .slide-card.title { align-items: center; text-align: center; }
@@ -739,6 +751,9 @@ button.info-badge {
   flex-direction: column;
   align-items: center;
   overflow: hidden;
+  /* Matches the projector's bottom clearance (present.css) so the title's
+   * place/date group sits at the same height in the preview as on stage. */
+  padding-bottom: 3.2em;
 }
 
 .slide-num { position: absolute; bottom: 6px; right: 9px; font-size: 11px; color: var(--muted); opacity: .7; }

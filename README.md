@@ -53,13 +53,14 @@ Working today:
   window with a laser pointer, pen, chalk, highlighter and eraser you can draw
   over the slide with, plus a multi-page blank board (black or white) to work on
   mid-talk; the ink is vector and saved per note
+- export a presentation to **PDF** — one 960×700 page per slide, with the
+  annotations and any non-empty board pages, straight through the browser's own
+  print (text and formulas stay selectable; the ink stays vector)
 - new notes from a template — a blank note, the welcome guide, or a slide demo
 
 Planned, roughly in order:
 
-1. a proper **PDF** export (for now, your browser's Print dialog does it — from
-   the projector, that prints the slides)
-2. optional syncing to a private **GitHub** repository
+1. optional syncing to a private **GitHub** repository
 
 Further out:
 
@@ -101,6 +102,19 @@ same rendered Markdown and TeX you see while reading; only the layout changes.
   ...
   ```
 
+- **Type size** is set for the whole deck with `fontsize:` in the front-matter.
+  It is the base size on the fixed slide (960×700), the way a point size is fixed
+  on a PowerPoint canvas — the default, `16pt`, is tuned so a slide reads the same
+  in the editor preview as on the projector. A CSS length like `16pt` works (the
+  browser renders it as ~21px); a bare number is taken as pixels on the slide.
+  `font-size` is accepted as well.
+
+  ```markdown
+  ---
+  title: Dessins d'enfants and the Galois action
+  fontsize: 22
+  ---
+  ```
 - **Per-slide tweaks** go in a comment at the top of a slide: `<!-- center -->`
   centres it, `<!-- class: foo -->` adds a CSS class, `<!-- bg: #fff -->` sets a
   background.
@@ -109,6 +123,18 @@ same rendered Markdown and TeX you see while reading; only the layout changes.
   **Annotate** (`Alt+A`) adds the drawing toolbar so you can mark up the slides;
   **Board** (`Alt+B`) is a blank surface to work on mid-talk. Each mode remembers
   its own tool and colour, and the mode you were in is restored when you reopen.
+- **Export as PDF…** (in the presenter menu, and in the editor's menu after
+  *Download as .html*) opens an in-app preview; *Save as PDF* there opens the
+  system print dialog. Text and formulas stay selectable and any ink stays vector
+  (nothing is rasterised). What comes out depends on the note:
+  - a **deck** prints one `960×700` page per slide. From the **presenter** the
+    annotations and any non-empty **board** pages are included; from the editor
+    the slides print on their own (ink belongs to a presentation). A slide taller
+    than one page is flagged, with a choice to **clip** or **continue** it.
+  - a plain **note** prints like a word processor — **A4 portrait**, flowing
+    across pages, pictures kept whole, at the note's `fontsize` (default 12pt).
+
+  Works offline; best in Chrome/Edge.
 - **Drawing.** The toolbar down the left has a laser pointer, a pen, chalk, a
   highlighter and an eraser (which rubs out just the part you drag over). Pen and
   chalk vary their width as you draw — thin when quick, thick when slow, or by

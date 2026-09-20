@@ -1,0 +1,308 @@
+/* Print/export rules for the PDF export window (pdf/index.html). The slide *look*
+ * comes from slides.css and present.css (shared with the projector); this file
+ * only turns the deck into fixed 960x700 pages, styles the preparation panel, and
+ * carries the print-safe ink profile. reveal.js is not loaded here, so its screen
+ * scaling never runs — we own the layout. */
+
+/* Two page geometries. The default is A4 portrait, used by document mode (a plain
+ * note printed like a word processor). Slides opt into the named `slide` page,
+ * sized to the slide's own 960x700 box. Chromium honours the `page` property with
+ * named @page rules, and the export targets Chrome/Edge. */
+@page {
+  size: A4 portrait;
+  margin: 16mm;
+}
+@page slide {
+  size: 960px 700px;
+  margin: 0;
+}
+
+:root {
+  --pdf-backdrop: #e5e7eb; /* the grey behind the stacked pages, on screen only */
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--pdf-backdrop);
+  /* Print backgrounds and the board's SVG rect exactly, without relying on the
+   * user ticking Chromium's "Background graphics". */
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+/* Undo reveal's viewport model (its CSS is not even loaded, but present.css and
+ * our own markup assume a `.reveal > .slides` wrapper): here it is a plain,
+ * statically flowing column of pages. */
+.reveal,
+.reveal .slides {
+  position: static;
+  width: auto;
+  height: auto;
+  inset: auto;
+  transform: none;
+  text-align: left;
+  /* present.css paints `.reveal` grey; the backdrop lives on <body> here, so keep
+   * the wrapper transparent (no tint behind the pages, on screen or in print). */
+  background: none;
+}
+
+/* A page: the slide's exact box. `overflow: hidden` is the clip that keeps a
+ * clipped (or continuation) slide to one page; height is fixed because, without
+ * reveal, there is no ancestor for a percentage height to resolve against. We do
+ * NOT set `display` here, so a `.center` / `.title` slide keeps the flex layout
+ * present.css gives it. */
+.reveal .slides section.pdf-page {
+  position: relative;
+  width: 960px;
+  height: 700px;
+  overflow: hidden;
+  background: #fff;
+  box-shadow: none;
+  page: slide; /* print this element on the 960x700 named page */
+}
+
+/* Screen preview: float the pages on the grey backdrop with a gap and a shadow so
+ * their edges (and any clipping) are visible before printing. `zoom` scales the
+ * whole deck (pages and gaps) to fit a narrow preview modal, adjusting the scroll
+ * extent with it; pdf.js sets --pdf-zoom from the viewport width. Print never sees
+ * this rule, so pages stay exactly 960x700 on paper. */
+@media screen {
+  .reveal {
+    zoom: var(--pdf-zoom, 1);
+  }
+  .reveal .slides section.pdf-page {
+    margin: 18px auto;
+    box-shadow: 0 2px 16px rgba(0, 0, 0, 0.22);
+  }
+  .reveal .slides {
+    padding: 18px 0 40px;
+  }
+}
+
+/* ---------- document mode (a plain note, printed like a word processor) ---------- */
+
+/* The whole note as one flowing article; print pagination breaks it across A4
+ * pages (the default @page). On screen it is an A4-width sheet on the backdrop. */
+.pdf-doc {
+  box-sizing: border-box;
+  max-width: 210mm;
+  margin: 18px auto;
+  padding: 16mm;
+  background: #fff;
+  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.22);
+  color: var(--fg);
+}
+/* Do not split a picture (or a table/code block/figure) across a page break —
+ * it jumps whole to the next page; and keep a heading with what follows it. */
+.pdf-doc :is(img, figure, table, pre) {
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+.pdf-doc img {
+  max-width: 100%;
+  height: auto;
+}
+.pdf-doc :is(h1, h2, h3, h4, h5, h6) {
+  break-after: avoid;
+  page-break-after: avoid;
+}
+@media print {
+  .pdf-doc {
+    max-width: none;
+    margin: 0;
+    padding: 0; /* the @page margin provides the page margins */
+    box-shadow: none;
+    background: none;
+  }
+}
+
+/* Print: one page each, no gaps or shadows, and the preparation panel gone. */
+@media print {
+  html,
+  body {
+    background: #fff;
+  }
+  .reveal .slides {
+    padding: 0;
+  }
+  .reveal .slides section.pdf-page {
+    margin: 0;
+    box-shadow: none;
+    break-after: page;
+    page-break-after: always;
+  }
+  .reveal .slides section.pdf-page:last-of-type {
+    break-after: auto;
+    page-break-after: auto;
+  }
+  .pdf-stage {
+    display: none !important;
+  }
+}
+
+/* The annotation overlay fills the page (present.css already positions
+ * `section > svg.ink`; this covers the board svg too, whose screen rules in
+ * present.css would otherwise size it by aspect-ratio). */
+.reveal .slides section.pdf-page > svg.ink,
+.reveal .slides section.pdf-board > svg.ink {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  aspect-ratio: auto;
+  max-width: none;
+  max-height: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+/* A continuation band: the slide body is shifted up by whole 700px steps and the
+ * page clips it, so a tall slide prints as consecutive full-height strips that
+ * line up exactly with the ink (whose viewBox is shifted to match). Only bands
+ * use this; a normal or clipped page leaves the body where it is. */
+.reveal .slides section.pdf-page > .slide-body.pdf-band {
+  height: auto;
+  overflow: visible;
+}
+
+/* ---------- ink export profile ---------- */
+
+/* Do not rely on blend modes for print: the marker colour is already precomputed
+ * (ink-svg.js markerColor), so a plain semi-transparent line reads as a
+ * highlighter on any surface. The chalk filter is dropped in JS, so chalk prints
+ * as a solid ribbon of its own colour/opacity (the .stroke-chalk rule in
+ * present.css still applies). */
+.pdf-page .stroke-marker,
+.pdf-board .stroke-marker {
+  mix-blend-mode: normal;
+}
+
+/* ---------- preparation / error panel ---------- */
+
+.pdf-stage {
+  position: fixed;
+  left: 50%;
+  bottom: 20px;
+  transform: translateX(-50%);
+  z-index: 100;
+  max-width: min(680px, calc(100vw - 32px));
+  padding: 14px 18px;
+  border-radius: 12px;
+  background: rgba(28, 28, 30, 0.96);
+  color: #f2f2f2;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+  font: 14px/1.5 -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+.pdf-stage:empty {
+  display: none;
+}
+.pdf-stage h2 {
+  margin: 0 0 6px;
+  font-size: 1rem;
+  font-weight: 600;
+}
+.pdf-stage p {
+  margin: 0 0 8px;
+}
+.pdf-stage .pdf-error {
+  color: #ff8a95;
+}
+
+/* One failed image per line: a page badge and the source as a link, trimmed to a
+ * single line with an ellipsis (never wrapped). The list scrolls if long. */
+.pdf-error-list {
+  margin: 6px 0 2px;
+  padding: 0;
+  list-style: none;
+  max-height: 34vh;
+  overflow-y: auto;
+}
+.pdf-error-list li {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 3px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+.pdf-error-list li:first-child {
+  border-top: 0;
+}
+.pdf-error-page {
+  flex: none;
+  padding: 0 7px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.14);
+  color: #f2f2f2;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.pdf-error-list a {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #ff8a95;
+}
+.pdf-error-list a:hover {
+  text-decoration: underline;
+}
+
+.pdf-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+.pdf-actions button {
+  padding: 7px 14px;
+  border: none;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.16);
+  color: #f2f2f2;
+  font: inherit;
+  cursor: pointer;
+}
+.pdf-actions button.primary {
+  background: var(--accent, #2563eb);
+  color: #fff;
+}
+.pdf-actions button:hover {
+  filter: brightness(1.1);
+}
+
+/* Thumbnails of the slides that overflow, so the warning is concrete. Each is a
+ * scaled 960x700 clone (like the presenter's overview). */
+.pdf-thumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 8px 0 2px;
+}
+.pdf-thumb {
+  position: relative;
+  width: 160px;
+  height: 116.7px;
+  overflow: hidden;
+  border-radius: 5px;
+  background: #fff;
+  box-shadow: 0 1px 8px rgba(0, 0, 0, 0.4);
+}
+.pdf-thumb-scale {
+  width: 960px;
+  height: 700px;
+  transform: scale(0.16667);
+  transform-origin: top left;
+}
+.pdf-thumb-num {
+  position: absolute;
+  right: 4px;
+  bottom: 3px;
+  padding: 0 6px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font-size: 11px;
+}

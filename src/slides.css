@@ -8,7 +8,11 @@
 /* reveal.js (and its reset) set line-height to 1 on the slide; the editor gets
  * 1.6 from theme.css but the projector does not, so set a readable leading here
  * for slide content in both. */
-.slide-body { height: 100%; overflow: auto; padding: 0 8px; line-height: 1.42; }
+/* Padding is in em so it holds the same proportion of the slide at every base
+ * type size — the projector's 0.875em/1.5em is 28px/48px at the default 32px —
+ * and, because the editor preview scales its base size to the card (ui.css),
+ * the two stay pixel-faithful to each other. */
+.slide-body { height: 100%; overflow: auto; padding: 0.875em 1.5em; line-height: 1.42; }
 /* markdown.css gives a leading heading a top margin; a slide should sit flush. */
 .slide-body.md > :first-child { margin-top: 0; }
 
