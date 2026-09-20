@@ -1284,6 +1284,65 @@ function conflictDiffActions(where, inWhere) {
   }
 }
 
+/**
+ * The buttons the diff carries when opened on its own from File info (no
+ * conflict/close flow supplying its own). "Discard my changes" appears whenever
+ * the editor has drifted from the last-saved version; "Reload from <where>"
+ * whenever the file underneath has, and it confirms first only when a reload
+ * would throw away unsaved edits. Resolves 'discard-edits' | 'reload'.
+ */
+function defaultDiffActions(doc, sourceText, source) {
+  const original = doc.savedText ?? ''
+  const dirty = (doc.text ?? '') !== original
+  const storedChanged = !!source && sourceText != null && sourceText !== original
+  const where = source === 'gdrive' ? 'Drive' : 'disk'
+  const actions = []
+  if (dirty) {
+    actions.push({
+      label: 'Discard my changes',
+      value: 'discard-edits',
+      title: 'Revert the editor to the last saved version, discarding your unsaved changes.',
+      confirm: 'Discard your unsaved changes and revert to the last saved version?',
+    })
+  }
+  if (storedChanged) {
+    actions.push({
+      label: `Reload from ${where}`,
+      value: 'reload',
+      primary: true,
+      title: `Replace this note with the version now on ${where}.`,
+      confirm: dirty ? `Discard your unsaved changes and reload this file from ${where}?` : undefined,
+    })
+  }
+  return actions
+}
+
+/** Carry out a default diff button: revert to the saved text, or pull the file.
+ *  The diff opens over File info, so refresh that panel once the state changes. */
+async function runDefaultDiffAction(doc, value) {
+  if (value === 'discard-edits') await discardEdits(doc)
+  else if (value === 'reload') {
+    const src = noteSource(doc)
+    if (src === 'gdrive') await pullTheirs(providerFor(doc), doc)
+    else if (src === 'local') await pullLocal(doc)
+  }
+  if (fi.dialog.open) openFileInfo()
+}
+
+/** Throw away unsaved edits, restoring the editor to the last-saved version. */
+async function discardEdits(doc) {
+  if (doc.text === doc.savedText) return
+  doc.text = doc.savedText
+  doc.updatedAt = Date.now()
+  if (doc.id === state.activeId) {
+    if (editor) editor.setText(doc.text)
+    updatePreview()
+  }
+  await saveNow(doc)
+  renderTabs()
+  renderCloudStatus()
+}
+
 let diffTabs = [] // [{ key, aLabel, bLabel, a, b, ops, added, deleted, blocks, err }]
 let diffAt = 0
 let diffHunks = [] // block anchor elements in the current body, for the navigator
@@ -1303,9 +1362,10 @@ async function readSourceText(doc) {
  * (last synced), the editor's text, and the source's current content — but only
  * shows the comparisons that actually differ: with one version matching another,
  * the redundant tab is dropped, so a note changed only in the editor shows a
- * single Editor vs Source tab. `opts.sourceText` skips the read when the caller
+ * single Original vs Editor tab. `opts.sourceText` skips the read when the caller
  * already has it; `opts.actions` (with `opts.onAction` and `opts.note`) shows a
- * footer of buttons — the same set the opener's own dialog carries; `opts.focus`
+ * footer of buttons — the same set the opener's own dialog carries; without them
+ * the diff shows its own Discard/Reload buttons for the state it finds. `opts.focus`
  * ('editor' | 'source') opens on the tab about that change.
  */
 async function openDiff(doc, opts = {}) {
@@ -1325,22 +1385,23 @@ async function openDiff(doc, opts = {}) {
     }
   }
 
-  // Candidate comparisons, in the order asked for: editor-source, editor-
-  // original, source-original. A comparison whose sides are equal is dropped,
-  // and one identical to a tab already kept (because two versions match) is
-  // dropped too — leaving exactly one tab when only one thing changed.
+  // Candidate comparisons, in the order asked for: original-editor, original-
+  // source, source-editor. Each reads old → new left-to-right. A comparison
+  // whose sides are equal is dropped, and one identical to a tab already kept
+  // (because two versions match) is dropped too — leaving exactly one tab when
+  // only one thing changed.
   const candidates = source
     ? [
-        { key: 'es', aLabel: 'Editor', bLabel: sourceLabel, a: editor, b: sourceText },
-        { key: 'eo', aLabel: 'Editor', bLabel: 'Original', a: editor, b: original },
-        { key: 'so', aLabel: sourceLabel, bLabel: 'Original', a: sourceText, b: original },
+        { key: 'oe', aLabel: 'Original', bLabel: 'Editor', a: original, b: editor },
+        { key: 'os', aLabel: 'Original', bLabel: sourceLabel, a: original, b: sourceText },
+        { key: 'se', aLabel: sourceLabel, bLabel: 'Editor', a: sourceText, b: editor },
       ]
-    : [{ key: 'eo', aLabel: 'Editor', bLabel: 'Original', a: editor, b: original }]
+    : [{ key: 'oe', aLabel: 'Original', bLabel: 'Editor', a: original, b: editor }]
 
   diffTabs = []
   const same = (t, a, b) => (t.a === a && t.b === b) || (t.a === b && t.b === a)
   for (const c of candidates) {
-    if (err && c.key !== 'eo') { diffTabs.push({ ...c, err, ops: [], added: 0, deleted: 0, blocks: 0 }); continue }
+    if (err && c.key !== 'oe') { diffTabs.push({ ...c, err, ops: [], added: 0, deleted: 0, blocks: 0 }); continue }
     if (c.a === c.b) continue
     if (diffTabs.some((t) => !t.err && same(t, c.a, c.b))) continue
     const ops = lineDiff(c.a, c.b)
@@ -1350,21 +1411,26 @@ async function openDiff(doc, opts = {}) {
   // never blank; it reads "No changes".
   if (diffTabs.length === 0) diffTabs.push({ ...candidates[0], ops: [], added: 0, deleted: 0, blocks: 0, err })
 
-  // Land on the relevant tab: the conflict/close editor-vs-source, or the tab a
+  // Land on the relevant tab: the conflict/close source-vs-editor, or the tab a
   // File-info label pointed at; otherwise the first (highest-priority) tab.
-  const pick = opts.focus === 'source' ? ['so', 'es'] : opts.focus === 'editor' ? ['eo', 'es'] : opts.actions ? ['es'] : []
+  const pick = opts.focus === 'source' ? ['os', 'se'] : opts.focus === 'editor' ? ['oe', 'se'] : opts.actions ? ['se'] : []
   diffAt = 0
   for (const key of pick) {
     const i = diffTabs.findIndex((t) => t.key === key)
     if (i >= 0) { diffAt = i; break }
   }
 
+  // A conflict/close flow passes its own buttons; opened on its own from File
+  // info, the diff offers the two moves seeing the change invites — discard the
+  // editor's edits, or reload the file underneath.
+  const actions = opts.actions?.length ? opts.actions : defaultDiffActions(doc, sourceText, source)
+  const onAction = opts.actions?.length ? opts.onAction : (v) => runDefaultDiffAction(doc, v)
   diff.actionsBtns.textContent = ''
-  if (opts.actions?.length) {
+  if (actions.length) {
     diff.actions.hidden = false
     diff.actionsNote.textContent = opts.note ?? ''
-    for (const a of opts.actions) {
-      diff.actionsBtns.append(makeActionButton(a, (v) => { diff.dialog.close(); opts.onAction(v) }))
+    for (const a of actions) {
+      diff.actionsBtns.append(makeActionButton(a, (v) => { diff.dialog.close(); onAction(v) }))
     }
   } else {
     diff.actions.hidden = true
