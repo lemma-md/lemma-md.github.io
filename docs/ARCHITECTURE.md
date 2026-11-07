@@ -300,6 +300,14 @@ them:
   (`If-Match`, answered with 412), but taking on a second, older API version
   for a window of about a second was judged not worth it; and a change caught
   after the fact could only be pointed to in Drive's own version history.
+- **A late answer is applied to what asked for it** *(2026-11)*. Drive answers
+  in its own time, and the page goes on meanwhile. So *Save As* takes its note
+  when it is asked for, not when it is confirmed: another tab may be opened
+  while the dialog gets ready. Its folder listings carry a generation number,
+  and one for a folder already left is dropped, so the list always matches the
+  breadcrumb; saving waits until the list is in. *Reload theirs*, from Drive or
+  from disk, asks again if the note was edited while the file was loading,
+  since those edits were not what the choice was about.
 - **A file on disk is never written over blindly either** *(2026-11)*. Before
   saving, the file is read and compared with the text last saved or opened:
   by content alone, since an edit can leave the date and size as they were,

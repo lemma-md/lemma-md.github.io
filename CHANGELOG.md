@@ -39,6 +39,11 @@ This is the *when*. The *why* behind a decision is in
 
 ### Fixed
 
+- Slow answers from Drive are applied to what they were for. *Save As* saves
+  the note it was opened for, even if another tab is opened while it gets
+  ready; a folder's listing that comes late no longer replaces the one on
+  screen; and reloading a note from Drive or disk asks first if it was edited
+  while the file was loading.
 - Saving to a file on disk that cannot be read (moved, deleted, locked by
   another program) asks first, instead of writing over it unchecked. An edit
   made on disk is noticed even when it left the file's date and size as they

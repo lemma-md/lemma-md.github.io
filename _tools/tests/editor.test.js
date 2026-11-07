@@ -425,3 +425,69 @@ test('renaming a Drive note is an unsaved change, and Save carries the name', ()
   await waitFor(() => drive.files.get(id).name === 'renamed.md', 'the name reached Drive')
   await waitFor(() => ed.status().text !== 'Changed', 'in step again')
 }))
+
+suite('editor: answers that come late')
+
+// Drive answers in its own time. Whatever a dialog was opened for, and
+// whatever is on screen, must still be what its answer is applied to.
+
+const listed = (ed) => ed.$$('#cloud-files .entry .e-name').map((n) => n.textContent)
+
+test('Save As to Drive saves the note it was opened for', () => withEditor(DRIVE, async (ed) => {
+  const drive = await waitFor(() => ed.win.fakeDrive, 'the fake Drive')
+  await ed.newNote()
+  await ed.type('note A')
+  await ed.newNote()
+  await ed.type('note B')
+  ed.$$('#tabs .tab .name')[1].click() // back to A
+  await waitFor(async () => (await ed.editor()).getValue() === 'note A', 'A shown')
+
+  drive.delay.stat = 300 // Drive is slow while the dialog gets ready…
+  ed.$('#btn-cloud-save-as').click()
+  ed.$$('#tabs .tab .name')[2].click() // …and meanwhile the person moves on to B
+  await waitFor(() => ed.isOpen('cloud-save-as'), 'the dialog')
+  await waitFor(() => !ed.$('#cloud-save-confirm').disabled, 'the dialog ready')
+  ed.$('#cloud-save-confirm').click()
+  await waitFor(() => drive.writes.length === 1, 'the write')
+  assert.equal(drive.writes[0].text, 'note A', 'the text of the note the dialog was opened for')
+  await waitFor(() => !ed.isOpen('cloud-save-as'), 'the dialog closed')
+  await sleep(50) // whatever follows the write has run
+  assert.deepEqual(ed.win.alerts, [], 'and no failure reported after it')
+}))
+
+test('a slow folder listing cannot replace the one on screen', () => withEditor(DRIVE, async (ed) => {
+  const drive = await waitFor(() => ed.win.fakeDrive, 'the fake Drive')
+  const slow = drive.add({ name: 'slow', folder: true })
+  drive.add({ name: 'in-slow.md', text: 'x', parents: [slow] })
+  drive.add({ name: 'top.md', text: 'y' })
+  await ed.newNote()
+  await ed.type('text')
+  ed.$('#btn-cloud-save-as').click()
+  await waitFor(() => ed.isOpen('cloud-save-as') && listed(ed).includes('top.md'), 'the app folder listed')
+
+  drive.delay.list = (parent) => (parent === slow ? 400 : 0)
+  ed.$$('#cloud-files .e-folder').find((li) => li.textContent.includes('slow')).click()
+  assert.ok(ed.$('#cloud-save-confirm').disabled, 'no saving into a folder still loading')
+  ed.$('#cloud-path button.crumb').click() // back up before it answers
+  await sleep(600) // the slow answer has come and gone
+  assert.equal(ed.$('#cloud-path .crumb.current').textContent, 'lemma-md', 'the breadcrumb')
+  assert.deepEqual(listed(ed), ['slow', 'top.md'], 'the list matches the breadcrumb')
+  assert.ok(!ed.$('#cloud-save-confirm').disabled, 'saving is possible again')
+}))
+
+test('reloading from Drive keeps what was typed while it loaded, unless told otherwise', () => withEditor(DRIVE, async (ed) => {
+  const { drive, id } = await openFromDrive(ed, 'drive.md', 'from Drive')
+  await ed.type(', mine')
+  drive.outside.edit(id, 'edited on another device')
+  ed.$('#btn-cloud-save').click()
+  await waitFor(() => ed.isOpen('cloud-conflict'), 'the question')
+
+  drive.delay.read = 400
+  ed.$('#conflict-theirs').click() // "Reload theirs", confirmed
+  await sleep(50)
+  ed.win.answer = false // to whatever is asked once Drive answers
+  await ed.type(' and more') // typed while Drive is answering
+  await sleep(600)
+  assert.equal((await ed.editor()).getValue(), 'from Drive, mine and more', 'kept')
+  assert.ok(ed.win.asked.some((q) => q.includes('while its Drive version was loading')), 'it asked first')
+}))

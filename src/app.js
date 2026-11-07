@@ -2023,7 +2023,13 @@ async function askIdentity(provider, doc, cur, kind) {
 
 /** Replace the note's contents with the version currently in Drive. */
 async function pullTheirs(provider, doc) {
+  const before = doc.text
   const fresh = await provider.read(doc.remote.id)
+  if (state.docs.get(doc.id) !== doc) return // closed while Drive answered
+  // What was asked was to drop the edits seen then, not ones typed while Drive
+  // was answering.
+  if (doc.text !== before &&
+    !confirm(`“${doc.name}” was edited while its Drive version was loading. Replace it with the Drive version anyway?`)) return
   doc.text = fresh.text
   doc.savedText = fresh.text
   doc.name = fresh.name
@@ -2281,7 +2287,13 @@ function askLocalConflict(doc, cur, unreadable = null) {
 /** Replace a note's contents with the version now on disk. `cur` is the read
  *  already taken by the conflict check, so we don't read twice. */
 async function pullLocal(doc, cur) {
+  const before = doc.text
   const fresh = cur ?? (await localFiles.read(doc.local.handle))
+  if (state.docs.get(doc.id) !== doc) return // closed while the file was read
+  // As for Drive: edits typed while the file was being read were not part of
+  // the choice to reload it.
+  if (doc.text !== before &&
+    !confirm(`“${doc.name}” was edited while the file was loading. Replace it with the file on disk anyway?`)) return
   doc.text = fresh.text
   doc.savedText = fresh.text
   doc.name = fresh.name
@@ -2313,9 +2325,13 @@ const saveTarget = {
  * Drive. Where the browser can't write files directly, the local choice is
  * disabled and the panel explains why, offering a download instead.
  */
+// The note the "where to save" dialog is for, so that its choices act on it.
+let saveTargetDoc = null
+
 function openSaveTarget() {
   const doc = active()
   if (!doc) return
+  saveTargetDoc = doc
   const canLocal = localFiles.isSaveSupported()
   const canDrive = availableProviders().length > 0
   saveTarget.name.textContent = doc.name
@@ -2603,17 +2619,25 @@ async function markRootSaved(provider, id) {
   }
 }
 
-async function openSaveAs() {
-  const doc = active()
+/**
+ * The note the Save As dialog is for. Taken when the dialog is asked for, not
+ * when it is confirmed: Drive answers in its own time before the dialog shows,
+ * and another tab may have been opened meanwhile.
+ */
+let saveAsDoc = null
+
+async function openSaveAs(doc = active()) {
   if (!doc) return
   const provider = availableProviders()[0]
   if (!provider) return
   const folder = await ensureAppFolder(provider)
   if (!folder) return
+  const roots = await loadRoots(provider, folder)
+  if (state.docs.get(doc.id) !== doc) return // closed while Drive answered
+  saveAsDoc = doc
   pickerProvider = provider
   pickerApp = { id: folder.id, name: folder.name }
   saveAs.name.value = doc.name
-  const roots = await loadRoots(provider, folder)
   pickerRoots = roots.filter((r) => r.id !== folder.id)
   saveAs.tabApp.textContent = folder.name
   openTab('app')
@@ -2633,25 +2657,42 @@ function openTab(tab) {
   loadEntries()
 }
 
+// Bumped by every listing. Folders can be opened faster than Drive lists them,
+// and an answer for a folder left meanwhile must not replace the one on screen:
+// the list would no longer match the breadcrumb, and a name typed to replace a
+// file would be matched against the wrong folder.
+let pickerGeneration = 0
+
 /** Draw the breadcrumb and the list for wherever we now are. */
 async function loadEntries() {
+  const generation = ++pickerGeneration
   renderPath()
   saveAs.explain.hidden = !(pickerTab === 'mydrive' && !pickerPath.length)
   saveAs.files.textContent = ''
 
   // The My Drive tab's own root is not a real folder — Drive won't let us list
   // it — so it shows the added folders instead.
-  if (pickerTab === 'mydrive' && !pickerPath.length) { renderRootList(); return }
+  if (pickerTab === 'mydrive' && !pickerPath.length) {
+    saveAs.confirm.disabled = false
+    renderRootList()
+    return
+  }
 
+  // No saving into a folder whose contents are not known yet.
+  saveAs.confirm.disabled = true
+  let entries
   try {
     const items = await pickerProvider.list({ parent: current().id })
-    pickerEntries = {
+    entries = {
       folders: items.filter((f) => f.mimeType === FOLDER_MIME),
       files: items.filter((f) => f.mimeType !== FOLDER_MIME),
     }
   } catch {
-    pickerEntries = { folders: [], files: [] }
+    entries = { folders: [], files: [] }
   }
+  if (generation !== pickerGeneration) return
+  pickerEntries = entries
+  saveAs.confirm.disabled = false
   renderEntries()
 }
 
@@ -2799,8 +2840,8 @@ async function addExternalFolder() {
 }
 
 async function confirmSaveAs() {
-  const doc = active()
-  if (!doc) return
+  const doc = saveAsDoc
+  if (!doc || state.docs.get(doc.id) !== doc) { saveAs.dialog.close(); return }
   if (!current()) { alert('Choose a folder to save into.'); return }
   const name = saveAs.name.value.trim() || doc.name
   // A name that matches a file already in this folder means "save over it",
@@ -2814,11 +2855,11 @@ async function confirmSaveAs() {
   try {
     const text = doc.text
     const parents = [current().id]
-    const saved = await inOrder(doc, () => existing
+    const file = await inOrder(doc, () => existing
       ? pickerProvider.write({ id: existing.id, name, text })
       : pickerProvider.write({ name, text, parents }))
-    doc.remote = remoteLink(pickerProvider, saved)
-    doc.name = saved.name || name
+    doc.remote = remoteLink(pickerProvider, file)
+    doc.name = file.name || name
     doc.savedText = text
     doc.remoteChanged = false
     await markRootSaved(pickerProvider, pickerPath[0].id)
@@ -2883,7 +2924,7 @@ document.getElementById('btn-close').onclick = () => { if (state.activeId) close
 document.getElementById('btn-cloud-open').onclick = openFromCloud
 document.getElementById('btn-cloud-save').onclick = saveActive
 document.getElementById('btn-save-as').onclick = saveActiveAs
-document.getElementById('btn-cloud-save-as').onclick = openSaveAs
+document.getElementById('btn-cloud-save-as').onclick = () => openSaveAs()
 // "Save As" writes a new local file, so it needs the picker; where that is
 // missing, Download covers saving to a file instead.
 document.getElementById('btn-save-as').hidden = !localFiles.isSaveSupported()
@@ -2901,12 +2942,12 @@ document.getElementById('diff-close').onclick = () => diff.dialog.close()
 // its own dialog, which settles the close when it saves or is dismissed.
 saveTarget.local.onclick = async () => {
   saveTarget.dialog.close('chosen')
-  await saveToLocal(active())
+  await saveToLocal(saveTargetDoc)
   settlePendingClose()
 }
 saveTarget.drive.onclick = async () => {
   saveTarget.dialog.close('chosen')
-  await openSaveAs()
+  await openSaveAs(saveTargetDoc)
   if (!saveAs.dialog.open) dropPendingClose() // it never got as far as showing
 }
 saveTarget.download.onclick = (e) => {

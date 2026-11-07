@@ -51,6 +51,9 @@ export function installFakeDrive(provider) {
     folderPick: null,
     /** Every write, in order: { id, name, text }. */
     writes: [],
+    /** How long Drive takes to answer, in ms: a slow network, to race against. */
+    /** `list` is a function of the folder listed. */
+    delay: { stat: 0, read: 0, list: () => 0 },
     /** Changes made elsewhere, as if in Drive itself. */
     outside: {
       edit(id, text) { const f = get(id); f.text = text; touch(f) },
@@ -60,6 +63,8 @@ export function installFakeDrive(provider) {
     },
   }
 
+  const pause = (ms) => (ms > 0 ? new Promise((resolve) => setTimeout(resolve, ms)) : null)
+
   Object.assign(provider, {
     isConnected: () => true,
     async connect() {},
@@ -67,6 +72,7 @@ export function installFakeDrive(provider) {
     async pick() { return drive.picks.splice(0) },
     async pickFolder() { return drive.folderPick },
     async read(id) {
+      await pause(drive.delay.read)
       const f = get(id)
       return { ...meta(f), text: f.text }
     },
@@ -85,6 +91,7 @@ export function installFakeDrive(provider) {
       return { id, name }
     },
     async list({ parent, foldersOnly } = {}) {
+      await pause(drive.delay.list(parent))
       return [...files.values()]
         .filter((f) => !f.trashed && (!parent || f.parents.includes(parent)) && (!foldersOnly || f.folder))
         .map((f) => ({
@@ -96,6 +103,7 @@ export function installFakeDrive(provider) {
         }))
     },
     async stat(id) {
+      await pause(drive.delay.stat)
       const f = get(id)
       return { id: f.id, name: f.name }
     },
