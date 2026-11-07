@@ -160,6 +160,30 @@ storage. That rule fitted a time when this database held the *only* copy of
 every note. Once notes could be saved to a real file, keeping every closed one
 mostly kept copies of files that already exist.
 
+**A failed write is shown, never only logged** *(2026-11)*. When IndexedDB
+refuses a write, the latest edits exist only in the tab's memory, so the note's
+status says **Storage error** and a notice under the bar says what that means.
+A full quota or disk is reported only when the write commits, as an aborted
+transaction with no `error` event, so every write listens for `abort` as well.
+
+- **Nothing leaves memory unasked before its write has succeeded.** A note the
+  bin refused is dropped only after the user agrees, and leaving the page while
+  it holds refused text raises the browser's own "Leave site?" question.
+- **The error lasts while the page holds the only copy.** Once the note is
+  saved or downloaded, its source's status shows again. A refused note is
+  tried again from the notice's *Try again* and on returning to the page,
+  which is when space has usually been freed.
+- **A database that will not open is a state of the whole page**, told once at
+  startup by a notice that stays, rather than by the first failed write. It
+  usually means the browser was set to block site data, so the notice links to
+  the help section that says how to allow it.
+
+**A newer build in another tab takes the database over** *(2026-11)*. A schema
+upgrade waits until every open page lets go of the database. An older page
+first writes what it still holds, then lets go and asks to be reloaded, and from
+then on every write fails with that message. Without this, its connection
+closed silently and every later save failed unseen.
+
 The mental model is a desktop editor. IndexedDB is the scratch area, and a file,
 on disk or in Drive, is the real copy. Until a note has been saved to one, the
 browser holds the only copy. README's *Drafts are local* tells the user so.
@@ -330,6 +354,33 @@ speaker/second-screen view, which is left for later.
   which reads it back — no cross-window snapshot; printing the iframe prints only
   its pages. Non-empty board pages follow the slides; a slide taller than one page
   is flagged, to clip or continue across pages. See [PRESENTER.md](PRESENTER.md).
+
+## Help
+
+**One help page, `help/`, of questions and answers** *(2026-11)*. Three things
+about this app need explaining that a usual web app does not: there is no
+server, a note lives in the browser until it is saved, and saving into a file
+works only in Chromium browsers. Each answer is a section of that page. The
+front page links to it from its footer, the editor from the bottom of its menu.
+
+- **Plain HTML**, like `privacy.html`, on the front page's stylesheet. A
+  Markdown file shown by the app's renderer was the alternative: it would read
+  like a note, but needs scripts to show anything, and the Jekyll that GitHub
+  Pages runs may render a `.md` file as a page of its own.
+- **English only**, like the rest of the site.
+- **Paths in words, no screenshots**, for now. A screenshot of a browser's
+  settings dates with every release of that browser, and a page of them would
+  be wrong somewhere at any moment. Each step names the menu path, and also the
+  settings page's own address where the browser has one
+  (`chrome://settings/…`), which outlasts a renamed menu.
+- **Section anchors are permanent.** The app links to them through
+  `src/help.js`, so renaming one breaks a link in a build already out.
+- **A notice that points at a browser setting links to the answer** instead of
+  giving the steps itself. The steps differ by browser and change with its
+  releases; one page is easier to keep current than strings in the code. The
+  link opens in a new tab, since the editor may hold the only copy of a note.
+  The menu's *Help* reuses one named tab rather than opening a new one on every
+  click.
 
 ## Deployment
 

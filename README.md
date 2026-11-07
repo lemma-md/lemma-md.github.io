@@ -78,6 +78,9 @@ Planned, numbered as in [docs/ROADMAP.md](docs/ROADMAP.md):
    - **2.2** PDF files as presentations, drawn over like slides
    - **2.3** presentation themes: swappable colour, spacing and font sets,
      chosen per deck in the front-matter
+3. **Help**
+   - **3.1** more answers on the help page: Google Drive, what the status
+     says, conflicts, the bin, slides, export, offline use
 
 Possibly, much later: optional syncing to a private **GitHub** repository.
 
@@ -237,6 +240,8 @@ The site has a front page and, under it, one directory per tool.
 index.html          front page: what markdown is, and where the tools are
 editor/index.html   the editor; loads the vendored libraries and the sprite
 present/index.html  the projector window; loads reveal.js and the ink layer
+help/index.html     questions and answers, plain HTML; the app links to its sections
+privacy.html        the privacy policy
 
 src/landing.js      renders the front page's examples with viewer.js
 src/app.js          tabs, drag & drop, autosave, pane splitter
@@ -245,12 +250,13 @@ src/editor.js       Ace, loaded on demand
 src/present/        slide splitting, reveal.js setup and the drawing tools
 src/drafts.js       IndexedDB persistence (notes and presentation ink)
 src/settings.js     the Settings window
+src/help.js         links into help/, whose section anchors are permanent
 src/storage/        cloud providers behind one interface (see docs/CLOUD-SETUP.md)
 src/config.js       the app's own Google ids, one set for every origin
 
 src/theme.css       colours, reset, base type — every page
 src/markdown.css    how rendered markdown looks — every page that renders it
-src/landing.css     the front page
+src/landing.css     the front page, the help page and the privacy policy
 src/ui.css          the editor's chrome
 src/present.css     the projector and its tools, on top of reveal.js
 

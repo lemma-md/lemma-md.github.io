@@ -91,6 +91,11 @@
     <path d="M18 6 6 18"/>
     <path d="m6 6 12 12"/>
   </symbol>
+  <symbol id="icon-help" viewBox="0 0 24 24">
+    <circle cx="12" cy="12" r="10"/>
+    <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+    <path d="M12 17h.01"/>
+  </symbol>
   <symbol id="icon-present" viewBox="0 0 24 24">
     <path d="M2 3h20"/>
     <path d="M21 3v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V3"/>
@@ -146,10 +151,22 @@
         <hr>
         <button id="btn-file-info" role="menuitem"><svg class="icon"><use href="#icon-info"/></svg><span class="label">File info</span><span class="key"></span></button>
         <button id="btn-settings" role="menuitem"><svg class="icon"><use href="#icon-settings"/></svg><span class="label">Settings</span><span class="key"></span></button>
+        <hr>
+        <button id="btn-help" role="menuitem"><svg class="icon"><use href="#icon-help"/></svg><span class="label">Help</span><span class="key"></span></button>
       </div>
     </div>
   </div>
 </header>
+
+<!-- A notice across the top for trouble that must not go unnoticed, such as
+     the browser refusing to store a note. Not a dialog: typing goes on. -->
+<div id="banner" role="alert" hidden>
+  <span id="banner-text"></span>
+  <!-- A new tab, so leaving to read the answer cannot lose what this page holds. -->
+  <a id="banner-link" target="_blank" rel="noopener" hidden></a>
+  <button id="banner-action" type="button" hidden></button>
+  <button id="banner-close" type="button" title="Dismiss" aria-label="Dismiss">&times;</button>
+</div>
 
 <main id="panes">
   <section id="editor-pane"><div id="editor">Loading editor…</div></section>
@@ -359,6 +376,7 @@
       This browser can’t save directly to a file on your computer.
       <a id="save-target-download" href="#" class="linklike">Download a copy</a>,
       or open lemma-md in Chrome, Edge or Opera to save to disk.
+      <a href="../help/#files" target="_blank" rel="noopener">Why?</a>
     </p>
   </section>
 </dialog>

@@ -9,6 +9,7 @@ import { lineDiff, diffStats, sideBySide, inlineDiff } from './diff.js'
 import { buildStandaloneHtml, extractMarkdown } from './export-html.js'
 import { openPdfPreview } from './pdf/preview.js'
 import { WELCOME, templates } from './templates.js'
+import { helpUrl } from './help.js'
 import { parseDeck, buildTitleBody } from './present/slides.js'
 
 register(googleDrive)
@@ -31,13 +32,23 @@ const el = {
 
 const active = () => state.docs.get(state.activeId) ?? null
 
+/**
+ * Unsaved changes: edited text or, for a Drive note, a new name that has not
+ * reached Drive yet (a save carries the name with it). Without the name, a
+ * renamed note could close as clean and the new name never get there. A file on
+ * disk keeps its own name on disk, so renaming its tab is not a pending change.
+ */
+const renamedSinceSave = (doc) =>
+  noteSource(doc) === 'gdrive' && doc.remote?.name != null && doc.name !== doc.remote.name
+const isDirty = (doc) => doc.text !== doc.savedText || renamedSinceSave(doc)
+
 /* ---------- persistence ---------- */
 
 // UI-only state that must never reach storage: a save in flight, and the result
 // of the last external-change check. Persisting `cloudBusy` once left a note
 // stuck on "Saving…" after a reload; the remote-change flags are re-derived on
 // load anyway. Stripped on write and cleared on load.
-const TRANSIENT_KEYS = ['cloudBusy', 'remoteChanged', 'remoteRenamed', 'remoteTrashed', 'localBusy', 'localChanged']
+const TRANSIENT_KEYS = ['cloudBusy', 'remoteChanged', 'remoteRenamed', 'remoteTrashed', 'localBusy', 'localChanged', 'storeFailed']
 
 /** Write a note to the scratch database without its transient UI flags. */
 function persistDoc(doc) {
@@ -45,6 +56,107 @@ function persistDoc(doc) {
   for (const k of TRANSIENT_KEYS) delete clean[k]
   return drafts.putDoc(clean)
 }
+
+/**
+ * Write a note to the browser's storage, making a failure visible. A write that
+ * fails (storage full, blocked, or the page made stale by a newer build in
+ * another tab) leaves the latest edits in this tab's memory only. That used to
+ * be a line in the console; now the note shows "Storage error" and the page
+ * says so once, in the banner. A later write that succeeds clears the state.
+ * Never rejects.
+ */
+function storeDoc(doc) {
+  return persistDoc(doc).then(
+    () => {
+      if (!doc.storeFailed) return
+      doc.storeFailed = false
+      renderCloudStatus()
+      // The last refused note went in after all: the notice is no longer true,
+      // and a later failure deserves a notice of its own.
+      if (anyStoreFailed()) return
+      storageWarned = false
+      if (banner.el.dataset.kind === 'store-failed') hideBanner()
+    },
+    (err) => storageFailed(doc, err),
+  )
+}
+
+let stale = false // a newer build in another tab took the database over
+let unavailable = false // the database would not open at all, see storageUnavailable
+let storageWarned = false
+
+const anyStoreFailed = () => [...state.docs.values()].some((d) => d.storeFailed)
+
+/** The browser refused the latest edits and they are not in a file either:
+ *  this tab holds the only copy. */
+const unstored = (doc) => doc.storeFailed && isDirty(doc)
+
+function storageFailed(doc, err) {
+  reportError(err)
+  doc.storeFailed = true
+  renderCloudStatus()
+  // Once is enough. While stale or unavailable, that notice already says it.
+  if (stale || unavailable || storageWarned) return
+  storageWarned = true
+  const full = err?.name === 'QuotaExceededError'
+  showBanner(
+    `This browser refused to store “${doc.name}”${full ? ': it is out of space' : ''}. ` +
+    'Your latest changes are only in this tab until you save or download the note.' +
+    (full ? ' Free some disk space, then try again.' : ''),
+    {
+      kind: 'store-failed',
+      title: String(err?.message ?? err),
+      action: 'Try again',
+      onAction: retryFailedWrites,
+    },
+  )
+}
+
+/** Store again every note the browser refused, as when space has been freed.
+ *  Pointless once this page has lost the database for good. */
+function retryFailedWrites() {
+  if (stale || unavailable) return Promise.resolve()
+  return Promise.all([...state.docs.values()].filter((d) => d.storeFailed).map(storeDoc))
+}
+
+/**
+ * The database would not open, so nothing will be stored while this page lives:
+ * every note exists only in memory. Said once, at the start, and kept on screen.
+ * Usually the browser is set not to let sites keep data; the help page says how
+ * to allow it. A `VersionError` instead means a newer build in another tab has
+ * already upgraded the database, which a reload fixes.
+ */
+function storageUnavailable(err) {
+  reportError(err)
+  unavailable = true
+  if (err?.name === 'VersionError') {
+    stale = true
+    showBanner(
+      'lemma-md was updated in another tab. Reload this page to keep working: changes made here cannot be stored.',
+      { action: 'Reload', onAction: () => location.reload(), sticky: true },
+    )
+    return
+  }
+  showBanner(
+    'This browser won’t let lemma-md store anything, so your notes are lost when this tab closes. ' +
+    'Save or download the ones you want to keep. Usually a browser setting blocks this; once it is allowed, reload the page.',
+    {
+      kind: 'unavailable',
+      title: String(err?.message ?? err),
+      link: { text: 'How to allow it', href: helpUrl('storage-blocked') },
+      sticky: true,
+    },
+  )
+}
+
+// Text the browser would not store is lost with the page, so leaving it asks
+// first: a reload, the Reload button of a notice, closing the tab. A note that
+// is merely unsaved needs no warning, since the browser holds it.
+addEventListener('beforeunload', (e) => {
+  if (![...state.docs.values()].some(unstored)) return
+  e.preventDefault()
+  e.returnValue = '' // older Chrome and Safari ask only with this set
+})
 
 // Debounced writes, one timer per note, each holding its own note. A single
 // shared timer used to save whichever note was active when it fired, so
@@ -56,7 +168,7 @@ function scheduleSave(doc) {
   clearTimeout(pendingSaves.get(doc.id))
   pendingSaves.set(doc.id, setTimeout(() => {
     pendingSaves.delete(doc.id)
-    persistDoc(doc).catch(reportError)
+    storeDoc(doc)
   }, 400))
 }
 
@@ -73,7 +185,7 @@ function flushSaves() {
   for (const id of [...pendingSaves.keys()]) {
     const doc = state.docs.get(id)
     cancelSave(id)
-    if (doc) writes.push(persistDoc(doc).catch(reportError))
+    if (doc) writes.push(storeDoc(doc))
   }
   return Promise.all(writes)
 }
@@ -86,7 +198,7 @@ function flushSaves() {
 function saveNow(doc) {
   if (!doc) return Promise.resolve()
   cancelSave(doc.id)
-  return persistDoc(doc).catch(reportError)
+  return storeDoc(doc)
 }
 
 // Writes to a note's source (a file on disk, a Drive file), run one at a time
@@ -115,6 +227,45 @@ const saveSession = () =>
 function reportError(err) {
   console.error(err)
 }
+
+/* ---------- banner ---------- */
+
+// The notice strip under the bar, for trouble that must not go unnoticed but
+// should not stop the typing either, as an alert() would.
+const banner = {
+  el: document.getElementById('banner'),
+  text: document.getElementById('banner-text'),
+  link: document.getElementById('banner-link'),
+  action: document.getElementById('banner-action'),
+  close: document.getElementById('banner-close'),
+}
+
+/**
+ * Show a notice. `action` adds a button that runs `onAction`; `link` adds a
+ * link to the help page, which opens in a new tab; `sticky` hides the ×, for a
+ * notice that stays true until acted on. `title` is a tooltip on the text, the
+ * place for the browser's own wording of an error. `kind` names the notice, so
+ * that whatever raised it can take it down again.
+ */
+function showBanner(text, { action, onAction, link, sticky = false, title = '', kind = '' } = {}) {
+  banner.text.textContent = text
+  banner.text.title = title
+  banner.link.hidden = !link
+  banner.link.textContent = link?.text ?? ''
+  if (link) banner.link.href = link.href
+  else banner.link.removeAttribute('href')
+  banner.action.hidden = !action
+  banner.action.textContent = action ?? ''
+  banner.action.onclick = onAction ?? null
+  banner.close.hidden = sticky
+  banner.el.dataset.kind = kind
+  banner.el.hidden = false
+}
+function hideBanner() {
+  banner.el.hidden = true
+  banner.el.dataset.kind = ''
+}
+banner.close.onclick = hideBanner
 
 /* ---------- rendering ---------- */
 
@@ -278,11 +429,11 @@ function renderTabs() {
     tab.className = 'tab' + (id === state.activeId ? ' active' : '')
     tab.onclick = () => setActive(id)
 
-    if (doc.text !== doc.savedText) {
+    if (isDirty(doc)) {
       const dot = document.createElement('span')
       dot.className = 'dot'
       dot.textContent = '•'
-      dot.title = 'Edited since it was last saved'
+      dot.title = doc.text === doc.savedText ? 'Renamed since it was last saved' : 'Edited since it was last saved'
       tab.append(dot)
     }
 
@@ -439,7 +590,7 @@ function addDoc(name, text, remote = null, origin = null, local = null) {
   }
   state.docs.set(doc.id, doc)
   state.openIds.push(doc.id)
-  persistDoc(doc).catch(reportError)
+  storeDoc(doc)
   return doc.id
 }
 
@@ -462,7 +613,7 @@ function setActive(id) {
 function closeTab(id) {
   const doc = state.docs.get(id)
   if (!doc) return
-  if (doc.text === doc.savedText) return deleteAndDrop(id)
+  if (!isDirty(doc)) return deleteAndDrop(id)
   if (id !== state.activeId) setActive(id) // show the note the prompt is about
   openCloseWarn(doc)
 }
@@ -483,7 +634,15 @@ async function binAndDrop(id) {
   cancelSave(id)
   const clean = { ...doc, binnedAt: Date.now() }
   for (const k of TRANSIENT_KEYS) delete clean[k]
-  await drafts.putDoc(clean).catch(reportError)
+  try {
+    await drafts.putDoc(clean)
+  } catch (err) {
+    // The bin never got it, so the tab is the only place this text still is.
+    // Dropping it then loses it for good, which only the user can agree to;
+    // without the question, a browser that stores nothing could never close it.
+    storageFailed(doc, err)
+    if (!confirm(`The bin could not take “${doc.name}”: this browser refused to store it. Discard it for good?`)) return
+  }
   dropTab(id)
 }
 
@@ -521,12 +680,12 @@ function dropTab(id) {
 function onEdit(text) {
   const doc = active()
   if (!doc || doc.text === text) return
-  const wasClean = doc.text === doc.savedText
+  const wasDirty = isDirty(doc)
   doc.text = text
   doc.updatedAt = Date.now()
   // Redraw the tab dot and the status when the note turns dirty, and also when
   // it turns clean again, e.g. after undoing back to the saved text.
-  if (wasClean !== (text === doc.savedText)) { renderTabs(); renderCloudStatus() }
+  if (wasDirty !== isDirty(doc)) { renderTabs(); renderCloudStatus() }
   schedulePreview()
   scheduleSave(doc)
 
@@ -587,6 +746,7 @@ function applyRename(id, raw) {
   doc.name = name
   doc.updatedAt = Date.now()
   saveNow(doc)
+  renderCloudStatus() // a Drive note's new name is an unsaved change (isDirty)
 }
 
 /* ---------- files ---------- */
@@ -690,7 +850,7 @@ function downloadActive() {
   URL.revokeObjectURL(url)
 
   doc.savedText = doc.text
-  persistDoc(doc).catch(reportError)
+  storeDoc(doc)
   renderTabs()
 }
 
@@ -959,7 +1119,13 @@ const fmtDate = (value) => {
  * docs/STATUS.md.
  */
 function cloudStatusText(doc) {
-  const dirty = doc.text !== doc.savedText
+  // Above everything else: the browser would not store the latest edits, so
+  // they are only in this tab, whatever the source says. Once they are in a
+  // file after all (saved, downloaded), the source has the last word again.
+  if (unstored(doc)) {
+    return { text: 'Storage error', cls: 'cloud-state error', title: 'This browser would not store your latest changes; they are only in this tab. Save or download the note to keep them.' }
+  }
+  const dirty = isDirty(doc)
   const source = noteSource(doc)
   if (!source) {
     // Untouched, there is nothing to lose: a blank note, a template as it came,
@@ -983,7 +1149,7 @@ function cloudStatusText(doc) {
   if (doc.remoteTrashed) return { text: 'In Drive trash', cls: 'cloud-state warn', title: 'The file is in the Drive trash' }
   if (doc.remoteRenamed) return { text: 'Renamed in Drive', cls: 'cloud-state warn', title: 'The file was renamed or moved in Drive' }
   if (doc.remoteChanged) return { text: 'Changed in Drive', cls: 'cloud-state warn', title: 'The file changed in Drive since you opened it' }
-  if (dirty) return { text: 'Changed', cls: 'cloud-state warn', title: 'Edited since it was last saved' }
+  if (dirty) return { text: 'Changed', cls: 'cloud-state warn', title: doc.text === doc.savedText ? 'Renamed since it was last saved' : 'Edited since it was last saved' }
   // In sync: just the source file's own time, no status word.
   const when = doc.remote.modifiedTime ?? doc.remote.savedAt
   return { text: fmtTimeShort(when), cls: 'cloud-state', title: 'In sync with Google Drive' }
@@ -1165,7 +1331,7 @@ function viewControl(doc) {
 
 function renderFileInfo(doc, mode, data) {
   const source = noteSource(doc)
-  const dirty = doc.text !== doc.savedText
+  const dirty = isDirty(doc)
   const localSize = new Blob([doc.text]).size
   const editedBadge = dirty ? changedBadge(doc, 'Changed in editor', 'editor') : null
   fi.grid.textContent = ''
@@ -1383,9 +1549,11 @@ async function runDefaultDiffAction(doc, value) {
   if (fi.dialog.open) openFileInfo()
 }
 
-/** Throw away unsaved edits, restoring the editor to the last-saved version. */
+/** Throw away unsaved edits, restoring the editor to the last-saved version,
+ *  and a Drive note's name to the one the file has. */
 async function discardEdits(doc) {
-  if (doc.text === doc.savedText) return
+  if (!isDirty(doc)) return
+  if (renamedSinceSave(doc)) doc.name = doc.remote.name
   doc.text = doc.savedText
   doc.updatedAt = Date.now()
   if (doc.id === state.activeId) {
@@ -2202,7 +2370,7 @@ async function handleCloseAction(doc, value) {
   } else if (value === 'copy') await copyToSource(doc)
   else if (value === 'overwrite') await overwriteSource(doc)
   else return
-  if (doc.text === doc.savedText) deleteAndDrop(doc.id)
+  if (!isDirty(doc)) deleteAndDrop(doc.id)
 }
 
 /**
@@ -2219,7 +2387,7 @@ let pendingClose = null
 function settlePendingClose() {
   const doc = pendingClose
   pendingClose = null
-  if (doc && state.docs.has(doc.id) && doc.text === doc.savedText) deleteAndDrop(doc.id)
+  if (doc && state.docs.has(doc.id) && !isDirty(doc)) deleteAndDrop(doc.id)
 }
 
 const dropPendingClose = () => { pendingClose = null }
@@ -2691,6 +2859,9 @@ document.getElementById('btn-cloud-save-as').onclick = openSaveAs
 // missing, Download covers saving to a file instead.
 document.getElementById('btn-save-as').hidden = !localFiles.isSaveSupported()
 document.getElementById('btn-file-info').onclick = openFileInfo
+// In a tab of its own, so the editor and what it holds stay put; the name
+// sends a second click to that same tab instead of opening another.
+document.getElementById('btn-help').onclick = () => window.open(helpUrl(), 'lemma-help')
 // The status in the bar is a shortcut to the same panel.
 if (el.cloudState) el.cloudState.onclick = openFileInfo
 fi.save.onclick = () => { fi.dialog.close(); saveActive() }
@@ -2846,6 +3017,26 @@ addEventListener('focus', maybeCheckRemote)
 document.addEventListener('visibilitychange', () => { if (document.hidden) flushSaves() })
 addEventListener('pagehide', flushSaves)
 
+// Coming back is also when space may have been freed elsewhere, so a refused
+// note is tried again then, as well as from the notice's button.
+document.addEventListener('visibilitychange', () => { if (!document.hidden) retryFailedWrites() })
+addEventListener('focus', retryFailedWrites)
+
+// A newer build of the app, opened in another tab, is upgrading the database.
+// What this page still holds is written first (drafts.js waits for it); after
+// that this page cannot store anything, so it asks to be reloaded, and keeps
+// asking: there is no × on this one.
+drafts.onReplaced({
+  flush: flushSaves,
+  stale: () => {
+    stale = true
+    showBanner(
+      'lemma-md was updated in another tab. Reload this page to keep working: changes made here can no longer be stored.',
+      { action: 'Reload', onAction: () => location.reload(), sticky: true },
+    )
+  },
+})
+
 el.splitter.onmousedown = (down) => {
   down.preventDefault()
   const vertical = matchMedia('(max-width: 700px)').matches
@@ -2863,6 +3054,11 @@ el.splitter.onmousedown = (down) => {
 /* ---------- start ---------- */
 
 async function init() {
+  // A browser that will not open the database at all is said so at once, not
+  // left to the first failed write.
+  const refused = await drafts.openFailure()
+  if (refused) storageUnavailable(refused)
+
   // Purge anything that has outstayed the bin's retention window before reading.
   try {
     await drafts.purgeExpiredBin(await drafts.getRetentionDays())

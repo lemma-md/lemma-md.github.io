@@ -1,5 +1,6 @@
 import * as drafts from './drafts.js'
 import { availableProviders } from './storage/index.js'
+import { helpUrl } from './help.js'
 
 const el = {
   dialog: document.getElementById('settings'),
@@ -31,6 +32,20 @@ function formatDate(ms) {
 }
 
 async function renderStorage() {
+  // A browser that refuses the database keeps nothing: there is no count to
+  // give, and asking to keep notes permanently would offer help that is not there.
+  if (await drafts.openFailure()) {
+    el.usage.textContent = 'This browser won’t let lemma-md store anything, so no note is kept here after its tab closes. '
+    const link = document.createElement('a')
+    link.href = helpUrl('storage-blocked')
+    link.target = '_blank'
+    link.rel = 'noopener'
+    link.textContent = 'How to allow it'
+    el.usage.append(link)
+    el.persist.textContent = ''
+    return
+  }
+
   const status = await drafts.storageStatus()
 
   if (!status) {
@@ -83,7 +98,7 @@ async function renderStorage() {
 
 /** Fill the retention field with the stored value. */
 async function renderRetention() {
-  el.retention.value = String(await drafts.getRetentionDays())
+  el.retention.value = String(await drafts.getRetentionDays().catch(() => drafts.DEFAULT_RETENTION_DAYS))
 }
 
 /**
@@ -93,7 +108,8 @@ async function renderRetention() {
  * window.
  */
 async function renderBin({ onRestore }) {
-  const all = await drafts.listBin()
+  // A browser that stores nothing has an empty bin, not a broken Settings.
+  const all = await drafts.listBin().catch(() => [])
 
   const notes = all.length === 1 ? '1 note' : `${all.length} notes`
   el.binUsage.textContent = all.length
@@ -258,7 +274,8 @@ export function initSettings(ctx) {
   }
 
   el.open.onclick = async () => {
-    await refresh()
+    // A panel that cannot be filled must not keep the window from opening.
+    await refresh().catch(console.error)
     el.dialog.showModal()
   }
 }

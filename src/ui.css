@@ -66,6 +66,33 @@ body { display: flex; flex-direction: column; }
 #actions .cloud-state:hover { background: var(--surface); }
 .cloud-state.ok { color: #1a7f37; }
 .cloud-state.warn { color: #9a6700; }
+.cloud-state.error { color: #cf222e; }
+
+/* The notice strip under the bar (#banner in editor/index.html). */
+#banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px;
+  font-size: 13px;
+  background: #fff8c5;
+  color: #3b2300;
+  border-bottom: 1px solid #d4a72c;
+}
+#banner[hidden] { display: none; }
+#banner-text { flex: 1; }
+#banner button {
+  font: inherit;
+  padding: 2px 10px;
+  border: 1px solid #9a6700;
+  border-radius: 5px;
+  background: #fff;
+  color: inherit;
+  cursor: pointer;
+}
+#banner #banner-close { border: none; background: none; font-size: 16px; line-height: 1; padding: 2px 6px; }
+#banner-link { color: inherit; font-weight: 600; white-space: nowrap; }
+#banner button[hidden], #banner-link[hidden] { display: none; }
 .cloud-state[hidden] { display: none; }
 
 /* The rename field replaces the label in place, so it borrows the tab's own
@@ -840,6 +867,7 @@ body.dragging #drop-hint { display: flex; }
   /* Two controls now, so the labels can stay: what used to crowd the tab strip
      has moved into the menu. */
   #actions { gap: 4px; padding: 0 6px; }
-  /* The bar is tight here; the tab dots still carry the state. */
-  .cloud-state { display: none; }
+  /* The bar is tight here; the tab dots still carry the state. Except a storage
+     error: no dot says that the browser holds nothing of the note. */
+  .cloud-state:not(.error) { display: none; }
 }

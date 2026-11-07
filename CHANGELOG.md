@@ -10,6 +10,15 @@ This is the *when*. The *why* behind a decision is in
 
 ## 2026-11-07
 
+### Added
+
+- A **help page**, linked from the front page and from *Help* at the bottom of
+  the editor's menu, with four answers to start
+  with: why there is no server or account, saving into files on disk (and why
+  only in Chromium browsers), where notes are kept before they are saved, and
+  how to let the site store data. The app links to it where a browser setting
+  is in the way.
+
 ### Changed
 
 - A new blank note starts empty, instead of with a `#` heading to type over.
@@ -26,6 +35,22 @@ This is the *when*. The *why* behind a decision is in
 - Text typed while a save was in progress could be marked as saved though the
   file held the older version.
 - *Save* in the close dialog of a new note saved it but left the tab open.
+- When this browser refuses to store a note, for example because it is out of
+  space, the note shows **Storage error**, on phones too, and a notice says the
+  latest changes are only in this tab. Before, the failure went only to the
+  console, and a full disk was not noticed at all. The note is stored again
+  with *Try again* or on coming back to the page, and the error clears once the
+  note is saved or downloaded. Discarding it asks first, since the bin cannot
+  take it.
+- A browser set not to let sites store data is recognised at startup: a notice
+  that stays says nothing will be kept, and links to how to allow it. Settings
+  says the same, and opens at all.
+- Leaving the page, or reloading it, while it holds text the browser refused
+  asks first.
+- When the app is updated in another tab, this page first stores what it
+  holds, then asks to be reloaded, instead of quietly failing every later save.
+- Renaming a Drive note counts as an unsaved change, so closing it no longer
+  drops the new name.
 
 ## 2026-09-21
 

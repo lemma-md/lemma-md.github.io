@@ -28,6 +28,20 @@ const META = 'meta'
 const ANNOT = 'annotations'
 
 let dbPromise = null
+let openError = null // why the database would not open, see openFailure
+let replaced = null // { flush, stale } from the page, see onReplaced
+
+/**
+ * What to do when a newer build of the app, open in another tab, upgrades the
+ * database. Its upgrade waits until this page's connection closes, and once
+ * closed this page can no longer write. So the page first writes what it still
+ * holds (`flush`), the connection then closes, and `stale` tells the page to
+ * ask for a reload. Every later call fails with a plain message, not the
+ * browser's "the connection is closing".
+ */
+export function onReplaced(handlers) {
+  replaced = handlers
+}
 
 function open() {
   if (dbPromise) return dbPromise
@@ -42,14 +56,43 @@ function open() {
       if (!db.objectStoreNames.contains(ANNOT)) db.createObjectStore(ANNOT, { keyPath: 'id' })
     }
     req.onsuccess = () => {
-      // If another tab later opens the database at a higher version (a future
-      // schema bump), close this connection so its upgrade is not blocked.
-      req.result.onversionchange = () => req.result.close()
-      resolve(req.result)
+      const db = req.result
+      // Another tab is opening the database at a higher version (see
+      // onReplaced). Close this connection so its upgrade is not blocked, but
+      // only after the page has written what it holds: the connection still
+      // works until close(), and close() lets transactions already started
+      // finish.
+      db.onversionchange = async () => {
+        try { await replaced?.flush?.() } catch (err) { console.error(err) }
+        db.close()
+        dbPromise = Promise.reject(new Error('This page is out of date: lemma-md was updated in another tab. Reload the page.'))
+        dbPromise.catch(() => {}) // only callers should see it, not the console
+        replaced?.stale?.()
+      }
+      resolve(db)
     }
     req.onerror = () => reject(req.error)
   })
+  // Kept apart from the stale case, which swaps dbPromise for its own rejection.
+  dbPromise.catch((err) => { openError = err })
   return dbPromise
+}
+
+/**
+ * Why the database cannot be opened at all, or null when it can. A browser set
+ * not to let sites store data refuses here, at the open, before any write:
+ * Chrome with "Access to the IndexedDB API is denied in this context", Firefox
+ * with "The operation is insecure" or with no `indexedDB` at all. A
+ * `VersionError` means a newer build has already upgraded the database. Either
+ * way nothing will be stored for as long as this page lives.
+ */
+export async function openFailure() {
+  try {
+    await open()
+    return null
+  } catch {
+    return openError
+  }
 }
 
 async function run(storeName, mode, fn) {
@@ -57,8 +100,14 @@ async function run(storeName, mode, fn) {
   return new Promise((resolve, reject) => {
     const tx = db.transaction(storeName, mode)
     const req = fn(tx.objectStore(storeName))
-    tx.onerror = () => reject(tx.error)
     tx.oncomplete = () => resolve(req ? req.result : undefined)
+    // A failed request raises `error`, then aborts the transaction. A write that
+    // fails only at commit, as a full quota or disk does, raises `abort` alone:
+    // listening to `error` only, such a write stayed pending forever and the
+    // failure was never shown. The error is the request's: the transaction's
+    // own is not set yet when `error` reaches it.
+    tx.onerror = (e) => reject(e.target.error ?? tx.error)
+    tx.onabort = () => reject(tx.error ?? new DOMException('The browser cancelled the write.', 'AbortError'))
   })
 }
 

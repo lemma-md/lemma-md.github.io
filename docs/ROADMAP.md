@@ -240,6 +240,79 @@ Open questions:
   timer. The single-window projector was chosen first, and this was left for
   later; see ARCHITECTURE → Presentation.
 
+## 3. Help
+
+### 3.1 More answers on the help page
+
+The help page (`help/`) answers the first four questions: no server and no
+account, files on disk, where a note is before it is saved, and letting the
+site store data. The rest, in a proposed order. *Link candidate* marks a place
+in the app that could link to the answer, once it exists; see ARCHITECTURE →
+Help for why the app links rather than explains.
+
+How lemma-md works:
+
+5. **Keeping notes permanently** (`#keep-permanently`, link candidate from
+   Settings). What the Settings button asks for. Firefox asks the user, while
+   Chrome and Safari decide by themselves (a bookmark often helps). How to
+   undo it.
+
+Saving:
+
+6. **Google Drive** (`#google-drive`). The `drive.file` permission: the app
+   sees only files it created or that were opened with it. The app's folder.
+   Why Google's window can appear after a reload (the token is kept in memory
+   only). Disconnecting, and removing the app's access in the Google account.
+7. **What the status says** (`#status`, link candidate from the status
+   tooltip). *Not saved*, *Changed*, *Saving…*, *Changed in Drive*, *Renamed in
+   Drive*, *In Drive trash*, *Storage error*; the tab's dot and ⟳. This is the
+   user's version of [STATUS.md](STATUS.md).
+8. **When the file changed somewhere else** (`#conflicts`). Overwrite, take
+   theirs, or keep a copy; *Compare changes*.
+9. **The bin** (`#bin`). Only notes closed with *Discard changes* go there,
+   for 15 days by default; restoring one.
+10. **Storage error** (`#storage-error`, link candidate from the storage
+    notice). What it means and what to do: save or download the note, free disk
+    space, *Try again*. Also the notice that the app was updated in another tab.
+11. **Other tabs, browsers and devices** (`#devices`). The tabs of one browser
+    share their notes; another browser or another computer sees none of them.
+    Notes move between them through Drive or files.
+
+Writing:
+
+12. **Markdown and formulas** (`#syntax`). What is supported. KaTeX is not full
+    LaTeX: no packages, and which macros work.
+13. **Formulas pasted from ChatGPT** (`#chatgpt-formulas`). `\( \)` and
+    `\[ \]`, and *Fix* in the problems panel once 1.1 ships.
+14. **Downloading and exporting** (`#export`). `.md`; a standalone `.html` that
+    can be dragged back in; PDF through the browser's print.
+
+Presenting:
+
+15. **Slides from a note** (`#slides`). `---`, the front-matter, the projector
+    window, *Present*, *Annotate* and *Board*.
+16. **Where ink is kept** (`#ink`). In this browser, beside the note, not in the
+    `.md`, and what that means when moving to another computer.
+
+Practical:
+
+17. **Browsers and phones** (`#browsers`). What works where. It may merge with
+    the answer on files (`#files`).
+18. **Offline** (`#offline`). There is no service worker, so the page needs the
+    network to load. Once it is loaded, writing works without the network;
+    Drive does not.
+19. **Google's window does not open** (`#popups`, link candidate). A popup
+    blocker, and allowing popups for this site. Google reports a blocked window
+    as `popup_failed_to_open`; check what the app shows then.
+20. **Source code, licence and feedback** (`#source`). GitHub, MIT, and where
+    to report a bug.
+
+Still open:
+
+- **Links in.** The front page links from its footer and the editor from its
+  menu. Still to decide: a button next to *Open the editor* (and
+  *Presentations*, 2.1), and perhaps the projector.
+
 ## Possible, much later: syncing to a private GitHub repository
 
 This would be optional, for people who already have a GitHub account. A note

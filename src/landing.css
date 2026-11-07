@@ -99,6 +99,106 @@ a.tool:hover { border-color: var(--accent); }
 .elsewhere li:first-child { border-top: 0; }
 .elsewhere .what { color: var(--muted); font-size: .95em; }
 
+/* ---------- help page (help/index.html) ---------- */
+
+/* Contents on the left, always in view, beside the answers. */
+body.help { max-width: 1080px; }
+.help-layout { display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 48px; align-items: start; }
+.help-layout > main { min-width: 0; }
+
+.toc {
+  position: sticky;
+  top: 24px;
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  padding-top: 32px; /* level with the page title */
+  font-size: .93em;
+}
+.toc-title { font-size: .78em; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-bottom: .6em; }
+.toc ul { list-style: none; border-left: 1px solid var(--line); }
+.toc li a {
+  display: block;
+  padding: 5px 0 5px 12px;
+  margin-left: -1px;
+  border-left: 2px solid transparent;
+  color: var(--muted);
+  text-decoration: none;
+  line-height: 1.35;
+}
+.toc li a:hover { color: var(--fg); }
+.toc li a[aria-current] { color: var(--fg); font-weight: 600; border-left-color: var(--fg); }
+
+.toc-toggle {
+  display: none;
+  margin-left: auto;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--bg);
+  color: var(--fg);
+  cursor: pointer;
+}
+.toc-toggle svg { display: block; }
+
+section h3 { font-size: 1.05em; margin: 1.6em 0 .4em; }
+
+/* One box per browser, its name on a tinted band, so that the steps for the
+   browser at hand are found at a glance among the others. */
+.browser {
+  max-width: 40em;
+  margin: 1.2em 0;
+  border: 1px solid #b6e3ff;
+  border-radius: 9px;
+  overflow: hidden;
+}
+.browser > h3 {
+  margin: 0;
+  padding: 7px 14px;
+  background: #ddf4ff;
+  color: #0a3069;
+  border-bottom: 1px solid #b6e3ff;
+}
+.browser > ol { margin: .7em 14px .7em 0; padding-left: calc(14px + 1.4em); }
+.browser > p { margin: .7em 14px; }
+section ul:not(.elsewhere), section ol { margin: .6em 0; padding-left: 1.4em; max-width: 40em; }
+section li { margin: .35em 0; }
+
+/* A question linked to from the app lands with some air above it. */
+section[id] { scroll-margin-top: 16px; }
+
+/* Narrow: one column, and the contents fold away behind the ☰ button in a bar
+   that stays at the top. Without the page's script they stay open above the
+   text instead (`toc-ready` is set by it). */
+@media (max-width: 880px) {
+  .help-layout { display: block; }
+  .help .masthead {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    padding: 12px 0;
+    background: var(--bg);
+    border-bottom: 1px solid var(--line);
+  }
+  .toc-ready .toc-toggle { display: block; }
+  .toc { position: static; max-height: none; padding-top: 24px; }
+  .toc-ready .toc { display: none; }
+  .toc-ready .toc.open {
+    display: block;
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 20;
+    width: min(300px, 85vw);
+    padding: 20px 20px 20px 16px;
+    overflow-y: auto;
+    background: var(--bg);
+    border-right: 1px solid var(--line);
+    box-shadow: 0 0 0 100vmax rgba(0, 0, 0, .25);
+  }
+  section[id] { scroll-margin-top: 72px; }
+}
+
 /* ---------- footer ---------- */
 
 footer { margin-top: 64px; padding-top: 18px; border-top: 1px solid var(--line); color: var(--muted); font-size: .9em; }
