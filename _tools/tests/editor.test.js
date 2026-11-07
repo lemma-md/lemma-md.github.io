@@ -249,6 +249,70 @@ test('saving over a file changed on disk asks first', () => withDisk((dir) => wi
   await waitFor(async () => (await readFile(file)) === 'on disk, mine', 'overwritten')
 })))
 
+/** Make `handle` read as `text` from now on, with the date and size it had: an
+ *  edit that leaves both alone, as some programs and file systems do. */
+async function editKeepingDateAndSize(handle, text) {
+  const was = await handle.getFile()
+  assert.equal(new Blob([text]).size, was.size, 'the same size')
+  handle.getFile = async () => new File([text], was.name, { lastModified: was.lastModified })
+}
+
+/** Make reading `handle` fail from now on, as for a file moved, deleted or
+ *  locked by another program. */
+function failReads(handle, name, message) {
+  handle.getFile = async () => { throw new DOMException(message, name) }
+}
+
+test('an edit on disk that keeps date and size is still noticed', () => withDisk((dir) => withEditor(async (ed) => {
+  const file = await diskFile(dir, 'notes.md', 'on disk')
+  await openFile(ed, file)
+  await editKeepingDateAndSize(file, 'by them')
+  await ed.comeBack(() => ed.status().text === 'Changed on disk', 'the status')
+})))
+
+test('saving over an edit that kept date and size asks first', () => withDisk((dir) => withEditor(async (ed) => {
+  const file = await diskFile(dir, 'notes.md', 'on disk')
+  await openFile(ed, file)
+  await ed.type(', mine')
+  await editKeepingDateAndSize(file, 'by them')
+  ed.$('#btn-cloud-save').click()
+  await waitFor(() => ed.isOpen('local-conflict'), 'the question')
+})))
+
+test('a file that cannot be read is not written over without asking', () => withDisk((dir) => withEditor(async (ed) => {
+  const file = await diskFile(dir, 'notes.md', 'on disk')
+  await openFile(ed, file)
+  await ed.type(', mine')
+  failReads(file, 'NotReadableError', 'The file could not be read.')
+  ed.$('#btn-cloud-save').click()
+  await waitFor(() => ed.isOpen('local-conflict'), 'the question')
+  assert.ok(ed.$('#local-conflict-title').textContent.includes('can’t be checked'), 'a question of its own')
+  assert.ok(ed.$('#local-conflict-text').textContent.includes('(The file could not be read)'), 'with the reason')
+  const shown = (el) => ed.win.getComputedStyle(el).display !== 'none'
+  assert.ok(!shown(ed.$('#local-conflict-theirs')), 'nothing on disk to reload')
+  assert.ok(!shown(ed.$('#local-conflict-compare').closest('p')), 'nothing to compare with')
+  assert.ok(shown(ed.$('#local-conflict-copy')), 'a copy can still be saved')
+  delete file.getFile // reading works again, so the test can see what is written
+  assert.equal(await readFile(file), 'on disk', 'nothing written before the answer')
+
+  await ed.choose('local-conflict', 'Write anyway')
+  assert.ok(ed.win.asked.some((q) => q.startsWith('Write your version to “notes.md”')), 'and asks once more')
+  await waitFor(async () => (await readFile(file)) === 'on disk, mine', 'written')
+})))
+
+test('a file deleted on disk can be saved as a new one', () => withDisk((dir) => withEditor(async (ed) => {
+  const file = await diskFile(dir, 'notes.md', 'on disk')
+  const copy = await diskFile(dir, 'notes copy.md', '')
+  await openFile(ed, file)
+  await ed.type(', mine')
+  failReads(file, 'NotFoundError', 'A requested file or directory could not be found.')
+  ed.win.showSaveFilePicker = async () => copy
+  ed.$('#btn-cloud-save').click()
+  await ed.choose('local-conflict', 'Save a copy…')
+  await waitFor(async () => (await readFile(copy)) === 'on disk, mine', 'the copy written')
+  await waitFor(() => ed.activeTab() === 'notes copy.md', 'the note now lives in the copy')
+})))
+
 test('a declined permission writes nothing, and says so', () => withDisk((dir) => withEditor(async (ed) => {
   const file = await diskFile(dir, 'locked.md', 'on disk')
   // As after a reload, when the browser asks again and the answer is no. Own

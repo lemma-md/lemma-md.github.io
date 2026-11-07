@@ -281,6 +281,18 @@ them:
   size because it changes on every content edit. When you come back to the tab,
   open notes are re-checked, but only if a token is already live, so the check
   never causes a sign-in popup.
+- **The moment between that check and the write is left open** *(2026-11)*.
+  Drive API v3 has no conditional write: files carry no ETag, so the server
+  cannot refuse a save made over a change it has not seen. The old v2 API can
+  (`If-Match`, answered with 412), but taking on a second, older API version
+  for a window of about a second was judged not worth it; and a change caught
+  after the fact could only be pointed to in Drive's own version history.
+- **A file on disk is never written over blindly either** *(2026-11)*. Before
+  saving, the file is read and compared with the text last saved or opened:
+  by content alone, since an edit can leave the date and size as they were,
+  and a save that changes nothing still touches them. A file that cannot be
+  read (moved, deleted, locked) is not taken as unchanged: the save asks,
+  offering *Save a copy…* or *Write anyway*.
 - **Cloud errors are reported with `alert()`** *(2026-08)*. It is crude but
   adequate. Revisit only if it starts to grate.
 

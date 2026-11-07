@@ -385,16 +385,14 @@
      it was opened here. Closing (× / Escape) cancels the save. -->
 <dialog id="local-conflict">
   <form method="dialog" class="dlg-head">
-    <h2>This file changed on disk</h2>
+    <!-- Title and text are set by app.js: the same dialog also asks about a
+         file that could not be read to check. -->
+    <h2 id="local-conflict-title">This file changed on disk</h2>
     <button class="dlg-close" title="Close" aria-label="Close">&times;</button>
   </form>
 
   <section>
-    <p class="note">
-      “<span id="local-conflict-name"></span>” changed on your computer after you
-      opened it here — edited in another program, perhaps. Overwriting keeps your
-      version and discards the one on disk.
-    </p>
+    <p class="note" id="local-conflict-text"></p>
     <p class="note detail" id="local-conflict-detail"></p>
     <p class="note"><button id="local-conflict-compare" type="button" class="linklike">Compare changes…</button></p>
     <div class="conflict-actions">

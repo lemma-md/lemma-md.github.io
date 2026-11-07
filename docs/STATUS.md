@@ -14,14 +14,14 @@ A note is bound to one source, derived from its links, not stored twice:
 
 - **Google Drive** — the note came from, or was saved to, a Drive file. Its id,
   name, parent folder and revision baseline live in the note's `remote` link.
+- **This computer** — a file opened or saved through the File System Access
+  API (Chromium on a computer). Its handle, name, date and size as last seen
+  live in the note's `local` link.
 - **none** — the note is not in any storage yet. Two kinds:
   - `origin: 'new'` — started with the **New** button.
-  - `origin: 'file'` — opened from a local file (drag-and-drop or *Open a file…*).
-    These are not writable handles, so the note is not bound to that file.
-
-A local-file source with a writable handle (the File System Access API) is a
-future third source; it will detect external change by modified-time and size
-rather than a revision id, but the status rules below are otherwise the same.
+  - `origin: 'file'` — opened from a local file without a writable handle
+    (dragged in, or *Open a file…* where the browser lacks the API), so the
+    note is not bound to that file.
 
 ## The status, in priority order
 
@@ -53,6 +53,15 @@ then offers to put the note in a storage.
 A new note used to show **New** in grey from the start. That word sat beside
 the toolbar's buttons and read as the *New* command, and grey understated a
 page of text that existed only in the browser *(2026-11)*.
+
+**This computer:**
+
+| condition | status |
+|---|---|
+| a save is in flight | **Saving…** |
+| the file's content changed on disk | **Changed on disk** |
+| edited since the last save | **Changed** |
+| in sync | *the time of the last save (or the file's date), with no status word* |
 
 **Google Drive source:**
 
@@ -94,6 +103,13 @@ remembers all of these as its baseline (in `remote`).
 - **On returning to the tab** (`visibilitychange` / `focus`), every open Drive
   note is re-checked and its flags updated — but only when a live token already
   exists, so this never provokes a sign-in popup.
+
+A file on disk has no revision id, so it is read and its text compared with the
+text last saved or opened (`changedOnDisk`). Its date and size are not evidence
+either way: an edit can keep them, a save that changes nothing touches them
+*(2026-11)*. It is checked on save, where a file that cannot be read makes the
+save ask rather than write, and on returning to the tab, where permission must
+already be granted.
 
 ## Tab markers
 

@@ -35,6 +35,10 @@ This is the *when*. The *why* behind a decision is in
 
 ### Fixed
 
+- Saving to a file on disk that cannot be read (moved, deleted, locked by
+  another program) asks first, instead of writing over it unchecked. An edit
+  made on disk is noticed even when it left the file's date and size as they
+  were.
 - Edits made just before switching tabs, or just before leaving the page,
   could be lost on a reload.
 - Text typed while a save was in progress could be marked as saved though the

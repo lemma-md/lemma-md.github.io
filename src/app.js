@@ -1348,8 +1348,7 @@ function renderFileInfo(doc, mode, data) {
     const live = mode === 'live' ? (data ?? null) : null
     if (live) {
       // Reflect what the disk read just told us on the tab and toolbar too.
-      const moved = live.lastModified !== base.lastModified || live.size !== base.size
-      const changed = moved && live.text !== doc.savedText
+      const changed = changedOnDisk(doc, live)
       if (Boolean(doc.localChanged) !== changed) { doc.localChanged = changed; renderTabs(); renderCloudStatus() }
       addInfoRow('On disk now', infoLine(live.lastModified, live.size), changed ? changedBadge(doc, 'Changed on disk', 'source') : null)
       if (changed) addInfoRow('When you saved it', infoLine(base.lastModified, base.size))
@@ -1848,10 +1847,19 @@ async function checkRemoteChanges() {
 }
 
 /**
+ * Has the file on disk changed since the note last matched it? Judged by the
+ * content alone. Its date and size can stay the same across an edit (some
+ * programs and file systems keep them), and a save that changes no byte still
+ * touches them, so neither is evidence either way.
+ */
+function changedOnDisk(doc, cur) {
+  return cur.text !== doc.savedText
+}
+
+/**
  * Notice when an open local note's file has changed on disk. Like the Drive
  * check, it only reads where permission is already granted, so returning to the
- * tab never provokes a permission prompt on its own. The bytes are compared
- * against what we last saved, so a mere re-touch is not flagged.
+ * tab never provokes a permission prompt on its own.
  */
 async function checkLocalChanges() {
   let touched = false
@@ -1861,9 +1869,7 @@ async function checkLocalChanges() {
     if (!base?.handle?.queryPermission) continue
     try {
       if ((await base.handle.queryPermission({ mode: 'read' })) !== 'granted') continue
-      const cur = await localFiles.read(base.handle)
-      const moved = cur.lastModified !== base.lastModified || cur.size !== base.size
-      const changed = moved && cur.text !== d.savedText
+      const changed = changedOnDisk(d, await localFiles.read(base.handle))
       if (Boolean(d.localChanged) !== changed) { d.localChanged = changed; touched = true }
     } catch {
       // Transient failure — leave the note's flag as it was.
@@ -2191,21 +2197,22 @@ function localFailed(err) {
  * { choice: 'overwrite' | 'theirs' | 'copy' | 'cancel', cur }.
  */
 async function guardLocalOverwrite(doc) {
-  const base = doc.local
   let cur
   try {
-    cur = await localFiles.read(base.handle)
-  } catch {
-    return { choice: 'overwrite' } // can't read it to compare; just write
+    cur = await localFiles.read(doc.local.handle)
+  } catch (err) {
+    // Not knowing what is on disk is no licence to write over it: the file may
+    // have been moved or deleted, or be locked by another program. Ask.
+    return { choice: await askLocalConflict(doc, null, err) }
   }
-  const moved = cur.lastModified !== base.lastModified || cur.size !== base.size
-  if (!moved || cur.text === doc.savedText) return { choice: 'overwrite', cur }
+  if (!changedOnDisk(doc, cur)) return { choice: 'overwrite', cur }
   return { choice: await askLocalConflict(doc, cur), cur }
 }
 
 const localConflict = {
   dialog: document.getElementById('local-conflict'),
-  name: document.getElementById('local-conflict-name'),
+  title: document.getElementById('local-conflict-title'),
+  text: document.getElementById('local-conflict-text'),
   detail: document.getElementById('local-conflict-detail'),
   compare: document.getElementById('local-conflict-compare'),
   theirs: document.getElementById('local-conflict-theirs'),
@@ -2213,9 +2220,10 @@ const localConflict = {
   overwrite: document.getElementById('local-conflict-overwrite'),
 }
 
-/** Ask what to do about a file that changed on disk. Resolves to
+/** Ask what to do about a file that changed on disk, or (with `unreadable`, the
+ *  error) one that could not be read to check. Resolves to
  *  'theirs' | 'copy' | 'overwrite' | 'cancel'. */
-function askLocalConflict(doc, cur) {
+function askLocalConflict(doc, cur, unreadable = null) {
   return new Promise((resolve) => {
     let settled = false
     const finish = (choice) => {
@@ -2231,14 +2239,37 @@ function askLocalConflict(doc, cur) {
       localConflict.dialog.close()
       finish(choice)
     }
-    localConflict.name.textContent = doc.name
-    const theirs = [fmtWhen(cur.lastModified), cur.size != null && fmtBytes(cur.size)].filter(Boolean).join(', ')
-    const yours = [fmtWhen(doc.updatedAt), fmtBytes(new Blob([doc.text]).size)].filter(Boolean).join(', ')
-    localConflict.detail.textContent = `On disk: ${theirs} · Yours: ${yours}`
+    // A file that could not be read has nothing to reload or compare with, and
+    // writing is a step in the dark rather than an overwrite of a known change.
+    localConflict.theirs.hidden = Boolean(unreadable)
+    localConflict.compare.parentElement.hidden = Boolean(unreadable)
+    localConflict.detail.hidden = Boolean(unreadable)
+    if (unreadable) {
+      localConflict.title.textContent = 'This file can’t be checked'
+      localConflict.text.textContent =
+        `lemma-md could not read “${doc.name}” on disk to check that it has not changed ` +
+        `(${String(unreadable.message ?? unreadable).replace(/\.$/, '')}). ` +
+        'It may have been moved or deleted, or be locked by another program.'
+      localConflict.overwrite.textContent = 'Write anyway'
+    } else {
+      localConflict.title.textContent = 'This file changed on disk'
+      localConflict.text.textContent =
+        `“${doc.name}” changed on your computer after you opened it here — edited in another program, ` +
+        'perhaps. Overwriting keeps your version and discards the one on disk.'
+      localConflict.overwrite.textContent = 'Overwrite'
+      const theirs = [fmtWhen(cur.lastModified), cur.size != null && fmtBytes(cur.size)].filter(Boolean).join(', ')
+      const yours = [fmtWhen(doc.updatedAt), fmtBytes(new Blob([doc.text]).size)].filter(Boolean).join(', ')
+      localConflict.detail.textContent = `On disk: ${theirs} · Yours: ${yours}`
+    }
     localConflict.dialog.addEventListener('close', onCancel)
     localConflict.theirs.onclick = () => { if (confirm('Discard your changes and reload this file from disk?')) choose('theirs') }
     localConflict.copy.onclick = () => choose('copy')
-    localConflict.overwrite.onclick = () => { if (confirm('Overwrite the file on disk with your version?')) choose('overwrite') }
+    localConflict.overwrite.onclick = () => {
+      const question = unreadable
+        ? `Write your version to “${doc.name}” without checking the file on disk?`
+        : 'Overwrite the file on disk with your version?'
+      if (confirm(question)) choose('overwrite')
+    }
     // The conflict already read the file, so hand its text straight to the diff,
     // which carries the same Reload/Overwrite buttons and confirms them itself.
     localConflict.compare.onclick = () =>
@@ -2319,9 +2350,7 @@ async function sourceChanged(doc) {
     if (src === 'local') {
       const cur = await readLocalInfo(doc, false) // silent: only if already permitted
       if (!cur) return Boolean(doc.localChanged)
-      const base = doc.local
-      const moved = cur.lastModified !== base.lastModified || cur.size !== base.size
-      return moved && cur.text !== doc.savedText
+      return changedOnDisk(doc, cur)
     }
     if (src === 'gdrive') {
       const provider = providerFor(doc)
