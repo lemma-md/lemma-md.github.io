@@ -280,7 +280,7 @@ Writing:
 
 12. **Markdown and formulas** (`#syntax`). What is supported. KaTeX is not full
     LaTeX: no packages, and which macros work. A literal dollar is `\$`, as in
-    LaTeX.
+    LaTeX. What HTML a note may hold: no styles, forms or classes.
 13. **Formulas pasted from ChatGPT** (`#chatgpt-formulas`). `\( \)` and
     `\[ \]`, and *Fix* in the problems panel once 1.1 ships.
 14. **Downloading and exporting** (`#export`). `.md`; a standalone `.html` that

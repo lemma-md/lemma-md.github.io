@@ -76,12 +76,19 @@ function exportedRender() {
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
     })
   }
+  // As in viewer.js: formulas wait as placeholders while the note's own HTML
+  // is sanitised, and KaTeX's output goes in afterwards.
+  var formulas = []
+  var KEY = crypto.getRandomValues(new Uint32Array(2)).join('')
   function renderMath(tex, display) {
+    var html
     try {
-      return katex.renderToString(tex, Object.assign({}, KATEX_OPTS, { displayMode: display }))
+      html = katex.renderToString(tex, Object.assign({}, KATEX_OPTS, { displayMode: display }))
     } catch (e) {
-      return '<span class="katex-error">' + esc(e && e.message) + '</span>'
+      html = '<span class="katex-error">' + esc(e && e.message) + '</span>'
     }
+    formulas.push(html)
+    return '<span data-formula="' + KEY + '-' + (formulas.length - 1) + '"></span>'
   }
 
   // As in viewer.js: a display formula holds no $$ and no blank line, and a
@@ -127,16 +134,37 @@ function exportedRender() {
     },
   })
 
+  // As in viewer.js: no styles, forms or borrowed classes; ids prefixed.
   DOMPurify.addHook('afterSanitizeAttributes', function (n) {
+    if (n.hasAttribute('class')) {
+      var kept = n.tagName === 'CODE'
+        ? n.getAttribute('class').split(/\s+/).filter(function (c) { return /^language-[\w-]+$/.test(c) })
+        : []
+      if (kept.length) n.setAttribute('class', kept.join(' '))
+      else n.removeAttribute('class')
+    }
+    if (n.tagName === 'INPUT') {
+      n.setAttribute('type', 'checkbox')
+      n.setAttribute('disabled', '')
+      n.removeAttribute('name')
+      n.removeAttribute('value')
+    }
     if (n.tagName !== 'A') return
     var h = n.getAttribute('href') || ''
+    if (/^#[A-Za-z][\w.:-]*$/.test(h)) n.setAttribute('href', '#user-content-' + h.slice(1))
     if (!/^https?:/i.test(h)) return
     n.setAttribute('target', '_blank')
     n.setAttribute('rel', 'noopener noreferrer')
   })
 
-  out.innerHTML = DOMPurify.sanitize(marked.parse(md), {
+  var clean = DOMPurify.sanitize(marked.parse(md), {
     USE_PROFILES: { html: true, mathMl: true, svg: true },
+    FORBID_TAGS: ['style', 'form', 'button', 'select', 'option', 'optgroup', 'datalist', 'textarea', 'fieldset', 'legend', 'output'],
+    FORBID_ATTR: ['style', 'action', 'formaction'],
+    SANITIZE_NAMED_PROPS: true,
+  })
+  out.innerHTML = clean.replace(new RegExp('<span data-formula="' + KEY + '-(\\d+)"></span>', 'g'), function (_, i) {
+    return formulas[i] || ''
   })
 }
 // <<< render-source <<<
@@ -145,7 +173,7 @@ function exportedRender() {
 // edit by hand; empty means "not generated yet", and the export falls back to
 // the readable renderer.
 // >>> render-min >>>
-const RENDER_MIN = "(function exportedRender(){var out=document.getElementById('content')\nvar src=document.getElementById('md-source')\nvar md=src?src.textContent.replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'\"').replace(/&#39;/g,\"'\").replace(/&amp;/g,'&'):''\nif(typeof marked==='undefined'||typeof DOMPurify==='undefined'){out.textContent=md\nreturn}\nvar KATEX_OPTS={throwOnError:false,errorColor:'#b00020',strict:false}\nfunction esc(s){return String(s).replace(/[&<>\"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',\"'\":'&#39;'}[c]})}\nfunction renderMath(tex,display){try{return katex.renderToString(tex,Object.assign({},KATEX_OPTS,{displayMode:display}))}catch(e){return'<span class=\"katex-error\">'+esc(e&&e.message)+'</span>'}}\nvar MATH_BLOCK=/^\\$\\$((?:\\\\[\\s\\S]|[^\\\\$\\n]|\\$(?!\\$)|\\n(?![ \\t]*\\n))+?)\\$\\$(?:\\n+|$)/\nmarked.use({gfm:true,breaks:false},{extensions:[{name:'mathBlock',level:'block',start:function(s){var line=/\\n(?=\\$\\$)/g,m\nwhile((m=line.exec(s))){if(MATH_BLOCK.test(s.slice(m.index+1)))return m.index+1}},tokenizer:function(s){var m=MATH_BLOCK.exec(s)\nif(m)return{type:'mathBlock',raw:m[0],text:m[1].trim()}},renderer:function(t){return renderMath(t.text,true)},},{name:'mathInline',level:'inline',start:function(s){var i=s.indexOf('$');return i<0?undefined:i},tokenizer:function(s){var m=/^\\$\\$((?:\\\\[\\s\\S]|[^\\\\$])+?)\\$\\$/.exec(s)||/^\\$(?!\\$)((?:\\\\[\\s\\S]|[^\\\\$])+)\\$/.exec(s)\nif(m)return{type:'mathInline',raw:m[0],text:m[1],display:m[0].charAt(1)==='$'}},renderer:function(t){return renderMath(t.text,t.display)},},],tokenizer:{lheading:function(s){var t=marked.Tokenizer.prototype.lheading.call(this,s)\nif(!t)return false\nreturn/^ {0,3}\\$\\$/m.test(t.raw)?undefined:t},},})\nDOMPurify.addHook('afterSanitizeAttributes',function(n){if(n.tagName!=='A')return\nvar h=n.getAttribute('href')||''\nif(!/^https?:/i.test(h))return\nn.setAttribute('target','_blank')\nn.setAttribute('rel','noopener noreferrer')})\nout.innerHTML=DOMPurify.sanitize(marked.parse(md),{USE_PROFILES:{html:true,mathMl:true,svg:true},})})()"
+const RENDER_MIN = "(function exportedRender(){var out=document.getElementById('content')\nvar src=document.getElementById('md-source')\nvar md=src?src.textContent.replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'\"').replace(/&#39;/g,\"'\").replace(/&amp;/g,'&'):''\nif(typeof marked==='undefined'||typeof DOMPurify==='undefined'){out.textContent=md\nreturn}\nvar KATEX_OPTS={throwOnError:false,errorColor:'#b00020',strict:false}\nfunction esc(s){return String(s).replace(/[&<>\"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',\"'\":'&#39;'}[c]})}\nvar formulas=[]\nvar KEY=crypto.getRandomValues(new Uint32Array(2)).join('')\nfunction renderMath(tex,display){var html\ntry{html=katex.renderToString(tex,Object.assign({},KATEX_OPTS,{displayMode:display}))}catch(e){html='<span class=\"katex-error\">'+esc(e&&e.message)+'</span>'}\nformulas.push(html)\nreturn'<span data-formula=\"'+KEY+'-'+(formulas.length-1)+'\"></span>'}\nvar MATH_BLOCK=/^\\$\\$((?:\\\\[\\s\\S]|[^\\\\$\\n]|\\$(?!\\$)|\\n(?![ \\t]*\\n))+?)\\$\\$(?:\\n+|$)/\nmarked.use({gfm:true,breaks:false},{extensions:[{name:'mathBlock',level:'block',start:function(s){var line=/\\n(?=\\$\\$)/g,m\nwhile((m=line.exec(s))){if(MATH_BLOCK.test(s.slice(m.index+1)))return m.index+1}},tokenizer:function(s){var m=MATH_BLOCK.exec(s)\nif(m)return{type:'mathBlock',raw:m[0],text:m[1].trim()}},renderer:function(t){return renderMath(t.text,true)},},{name:'mathInline',level:'inline',start:function(s){var i=s.indexOf('$');return i<0?undefined:i},tokenizer:function(s){var m=/^\\$\\$((?:\\\\[\\s\\S]|[^\\\\$])+?)\\$\\$/.exec(s)||/^\\$(?!\\$)((?:\\\\[\\s\\S]|[^\\\\$])+)\\$/.exec(s)\nif(m)return{type:'mathInline',raw:m[0],text:m[1],display:m[0].charAt(1)==='$'}},renderer:function(t){return renderMath(t.text,t.display)},},],tokenizer:{lheading:function(s){var t=marked.Tokenizer.prototype.lheading.call(this,s)\nif(!t)return false\nreturn/^ {0,3}\\$\\$/m.test(t.raw)?undefined:t},},})\nDOMPurify.addHook('afterSanitizeAttributes',function(n){if(n.hasAttribute('class')){var kept=n.tagName==='CODE'?n.getAttribute('class').split(/\\s+/).filter(function(c){return/^language-[\\w-]+$/.test(c)}):[]\nif(kept.length)n.setAttribute('class',kept.join(' '))\nelse n.removeAttribute('class')}\nif(n.tagName==='INPUT'){n.setAttribute('type','checkbox')\nn.setAttribute('disabled','')\nn.removeAttribute('name')\nn.removeAttribute('value')}\nif(n.tagName!=='A')return\nvar h=n.getAttribute('href')||''\nif(/^#[A-Za-z][\\w.:-]*$/.test(h))n.setAttribute('href','#user-content-'+h.slice(1))\nif(!/^https?:/i.test(h))return\nn.setAttribute('target','_blank')\nn.setAttribute('rel','noopener noreferrer')})\nvar clean=DOMPurify.sanitize(marked.parse(md),{USE_PROFILES:{html:true,mathMl:true,svg:true},FORBID_TAGS:['style','form','button','select','option','optgroup','datalist','textarea','fieldset','legend','output'],FORBID_ATTR:['style','action','formaction'],SANITIZE_NAMED_PROPS:true,})\nout.innerHTML=clean.replace(new RegExp('<span data-formula=\"'+KEY+'-(\\\\d+)\"></span>','g'),function(_,i){return formulas[i]||''})})()"
 // <<< render-min <<<
 
 // github-markdown-css styles the container but not the page around it, so the

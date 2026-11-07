@@ -179,3 +179,62 @@ test('KaTeX output keeps its MathML and SVG', () => {
   assert.ok(el.querySelector('math'), 'MathML, for screen readers')
   assert.ok(el.querySelector('svg'), 'SVG, for the bar of the root')
 })
+
+// A note's own HTML may not restyle or overlay the page it is shown in: the
+// preview is part of the app's document, so CSS in it is the app's CSS.
+
+test('<style> is removed', () => {
+  assert.equal(rendered('<style>body { display: none }</style>\n\ntext').querySelector('style'), null)
+})
+
+test("style attributes are removed from the note's own HTML", () => {
+  const el = rendered('<p style="position: fixed; inset: 0">cover</p>')
+  assert.equal(el.querySelector('[style]'), null)
+})
+
+test('KaTeX keeps its own inline styles', () => {
+  const el = rendered('$\\frac{1}{2}$ and\n\n$$\n\\sqrt{x}\n$$')
+  assert.ok(el.querySelectorAll('.katex [style]').length > 0, 'KaTeX positions its parts with style')
+})
+
+test('HTML posing as KaTeX gets no styles either', () => {
+  const el = rendered('<span class="katex"><span style="position: fixed">x</span></span>')
+  assert.equal(el.querySelector('[style]'), null, 'no style')
+  assert.equal(el.querySelector('.katex'), null, 'no borrowed class')
+})
+
+test('forms and their controls are removed', () => {
+  const el = rendered(
+    '<form action="https://example.com/steal"><input name="password" type="password">' +
+    '<textarea>x</textarea><select><option>a</option></select><button>Sign in</button></form>',
+  )
+  assert.equal(el.querySelector('form, textarea, select, button'), null)
+  for (const input of el.querySelectorAll('input')) {
+    assert.equal(input.type, 'checkbox', 'only a checkbox is left')
+    assert.ok(input.disabled, 'and it is disabled')
+    assert.equal(input.getAttribute('name'), null, 'with no name')
+  }
+})
+
+test('task lists keep their checkboxes, disabled', () => {
+  const boxes = [...rendered('- [x] done\n- [ ] to do').querySelectorAll('input')]
+  assert.deepEqual(boxes.map((b) => [b.type, b.disabled, b.checked]), [['checkbox', true, true], ['checkbox', true, false]])
+})
+
+test("the note's classes are removed, except a code block's language", () => {
+  assert.equal(rendered('<div class="blank-screen">x</div>').querySelector('[class]'), null)
+  assert.equal(rendered('```js\nx\n```').querySelector('code').className, 'language-js')
+})
+
+test("ids are prefixed, so they cannot take the app's", () => {
+  const el = rendered('<div id="banner">x</div>\n\n[to it](#banner) [slide](#/3)')
+  assert.equal(el.querySelector('div').id, 'user-content-banner')
+  const [toIt, slide] = el.querySelectorAll('a')
+  assert.equal(toIt.getAttribute('href'), '#user-content-banner', 'a link to it still arrives')
+  assert.equal(slide.getAttribute('href'), '#/3', 'a slide link is not an id')
+})
+
+test('a formula placeholder written by hand brings no formula', () => {
+  const el = rendered('<span data-formula="0-0"></span> and $y$')
+  assert.equal(el.querySelectorAll('.katex').length, 1)
+})

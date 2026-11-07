@@ -9,7 +9,7 @@ function escapeHtml(s) {
   ))
 }
 
-function renderMath(tex, displayMode) {
+function katexHtml(tex, displayMode) {
   // throwOnError:false makes KaTeX return markup for malformed formulas instead
   // of throwing, which matters while someone is still typing one.
   try {
@@ -17,6 +17,19 @@ function renderMath(tex, displayMode) {
   } catch (err) {
     return `<span class="katex-error">${escapeHtml(err && err.message)}</span>`
   }
+}
+
+// The formulas of the render in progress (see render): KaTeX's HTML is kept
+// aside and a placeholder put in its place, so that the sanitiser never sees
+// it. The placeholder carries a key fresh for each render, so one written into
+// a note by hand matches nothing.
+let pending = null
+
+function renderMath(tex, displayMode) {
+  const html = katexHtml(tex, displayMode)
+  if (!pending) return html
+  pending.formulas.push(html)
+  return `<span data-formula="${pending.key}-${pending.formulas.length - 1}"></span>`
 }
 
 // A display formula as a block: from a $$ at the start of a block to the first
@@ -88,17 +101,50 @@ const mathExtension = {
 
 marked.use({ gfm: true, breaks: false }, mathExtension)
 
-// A link inside a note goes to another site, so it opens in a new tab: clicking
-// one in the preview must not navigate the editor away from what is being
-// written. Anchors within the page (#section) are left alone.
-//
-// Done as a DOMPurify hook rather than by patching the HTML afterwards, so the
-// attributes are added while sanitising rather than reintroduced after it.
-// `noopener` also denies the opened page a handle on this one through
-// `window.opener`.
+/**
+ * What a note's own HTML may contain. The preview is part of the app's page,
+ * not a frame of its own, so CSS in a note is the app's CSS: a `<style>` could
+ * hide the editor, an inline style could lay a fake dialog over it, and a class
+ * or id could borrow the app's own rules (the projector's `.blank-screen` is
+ * fixed, full-screen and black). A form could post what is typed into it
+ * anywhere. So the note's HTML keeps no styles, no forms and no classes but a
+ * code block's language, and its ids are prefixed `user-content-`, as GitHub
+ * does. KaTeX's output needs inline styles, which is why it is added only after
+ * this has run (see render). Mirrored in export-html.js.
+ */
+const POLICY = {
+  USE_PROFILES: { html: true, mathMl: true, svg: true },
+  FORBID_TAGS: ['style', 'form', 'button', 'select', 'option', 'optgroup', 'datalist', 'textarea', 'fieldset', 'legend', 'output'],
+  FORBID_ATTR: ['style', 'action', 'formaction'],
+  SANITIZE_NAMED_PROPS: true,
+}
+
 DOMPurify.addHook('afterSanitizeAttributes', (node) => {
+  // Classes: only the language marked gives a fenced code block.
+  if (node.hasAttribute('class')) {
+    const kept = node.tagName === 'CODE'
+      ? node.getAttribute('class').split(/\s+/).filter((c) => /^language-[\w-]+$/.test(c))
+      : []
+    if (kept.length) node.setAttribute('class', kept.join(' '))
+    else node.removeAttribute('class')
+  }
+
+  // A task list's checkbox is the one control left, and it only shows a state.
+  // Any other input becomes one too: nothing can be typed into a note.
+  if (node.tagName === 'INPUT') {
+    node.setAttribute('type', 'checkbox')
+    node.setAttribute('disabled', '')
+    node.removeAttribute('name')
+    node.removeAttribute('value')
+  }
+
   if (node.tagName !== 'A') return
   const href = node.getAttribute('href') ?? ''
+  // A link to an id in the note follows the id's prefix. `#/3`, a slide, is no id.
+  if (/^#[A-Za-z][\w.:-]*$/.test(href)) node.setAttribute('href', `#user-content-${href.slice(1)}`)
+  // A link to another site opens in a new tab: clicking one in the preview must
+  // not navigate the editor away from what is being written. `noopener` also
+  // denies the opened page a handle on this one through `window.opener`.
   if (!/^https?:/i.test(href)) return
   node.setAttribute('target', '_blank')
   node.setAttribute('rel', 'noopener noreferrer')
@@ -107,13 +153,19 @@ DOMPurify.addHook('afterSanitizeAttributes', (node) => {
 /**
  * Convert markdown to HTML that is safe to assign to innerHTML.
  *
- * Sanitising happens after KaTeX has run, so the profiles below must keep
- * MathML and SVG: KaTeX emits MathML for accessibility and SVG for stretchy
- * delimiters such as the bar of a square root.
+ * The note's own HTML is sanitised under POLICY with every formula still a
+ * placeholder, and KaTeX's output goes in afterwards. KaTeX writes its HTML
+ * from the TeX alone, escaping all of it, so it needs no sanitising, and must
+ * not get it: its positioning is inline styles that POLICY forbids.
  */
 export function render(markdown) {
-  const raw = marked.parse(markdown ?? '')
-  return DOMPurify.sanitize(raw, {
-    USE_PROFILES: { html: true, mathMl: true, svg: true },
-  })
+  const key = crypto.getRandomValues(new Uint32Array(2)).join('')
+  pending = { key, formulas: [] }
+  try {
+    const clean = DOMPurify.sanitize(marked.parse(markdown ?? ''), POLICY)
+    const { formulas } = pending
+    return clean.replace(new RegExp(`<span data-formula="${key}-(\\d+)"></span>`, 'g'), (_, i) => formulas[i] ?? '')
+  } finally {
+    pending = null
+  }
 }

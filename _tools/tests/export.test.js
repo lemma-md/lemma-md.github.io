@@ -41,6 +41,14 @@ async function renderedBy(html) {
   }
 }
 
+/** HTML as the browser writes it back after parsing it: KaTeX's own escaping
+ *  (`&#x27;`) and the browser's (`'`) are the same page. */
+function asParsed(html) {
+  const div = document.createElement('div')
+  div.innerHTML = html
+  return div.innerHTML
+}
+
 /** Where two strings first differ, with a little context: a readable failure. */
 function sameText(actual, expected, what) {
   if (actual === expected) return
@@ -69,6 +77,9 @@ const CORPUS = [
   '$$\n\\begin{aligned}\na &= b \\\\\nc &= d\n\\end{aligned}\n$$',
   'Title\n===\n\n| a | b |\n|---|---|\n| $1$ | 2 |',
   '<img src="x" onerror="alert(1)"> [ext](https://example.com) [in](#here)',
+  '<style>body { display: none }</style>\n\n<p style="position: fixed">x</p>',
+  '<form action="https://example.com"><input name="p" type="password"><button>Go</button></form>',
+  '<div class="blank-screen" id="banner">y</div> [to it](#banner) [slide](#/3)\n\n- [x] done\n- [ ] to do',
   '```\n</script><script>alert(1)</script>\n```',
   'Broken $\\frac{1}{$ formula.',
 ].join('\n\n')
@@ -88,13 +99,13 @@ test('the shipped renderer draws a note as the preview does', async () => {
   const html = offline(buildStandaloneHtml('n.md', CORPUS))
   const { min } = await rendererSources()
   assert.ok(html.includes(min), 'the file carries RENDER_MIN')
-  sameText(await renderedBy(html), render(CORPUS), 'RENDER_MIN output')
+  sameText(await renderedBy(html), asParsed(render(CORPUS)), 'RENDER_MIN output')
 })
 
 test('the readable renderer draws it the same way', async () => {
   const { min, readable } = await rendererSources()
   const html = offline(buildStandaloneHtml('n.md', CORPUS)).replace(min, () => `(${readable})()`)
-  sameText(await renderedBy(html), render(CORPUS), 'readable renderer output')
+  sameText(await renderedBy(html), asParsed(render(CORPUS)), 'readable renderer output')
 })
 
 test('the source comes back byte for byte', () => {

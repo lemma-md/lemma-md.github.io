@@ -69,7 +69,8 @@ that reproduces `vendor/` byte for byte.
 ## Rendering pipeline
 
 ```
-markdown --marked(+math extension)--> HTML with KaTeX output --DOMPurify--> innerHTML
+markdown --marked(+math extension)--> HTML, formulas as placeholders
+         --DOMPurify--> safe HTML --placeholders replaced by KaTeX output--> innerHTML
 ```
 
 Two details that are not free to change:
@@ -103,11 +104,23 @@ Two details that are not free to change:
   wrapper round marked's `lheading` refuses any heading whose text holds a
   line starting with `$$`; the paragraph then stops at that line and the math
   block takes it. Kept in the same three places as the inline rule.
-- **Sanitising runs after KaTeX, with the `mathMl` and `svg` profiles enabled.**
-  KaTeX emits MathML for accessibility and SVG for stretchy delimiters such as
-  the bar of a square root; a default HTML-only profile would silently destroy
-  them. Verified: MathML, SVG and KaTeX's inline styles all survive, while
-  `<img onerror>` and `javascript:` hrefs do not.
+- **A note's own HTML may not restyle the app, and KaTeX goes in after it is
+  sanitised** *(2026-11)*. The preview is part of the app's page, so CSS in a
+  note is the app's CSS: a `<style>` could hide the editor, an inline style lay
+  a fake dialog over it, and a class or id borrow the app's own rules (the
+  projector's `.blank-screen` is fixed, full-screen and black). A form could
+  post what is typed into it anywhere. So DOMPurify removes `<style>`, every
+  `style` attribute, forms and their controls (a task list's checkbox stays,
+  disabled), and every class but a code block's `language-…`; ids get the
+  prefix `user-content-`, as on GitHub, and links to them follow. KaTeX's
+  output needs inline styles, so formulas wait as placeholders while the HTML
+  is sanitised and are put in afterwards: KaTeX writes its HTML from the TeX
+  alone and escapes all of it. A placeholder carries a key fresh for each
+  render, so one written into a note by hand pulls in nothing. Sanitising used
+  to run over KaTeX's output, with the `mathMl` and `svg` profiles kept so that
+  its MathML and SVG survived; those profiles now serve a note's own MathML
+  and SVG, and KaTeX's MathML keeps its TeX annotation, which they stripped.
+  A note's inline colours are lost with the styles; GitHub drops them too.
 
 ## No shadow DOM
 

@@ -17,7 +17,8 @@ that file back into lemma-md re-opens the note. All of it lives in
   the page.
 - A small **renderer** that reads that block and produces the page — a faithful
   copy of the app's pipeline (`src/viewer.js`): the marked math extension, then
-  KaTeX, then DOMPurify with the `mathMl`/`svg` profiles.
+  DOMPurify under the same policy as the app's (no styles, forms or borrowed
+  classes), then KaTeX's output put in where the formulas were.
 - **Library `<script>`/`<link>` tags** from a CDN (jsDelivr), pinned to the same
   versions vendored in this repo, so the output matches the app exactly.
 

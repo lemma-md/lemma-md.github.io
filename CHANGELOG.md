@@ -32,6 +32,10 @@ This is the *when*. The *why* behind a decision is in
   (`$ x $`), and `\$` writes a literal dollar. A price written with a bare `$`
   now reads as math: write `\$5`. The same in a downloaded `.html`. The
   welcome note says so.
+- A note's own HTML can no longer restyle the app or show a form: styles,
+  forms and classes are removed from it, and its ids are prefixed, as on
+  GitHub. A note opened from somewhere else could otherwise hide the editor
+  or lay a convincing fake dialog over it. Inline colours in a note go too.
 
 ### Fixed
 
