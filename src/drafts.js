@@ -16,8 +16,12 @@
  * the author's own test ones and losing them cost nothing. That window is now
  * closed: any later rename needs code that opens the old database and copies
  * its contents across first.
+ *
+ * Tests only: the page in `_tools/tests` sets `lemmaTestDatabase` before it
+ * loads this module, so that it never touches the notes a developer keeps on
+ * the same origin. Nothing else sets it.
  */
-const DB_NAME = 'lemma-md'
+const DB_NAME = globalThis.lemmaTestDatabase ?? 'lemma-md'
 // Bumped 1 -> 2 only to add the `annotations` store: IndexedDB runs
 // onupgradeneeded solely when this number rises, so an existing v1 database
 // would otherwise never gain the store. There is no data to migrate (nothing

@@ -82,8 +82,7 @@ Planned, numbered as in [docs/ROADMAP.md](docs/ROADMAP.md):
    - **3.1** more answers on the help page: Google Drive, what the status
      says, conflicts, the bin, slides, export, offline use
 4. **Tests**
-   - **4.1** storage, and its failures
-   - **4.2** the editor's flows, files on disk and Google Drive included
+   - **4.1** the editor's flows, files on disk and Google Drive included
 
 Possibly, much later: optional syncing to a private **GitHub** repository.
 

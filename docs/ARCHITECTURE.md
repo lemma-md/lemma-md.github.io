@@ -428,11 +428,25 @@ that something driving the page can read it without looking.
 - **Links into help are found, not listed.** The help tests read the app's own
   files for `helpUrl('…')` and `help/#…`, so a new link is checked without
   anyone remembering to add it.
+- **Storage tests never touch real notes.** `drafts.js` takes its database name
+  from `globalThis.lemmaTestDatabase` when set, and only the test page sets it:
+  to `lemma-md-test` for anything that loads the module there, and to a name of
+  its own for each storage test, which deletes that database afterwards. Each
+  test also imports a fresh copy of the module (`drafts.js?run=…&instance=…`),
+  since the module keeps its connection; the query changes on every run, so
+  the browser cannot serve a copy cached before an edit.
+- **Failures are real where they can be.** An upgrade from another tab and a
+  database a newer build has upgraded are produced for real. A full disk and
+  blocked storage cannot be made from a page, so they are imitated with the
+  events a browser sends: a write whose transaction aborts at commit with no
+  `error` event, an open that fails or throws, and no `indexedDB` at all. A
+  write must reject within three seconds: hanging is the failure being guarded.
 
 What is covered so far: the rendering rules (formulas, display blocks,
 headings, sanitising), the export against the preview with both copies of its
 renderer, the round trip of a note through the `.html`, cutting a note into
-slides, the templates, and the help links.
+slides, the templates, the help links, and browser storage: notes, the bin,
+settings, and every failure the app shows.
 
 ## Deployment
 

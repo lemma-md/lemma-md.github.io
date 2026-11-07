@@ -39,12 +39,19 @@
 <!-- Where tests put iframes they need, out of sight. -->
 <div id="scratch"></div>
 
+<script>
+  // Whatever loads src/drafts.js on this page uses a test database, never the
+  // notes kept on this origin. The storage tests give each test its own.
+  globalThis.lemmaTestDatabase = 'lemma-md-test'
+</script>
+
 <script type="module">
   import { run } from './runner.js'
   import './render.test.js'
   import './export.test.js'
   import './slides.test.js'
   import './help.test.js'
+  import './storage.test.js'
 
   run(document.getElementById('results'))
 </script>
