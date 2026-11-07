@@ -312,6 +312,43 @@ Still open:
   menu. Still to decide: a button next to *Open the editor* (and
   *Presentations*, 2.1), and perhaps the projector.
 
+## 4. Tests
+
+The test page (`_tools/tests/`, see ARCHITECTURE → Tests) covers rendering, the
+export, slides and the help links. Next, in this order:
+
+### 4.1 Storage
+
+`drafts.js` against a database of its own: writing, reading, the bin and its
+purge, and every failure the app now shows. A write refused at commit, as a
+full disk refuses it, must reject rather than hang. A browser that will not
+open the database, a database already upgraded (`VersionError`), and an
+upgrade from another tab (store what the page holds, then ask for a reload) are
+the others. The upgrade cases are real; a full disk and blocked storage are
+imitated with the same events a browser sends.
+
+- **A database of its own.** The tests must not touch the notes a developer
+  keeps on `localhost:8001`. That needs one hook in `drafts.js`: a database
+  name the test page can set before the app starts.
+
+### 4.2 The editor's flows
+
+The editor loaded into a frame, with the test database, driven through its
+DOM: autosave per note and on leaving, the statuses, the storage notices with
+*Try again* and the warning on leaving, *Discard* to the bin and *Save* closing
+a new note. Files on disk through real handles from the browser's private file
+system (OPFS) and stubbed pickers, with fake handles for the permission and
+unreadable-file cases. Google Drive through an in-memory stand-in for the
+provider, which can change, rename, move or trash a file from outside.
+
+### 4.3 Later
+
+- **A live Drive check**, run by hand before a release: sign in once on the
+  test page, then create, read, rename and trash files in a folder of its own.
+  `drive.file` lets the tests see nothing but the files they made.
+- **One command** that opens the page in headless Chrome and prints the result,
+  and then perhaps a GitHub Actions check.
+
 ## Possible, much later: syncing to a private GitHub repository
 
 This would be optional, for people who already have a GitHub account. A note

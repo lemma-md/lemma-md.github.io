@@ -8,7 +8,8 @@
 // The Markdown is HTML-escaped inside a `<script type="text/markdown">` block:
 // escaping means the content can never contain `</script>` to break out, and it
 // round-trips byte-for-byte, so dragging the file back in restores the source
-// exactly rather than reverse-engineering it from rendered HTML.
+// exactly rather than reverse-engineering it from rendered HTML. The one
+// exception: the HTML parser turns Windows line breaks (\r\n) into \n.
 //
 // Two switches — see docs/HTML_EXPORT.md:
 //   css: 'cdn'    github-markdown-css, or 'inline' — a self-contained stylesheet

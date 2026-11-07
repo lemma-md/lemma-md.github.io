@@ -81,6 +81,9 @@ Planned, numbered as in [docs/ROADMAP.md](docs/ROADMAP.md):
 3. **Help**
    - **3.1** more answers on the help page: Google Drive, what the status
      says, conflicts, the bin, slides, export, offline use
+4. **Tests**
+   - **4.1** storage, and its failures
+   - **4.2** the editor's flows, files on disk and Google Drive included
 
 Possibly, much later: optional syncing to a private **GitHub** repository.
 
@@ -261,6 +264,7 @@ src/ui.css          the editor's chrome
 src/present.css     the projector and its tools, on top of reveal.js
 
 vendor/             third-party libraries, committed (see VENDOR.md)
+_tools/tests/       the test page: open /_tools/tests/ on the local server
 _tools/             scripts for working on the site, never published — see
                     Deployment for what the underscore does
 ```

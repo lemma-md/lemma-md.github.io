@@ -293,7 +293,8 @@ them:
   embedded HTML-escaped in a `<script type="text/markdown">` block: escaping
   keeps it byte-for-byte and unable to break out of the tag, so dragging the
   file back in restores the *exact* source rather than reverse-engineering it
-  from rendered HTML. The libraries load from a CDN, pinned to the same versions
+  from rendered HTML. Only Windows line breaks change: the HTML parser turns
+  `\r\n` into `\n`. The libraries load from a CDN, pinned to the same versions
   vendored here so the output matches the app, and the inline renderer is a
   `.toString()` copy of `viewer.js`. This needs the network to fetch those
   libraries — a reversal of an earlier "no network" intent: a self-contained
@@ -406,6 +407,32 @@ front page links to it from its footer, the editor from the bottom of its menu.
   link opens in a new tab, since the editor may hold the only copy of a note.
   The menu's *Help* reuses one named tab rather than opening a new one on every
   click.
+
+## Tests
+
+**A test page in the browser, with no framework** *(2026-11)*.
+`_tools/tests/index.html`, opened from the local server, imports the app's own
+modules and runs them in the engine a reader uses. The runner is a file of
+about a hundred lines (`runner.js`): `suite`, `test`, a few assertions, a time
+limit per test, and the result in the page title and `window.testResults`, so
+that something driving the page can read it without looking.
+
+- **Not Node, not npm.** The app is written for the browser: DOMPurify needs a
+  DOM, the editor needs a page. A framework would mean a `package.json` or a
+  vendored copy, for little more than the runner already does.
+- **In `_tools/`**, so Jekyll leaves it out of the site, like the other
+  development scripts.
+- **The export is tested offline.** The downloaded `.html` loads its libraries
+  from a CDN; the tests swap them for the vendored copies, and check first that
+  the versions are the same, which is what makes the swap fair.
+- **Links into help are found, not listed.** The help tests read the app's own
+  files for `helpUrl('…')` and `help/#…`, so a new link is checked without
+  anyone remembering to add it.
+
+What is covered so far: the rendering rules (formulas, display blocks,
+headings, sanitising), the export against the preview with both copies of its
+renderer, the round trip of a note through the `.html`, cutting a note into
+slides, the templates, and the help links.
 
 ## Deployment
 

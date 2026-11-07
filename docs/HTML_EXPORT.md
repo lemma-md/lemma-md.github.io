@@ -12,7 +12,9 @@ that file back into lemma-md re-opens the note. All of it lives in
   content can never contain a literal `</script>` to break out of the tag, and
   it round-trips **byte-for-byte**, so a drag back in restores the exact source
   rather than reverse-engineering it from rendered HTML. (`</script>` inside a
-  fenced code block is the case this protects.)
+  fenced code block is the case this protects.) The one exception is line
+  breaks: the HTML parser turns Windows `\r\n` into `\n` before anything reads
+  the page.
 - A small **renderer** that reads that block and produces the page — a faithful
   copy of the app's pipeline (`src/viewer.js`): the marked math extension, then
   KaTeX, then DOMPurify with the `mathMl`/`svg` profiles.
@@ -89,3 +91,7 @@ aggressive minifier could.
 
 If `RENDER_MIN` is ever empty, the export falls back to the readable renderer, so
 a missed regeneration degrades gracefully rather than shipping a broken file.
+
+A stale one is caught by the export tests (`_tools/tests/export.test.js`): they
+render a note through `RENDER_MIN`, through the readable renderer and through
+the preview, and fail unless all three agree.

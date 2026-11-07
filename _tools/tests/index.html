@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>lemma-md tests</title>
+
+<!-- The same vendored globals the editor loads, so the app's modules run here
+     exactly as they run there. -->
+<link rel="stylesheet" href="../../vendor/katex/katex.min.css">
+<script src="../../vendor/marked.min.js"></script>
+<script src="../../vendor/purify.min.js"></script>
+<script src="../../vendor/katex/katex.min.js"></script>
+
+<style>
+  body { font: 14px/1.5 system-ui, sans-serif; margin: 24px; color: #1a1a1a; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .how { color: #6a737d; margin: 0 0 16px; }
+  .summary { font-weight: 600; font-size: 16px; }
+  .summary.pass { color: #1a7f37; }
+  .summary.fail { color: #cf222e; }
+  ol { padding-left: 1.6em; }
+  li.pass span { color: #1a7f37; }
+  li.fail span { color: #cf222e; font-weight: 600; }
+  pre { white-space: pre-wrap; overflow-wrap: anywhere; background: #fff1f0; padding: 6px 10px; border-radius: 6px; margin: 4px 0 10px; }
+  #scratch { position: fixed; left: -10000px; top: 0; width: 800px; height: 600px; }
+</style>
+</head>
+<body>
+
+<h1>lemma-md tests</h1>
+<p class="how">
+  Served from the repository root, as the site is: start the server with
+  <code>_tools/lemma_start</code> and open <code>http://localhost:8001/_tools/tests/</code>.
+  Nothing here is published: Jekyll skips <code>_tools/</code>.
+</p>
+
+<div id="results"></div>
+<!-- Where tests put iframes they need, out of sight. -->
+<div id="scratch"></div>
+
+<script type="module">
+  import { run } from './runner.js'
+  import './render.test.js'
+  import './export.test.js'
+  import './slides.test.js'
+  import './help.test.js'
+
+  run(document.getElementById('results'))
+</script>
+
+</body>
+</html>
