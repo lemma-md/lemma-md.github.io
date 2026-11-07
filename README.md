@@ -39,7 +39,8 @@ Working today:
 - live preview of markdown with TeX formulas
 - editor with line numbers, syntax highlighting and search
 - multiple notes in tabs, restored when you come back
-- automatic saving of drafts; closing a tab keeps the note, it does not delete it
+- automatic saving of drafts. Closing a note with unsaved changes asks first,
+  and a discarded note goes to a bin in Settings, from where it can be restored
 - a Settings window listing every saved note — reopen or delete any of them —
   along with how much space they take and whether the browser has agreed to
   keep them permanently
@@ -58,17 +59,30 @@ Working today:
   print (text and formulas stay selectable; the ink stays vector)
 - new notes from a template — a blank note, the welcome guide, or a slide demo
 
-Planned, roughly in order:
+Planned, numbered as in [docs/ROADMAP.md](docs/ROADMAP.md):
 
-1. optional syncing to a private **GitHub** repository
+1. **Editor**
+   - **1.1** a problems panel that counts formulas failing to render and steps
+     through them, and offers to convert ChatGPT-style `\( \)` / `\[ \]` to
+     `$` / `$$` on paste or open
+   - **1.2** editor and preview in step: jump from the text to the preview and
+     back
+   - **1.3** inserting images by pasting, dropping or choosing a file
+   - **1.4** download as LaTeX, a `.tex` file to continue in Overleaf or a TeX
+     installation
+2. **Presenter**
+   - **2.1** presentation management: each presentation keeps its own copy of
+     the slides and its ink, so editing or closing the note no longer disturbs
+     it. A page of its own lists past presentations, to reopen, delete or start
+     afresh, and starts new ones from a note, a file on disk or Google Drive
+   - **2.2** PDF files as presentations, drawn over like slides
+   - **2.3** presentation themes: swappable colour, spacing and font sets,
+     chosen per deck in the front-matter
 
-Further out:
+Possibly, much later: optional syncing to a private **GitHub** repository.
 
-- **presentation themes** — swappable colour / spacing / font sets, each a
-  separate CSS file layered over the shared slide styles (the slide look already
-  lives in its own CSS, and reveal.js themes via CSS custom properties, so this
-  is mostly packaging). Chosen per deck with a `theme:` line in the front-matter
-  — the first deck-wide setting — and switchable from the projector via a menu.
+ROADMAP also says what each involves and what is still undecided. What has
+shipped, and when, is in [CHANGELOG.md](CHANGELOG.md).
 
 ## Drafts are local
 
@@ -232,7 +246,7 @@ src/present/        slide splitting, reveal.js setup and the drawing tools
 src/drafts.js       IndexedDB persistence (notes and presentation ink)
 src/settings.js     the Settings window
 src/storage/        cloud providers behind one interface (see docs/CLOUD-SETUP.md)
-src/config.js       the app's own Google ids — empty until you fill them in
+src/config.js       the app's own Google ids, one set for every origin
 
 src/theme.css       colours, reset, base type — every page
 src/markdown.css    how rendered markdown looks — every page that renders it

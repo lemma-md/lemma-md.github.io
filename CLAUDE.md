@@ -15,7 +15,15 @@ file here; keep them current instead.
   them to the `curl` script in [VENDOR.md](VENDOR.md) and check that it still
   reproduces `vendor/` exactly.
 - **Load heavy things on demand** with the `loadScript` helper in
-  `src/editor.js`, so that reading a note stays cheap.
+  `src/load-script.js`, so that reading a note stays cheap.
+- **Plans, decisions and history live in three files.** The next big features
+  and their open and decided questions are in [docs/ROADMAP.md](docs/ROADMAP.md).
+  When a feature or notable fix ships, it leaves ROADMAP, gets a line under that
+  day's date in [CHANGELOG.md](CHANGELOG.md), and its decisions move into
+  [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) under their topic, marked with
+  the month. ARCHITECTURE describes only what is built. Small bugs are not listed in any of them: fix
+  them. Reviews and working notes stay out of the repo, which is public and
+  published whole.
 - **Use `curl.exe`**, not `Invoke-WebRequest`. In PowerShell, `curl` is an alias
   for the latter, which on Windows PowerShell 5.1 tries to parse responses
   through Internet Explorer's HTML engine and fails in a non-interactive shell.

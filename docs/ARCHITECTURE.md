@@ -4,6 +4,14 @@ Each decision below records what was chosen and, more importantly, what
 evidence led there. Several reverse an earlier choice in this project; where
 that happened, the reason is kept so it is not quietly reversed again.
 
+Decisions are grouped by topic, not by date, so that whoever is about to change
+something finds the rule in the section they are reading. A decision carries the
+month it was made, e.g. *(2026-09)*. The marks were introduced in November
+2026, so for an older decision without one, `git log` on this file gives the
+date. This file describes what is built. A question about planned work is
+settled in [ROADMAP.md](ROADMAP.md), and its answer moves here when the work
+ships, which also gets a line in [CHANGELOG.md](../CHANGELOG.md).
+
 ## Goal
 
 A markdown editor with TeX that a non-programmer can use within thirty seconds
@@ -97,8 +105,9 @@ reading a note   436 kB
 fonts             48 kB   3 of 20 woff2 files — the rest are never requested
 ```
 
-The same `loadScript` helper in `src/editor.js` will carry reveal.js and
-pdf.js.
+The helper is `loadScript` in `src/load-script.js`; the editor, the front page
+and the Drive adapter all load through it. reveal.js needs no such care: only
+the projector page (`present/`) includes it, so a reader never fetches it.
 
 ## Storage, and why syncing is last
 
@@ -127,15 +136,23 @@ anything — a switch that only works one way is a lie in the shape of a control
 Turning it off is possible only through the browser's own site settings, and
 the UI says so.
 
-**Closing a tab does not delete the note.** It leaves the tab strip and stays in
-storage, reachable from Settings, where deleting is explicit and confirmed. This
-matters because until cloud saving exists, this database holds the *only* copy
-of a note — a close button that destroys work is indefensible. The pending
-debounced write is flushed on close so the last keystrokes survive.
+**Closing a note never throws away unsaved work** *(2026-09)*. A note with
+unsaved changes asks first: save it, or discard it to the **bin**. The bin is
+listed in Settings, where a note can be restored, and it purges a note after 15
+days (adjustable). A note with nothing unsaved is simply removed. Its content is
+already in its file, or was never worth keeping, so there is nothing to recover
+and no reason to fill the bin with it. Deleting from Settings is explicit and
+confirmed. The invariant: every note in storage is either open in a tab or in
+the bin.
 
-The mental model is a desktop editor: IndexedDB is the scratch area, and cloud
-storage will be the real disk. That analogy is not yet honest — there is no real
-disk to save to — which is another reason export and syncing come next.
+This replaces the first version's rule that a closed note always stayed in
+storage. That rule fitted a time when this database held the *only* copy of
+every note. Once notes could be saved to a real file, keeping every closed one
+mostly kept copies of files that already exist.
+
+The mental model is a desktop editor. IndexedDB is the scratch area, and a file,
+on disk or in Drive, is the real copy. Until a note has been saved to one, the
+browser holds the only copy. README's *Drafts are local* tells the user so.
 
 Drafts are readable by any page on the same origin, and on GitHub Pages the
 path is not part of the origin. Publishing at `<account>.github.io/<project>/`
@@ -174,6 +191,39 @@ Verified constraints, not assumptions:
   control — anyone with a leaked link can read them, which is unacceptable for
   unpublished mathematics. The eventual GitHub path is a private repository,
   with the UI hiding the words branch, commit and push.
+
+## Cloud saving
+
+How Google Drive is set up, step by step, is in [CLOUD-SETUP.md](CLOUD-SETUP.md).
+How a note's status is decided is in [STATUS.md](STATUS.md). The decisions behind
+them:
+
+- **One OAuth client for both origins** *(2026-08)*. `localhost:8001` and
+  `lemma-md.github.io` share it, with one committed `src/config.js`, so nothing
+  is switched at deploy. Separate development and production projects were
+  considered and declined; the reasoning is in CLOUD-SETUP.md, step 4. If
+  per-environment values are ever needed, branch on `location.hostname` at
+  runtime rather than swapping the file, which without a build step would mean
+  doing it by hand.
+- **The access token lives in memory only** *(2026-08)*. It is a bearer
+  credential. It lasts about an hour, and the browser flow issues no refresh
+  token, so storing it would save at most an hour of reconnecting. A connection
+  survives a reload another way: the chosen folder is remembered in IndexedDB,
+  and the token is re-requested silently. The accepted price is that someone
+  signed in to several Google accounts sees Google's account chooser once after
+  a reload. That is expected behaviour, not a bug. Asking for an identity scope
+  to preselect the account was declined as well: it would widen a consent
+  screen that is deliberately kept to `drive.file`.
+- **A Drive file is never overwritten blindly** *(2026-08)*. A note remembers
+  the file's `headRevisionId`, name, parents and trashed flag as of its last read
+  or write. A save fetches them again first. If anything differs, the save asks
+  what to do: overwrite, take theirs, or save a copy, with *Compare changes* to
+  see the difference. Drive's revision id was chosen over modified-time and
+  size because it changes on every content edit. When you come back to the tab,
+  open notes are re-checked, but only if a token is already live, so the check
+  never causes a sign-in popup.
+- **Cloud errors are reported with `alert()`** *(2026-08)*. It is crude but
+  adequate. Revisit only if it starts to grate.
 
 ## Export
 
