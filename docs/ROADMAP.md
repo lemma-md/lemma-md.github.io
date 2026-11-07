@@ -315,19 +315,10 @@ Still open:
 ## 4. Tests
 
 The test page (`_tools/tests/`, see ARCHITECTURE → Tests) covers rendering, the
-export, slides, the help links and browser storage. Next, in this order:
+export, slides, the help links, browser storage, and the editor's flows with
+files on disk and Google Drive. Still to come:
 
-### 4.1 The editor's flows
-
-The editor loaded into a frame, on a test database (`lemmaTestDatabase`, as
-the storage tests use), driven through its DOM: autosave per note and on
-leaving, the statuses, the storage notices with *Try again* and the warning on
-leaving, *Discard* to the bin and *Save* closing a new note. Files on disk through real handles from the browser's private file
-system (OPFS) and stubbed pickers, with fake handles for the permission and
-unreadable-file cases. Google Drive through an in-memory stand-in for the
-provider, which can change, rename, move or trash a file from outside.
-
-### 4.2 Later
+### 4.1 Later
 
 - **A live Drive check**, run by hand before a release: sign in once on the
   test page, then create, read, rename and trash files in a folder of its own.

@@ -442,11 +442,36 @@ that something driving the page can read it without looking.
   `error` event, an open that fails or throws, and no `indexedDB` at all. A
   write must reject within three seconds: hanging is the failure being guarded.
 
+- **The editor is tested whole, in a frame** (`editor-harness.js`). The real
+  `editor/index.html`, given as `srcdoc` so a script runs before the app: it
+  sets a test database, makes the frame report itself visible (an automated
+  tab is usually hidden, and the app re-checks files and Drive only while
+  visible), answers and records `confirm()` and `alert()`, catches downloads
+  and `window.open`, and can refuse every write the way a full disk does.
+  Tests then click and type through the DOM and read the database directly.
+- **Files on disk are real files** in the browser's private file system
+  (OPFS): its handles are genuine `FileSystemFileHandle`s, which the app reads,
+  writes and stores like a file the user picked. Only the pickers are stubbed.
+  A declined permission is set as own properties on such a handle, which
+  storing it in IndexedDB leaves behind.
+- **Google Drive is a stand-in** (`fake-drive.js`): the provider's methods
+  replaced, in the same module instance the app uses, by an in-memory Drive
+  that can also change, rename, move or trash a file from outside. It tests
+  the app's handling of Drive, not `gdrive.js`'s requests to Google.
+- **Coming back is repeated.** The app re-checks files and Drive on focus but
+  not more than once in three seconds, and a frame can get a real focus event
+  of its own, so a test dispatches `focus` until the change is noticed.
+- **What runs is what is on disk.** The local server sends no cache headers,
+  so before loading anything the page fetches every module the tests reach,
+  the app's included, with `cache: 'reload'` (`fresh.js`). A plain reload of
+  the page runs the code as it is now.
+
 What is covered so far: the rendering rules (formulas, display blocks,
 headings, sanitising), the export against the preview with both copies of its
 renderer, the round trip of a note through the `.html`, cutting a note into
-slides, the templates, the help links, and browser storage: notes, the bin,
-settings, and every failure the app shows.
+slides, the templates, the help links, browser storage (notes, the bin,
+settings, and every failure the app shows), and the editor's flows: autosave,
+statuses, closing and the bin, the storage notices, files on disk, and Drive.
 
 ## Deployment
 

@@ -62,7 +62,9 @@ being capable of stripping MathML.
 `http://localhost:8001/_tools/tests/`. The page title reads `PASS n` or
 `FAIL n of m`, and `window.testResults` lists the failures. A fixed bug gets a
 test there, in the file for its area. The export tests also fail when
-`RENDER_MIN` was not regenerated after a change to the renderer.
+`RENDER_MIN` was not regenerated after a change to the renderer. A run takes
+about a minute, most of it the editor tests; the page reloads every module
+itself, so a plain reload runs what is on disk.
 
 `python -m http.server` sends no cache-busting headers, so a browser will
 happily serve an old `index.html` or `ui.css` after an edit. This has already

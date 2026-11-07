@@ -46,13 +46,22 @@
 </script>
 
 <script type="module">
-  import { run } from './runner.js'
-  import './render.test.js'
-  import './export.test.js'
-  import './slides.test.js'
-  import './help.test.js'
-  import './storage.test.js'
+  import { refresh } from './fresh.js'
 
+  const TESTS = [
+    './render.test.js',
+    './export.test.js',
+    './slides.test.js',
+    './help.test.js',
+    './storage.test.js',
+    './editor.test.js',
+  ]
+
+  // Load what is on disk, not what the browser cached before the last edit.
+  // The editor tests run the whole app in a frame, so its modules too.
+  await refresh([...TESTS, '../../src/app.js', './fake-drive.js'])
+  const { run } = await import('./runner.js')
+  for (const file of TESTS) await import(file)
   run(document.getElementById('results'))
 </script>
 
