@@ -45,12 +45,10 @@ Open questions:
   editor has not loaded. Should the panel appear there too, under the preview,
   with Fix changing the text without the editor?
 - **What Fix covers after a paste**: only the pasted text, or the whole note?
-- **What else counts as a problem.** For example an unclosed `$$`, which turns
-  the rest of the note into one formula or leaves raw dollars, or an image that
-  fails to load. A formula that starts with a digit, such as `$2x+1$`, is not
-  recognised as math at all today, because the inline rule refuses it to keep
-  prices as prose. No check can flag what was never parsed as math, so that
-  rule needs fixing first.
+- **What else counts as a problem.** For example an unclosed `$$`, which shows
+  as raw dollars and TeX up to the next blank line, or an image that fails to
+  load. Or a bare `$` that reads like a price (`$5`): every pair of
+  dollars is math now, so Fix would escape it as `\$5`.
 
 ### 1.2 Keeping the editor and the preview in step
 
@@ -281,7 +279,8 @@ Saving:
 Writing:
 
 12. **Markdown and formulas** (`#syntax`). What is supported. KaTeX is not full
-    LaTeX: no packages, and which macros work.
+    LaTeX: no packages, and which macros work. A literal dollar is `\$`, as in
+    LaTeX.
 13. **Formulas pasted from ChatGPT** (`#chatgpt-formulas`). `\( \)` and
     `\[ \]`, and *Fix* in the problems panel once 1.1 ships.
 14. **Downloading and exporting** (`#export`). `.md`; a standalone `.html` that

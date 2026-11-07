@@ -19,6 +19,14 @@ function renderMath(tex, displayMode) {
   }
 }
 
+// A display formula as a block: from a $$ at the start of a block to the first
+// $$ that ends its line. It holds no $$ (a single $ or an escaped \$ is fine)
+// and no blank line, which TeX does not allow inside math either. Letting it
+// run on to any later $$ made `$$…$$text` swallow everything up to the next
+// formula, headings and lists included. When text follows the closing $$ on
+// its line, this is no block: the inline rule shows the formula in its line.
+const MATH_BLOCK = /^\$\$((?:\\[\s\S]|[^\\$\n]|\$(?!\$)|\n(?![ \t]*\n))+?)\$\$(?:\n+|$)/
+
 // Math is tokenised by marked itself rather than pre-extracted, so markdown
 // never gets a chance to mangle `_`, `*` or `\\` inside a formula.
 const mathExtension = {
@@ -26,9 +34,19 @@ const mathExtension = {
     {
       name: 'mathBlock',
       level: 'block',
-      start(src) { return src.indexOf('$$') },
+      // Where a paragraph must stop: at a line that starts a display formula.
+      // Not at just any $$, which cut a paragraph in two at a `$$x$$` within a
+      // line, and not at every line starting with $$: in `$$…` over a line
+      // `$$text`, that second line closes the formula. (marked passes the
+      // paragraph without its first character, hence the +1.)
+      start(src) {
+        const line = /\n(?=\$\$)/g
+        for (let m; (m = line.exec(src));) {
+          if (MATH_BLOCK.test(src.slice(m.index + 1))) return m.index + 1
+        }
+      },
       tokenizer(src) {
-        const m = /^\$\$([\s\S]+?)\$\$(?:\n+|$)/.exec(src)
+        const m = MATH_BLOCK.exec(src)
         if (m) return { type: 'mathBlock', raw: m[0], text: m[1].trim() }
       },
       renderer(token) { return renderMath(token.text, true) },
@@ -38,14 +56,34 @@ const mathExtension = {
       level: 'inline',
       start(src) { const i = src.indexOf('$'); return i < 0 ? undefined : i },
       tokenizer(src) {
-        // Guards against prices: `$` must not be followed by a space or digit,
-        // and the closing `$` must not be preceded by a space.
-        const m = /^\$(?![\s\d])([\s\S]*?[^\s\\])\$(?!\d)/.exec(src)
-        if (m) return { type: 'mathInline', raw: m[0], text: m[1] }
+        // LaTeX's rule: every unescaped pair of dollars is a formula, whatever
+        // it holds, spaces and leading digits included; a literal dollar is
+        // written \$ (marked's escape takes it before this rule sees it).
+        // Inside a formula a backslash escapes the next character, so
+        // `$a\$b$` is one formula. `$$…$$` within a line is display math
+        // there. Pandoc's rule, which guesses that `$5 and $10` are prices,
+        // was tried and dropped: predictable formulas matter more here than
+        // unescaped prices. Mirrored in export-html.js.
+        const m = /^\$\$((?:\\[\s\S]|[^\\$])+?)\$\$/.exec(src) ?? /^\$(?!\$)((?:\\[\s\S]|[^\\$])+)\$/.exec(src)
+        if (m) return { type: 'mathInline', raw: m[0], text: m[1], display: m[0].startsWith('$$') }
       },
-      renderer(token) { return renderMath(token.text, false) },
+      renderer(token) { return renderMath(token.text, token.display) },
     },
   ],
+  tokenizer: {
+    // A setext heading, text over a line of `=` or `-`, may not run across a
+    // line that opens or closes a $$ block, just as it may not run across a
+    // code fence. Without this, a formula written straight under a paragraph
+    // with a lone `=` on one of its lines made everything above that line a
+    // heading, formula included. Refusing (undefined) leaves the text to the
+    // paragraph, which stops at the `$$`; `false` lets marked's own rule stand.
+    // Mirrored in export-html.js.
+    lheading(src) {
+      const token = marked.Tokenizer.prototype.lheading.call(this, src)
+      if (!token) return false
+      return /^ {0,3}\$\$/m.test(token.raw) ? undefined : token
+    },
+  },
 }
 
 marked.use({ gfm: true, breaks: false }, mathExtension)

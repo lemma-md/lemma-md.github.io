@@ -27,6 +27,11 @@ This is the *when*. The *why* behind a decision is in
   read as the *New* command.
 - Only a note closed with *Discard changes* goes to the bin. One saved from the
   close dialog is closed like any saved note.
+- Inline formulas follow LaTeX's rule: every pair of dollars is a formula,
+  including one that starts with a digit (`$2x+1$`) or has spaces inside
+  (`$ x $`), and `\$` writes a literal dollar. A price written with a bare `$`
+  now reads as math: write `\$5`. The same in a downloaded `.html`. The
+  welcome note says so.
 
 ### Fixed
 
@@ -51,6 +56,15 @@ This is the *when*. The *why* behind a decision is in
   holds, then asks to be reloaded, instead of quietly failing every later save.
 - Renaming a Drive note counts as an unsaved change, so closing it no longer
   drops the new name.
+- `$$…$$` in the middle of a line shows as a display formula instead of an
+  error.
+- A display formula with text right after its closing `$$` no longer swallows
+  everything up to the next formula, headings and lists included.
+- In a deck, a `$$` left unclosed no longer merges every later slide into one:
+  a blank line ends the formula, as it does in the preview.
+- A `$$` formula written straight under a paragraph, with a line holding only
+  `=` or `-`, no longer turns the text above it into a heading and breaks the
+  formula.
 
 ## 2026-09-21
 

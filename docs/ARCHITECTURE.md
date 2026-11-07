@@ -76,8 +76,33 @@ Two details that are not free to change:
 
 - **Math is tokenised by a marked extension, not pre-extracted.** Markdown
   therefore never sees the inside of a formula and cannot mangle `_`, `*` or
-  `\\`. The inline rule also refuses to match a `$` followed by a space or a
-  digit, so `$5 and $10` stays prose.
+  `\\`. The inline rule is LaTeX's *(2026-11)*: every unescaped pair of
+  dollars is a formula, whatever it holds, and `\$` is a literal dollar. Inside
+  a formula a backslash escapes the next character, so `$a\$b$` is one formula,
+  and `$$…$$` within a line is display math there. The earlier rule guessed at
+  prices: it refused a `$` followed by a space or a digit, which kept
+  `$5 and $10` as prose but left `$2x+1$` and `$ x $` as plain text. Pandoc's
+  subtler guess (no space just inside the dollars, no digit after the closing
+  one) was tried the same day and dropped as well: for a mathematician a
+  formula that renders as written is worth more than an unescaped price. The
+  rule exists three times: in `viewer.js`, in the exported page's renderer in
+  `export-html.js`, and in that renderer's minified copy, regenerated with
+  `_tools/minify_render.py`.
+- **A display formula ends at its first `$$`, and holds no blank line**
+  *(2026-11)*, as in TeX, where a blank line inside math is an error. As a
+  block it runs from a `$$` at the start of a block to a `$$` that ends its
+  line; a paragraph stops for it only at a line that starts such a formula.
+  Before, the block could run on to any later `$$`, so `$$…$$text` swallowed
+  the headings and lists up to the next formula, and a paragraph stopped at any
+  `$$`, which cut it in two at a `$$x$$` within a line.
+- **A `$$` line stops a setext heading, as a code fence does** *(2026-11)*.
+  Markdown makes text over a line of `=` or `-` a heading, and marked looks for
+  such headings before it lets the math extension see a `$$` line. A formula
+  written straight under a paragraph, with a lone `=` on a line of its own,
+  therefore made everything above that `=` a heading, the formula included. A
+  wrapper round marked's `lheading` refuses any heading whose text holds a
+  line starting with `$$`; the paragraph then stops at that line and the math
+  block takes it. Kept in the same three places as the inline rule.
 - **Sanitising runs after KaTeX, with the `mathMl` and `svg` profiles enabled.**
   KaTeX emits MathML for accessibility and SVG for stretchy delimiters such as
   the bar of a square root; a default HTML-only profile would silently destroy

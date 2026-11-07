@@ -47,6 +47,8 @@ export function extractFrontMatter(md) {
  * author wrote as content, or a `---` that happens to sit in code, must not cut
  * the deck. Math is tracked by counting `$$` per line (an odd count toggles the
  * state, so `$$x$$` on one line is a no-op while a lone `$$` opens or closes).
+ * A blank line ends it, as in the renderer (TeX allows no blank line in math):
+ * otherwise one unclosed `$$` merged every later slide into one.
  */
 export function splitSlides(md) {
   const lines = String(md ?? '').split('\n')
@@ -59,6 +61,7 @@ export function splitSlides(md) {
     const trimmed = line.trim()
     if (/^(```|~~~)/.test(trimmed)) inFence = !inFence
     else if (!inFence) {
+      if (trimmed === '') inMath = false
       const dollars = (line.match(/\$\$/g) || []).length
       if (dollars % 2 === 1) inMath = !inMath
     }

@@ -14,6 +14,8 @@ $$
 \\int_{-\\infty}^{\\infty} e^{-x^2}\\,dx = \\sqrt{\\pi}
 $$
 
+A dollar sign itself is written \`\\$\`, so \`\\$5\` gives \\$5.
+
 ## The markdown you actually need
 
 - \`#\` starts a heading, \`##\` a subheading
