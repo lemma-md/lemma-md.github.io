@@ -46,21 +46,66 @@ function persistDoc(doc) {
   return drafts.putDoc(clean)
 }
 
-let saveTimer = null
-function scheduleSave() {
-  clearTimeout(saveTimer)
-  saveTimer = setTimeout(() => {
-    const doc = active()
-    if (doc) persistDoc(doc).catch(reportError)
-  }, 400)
+// Debounced writes, one timer per note, each holding its own note. A single
+// shared timer used to save whichever note was active when it fired, so
+// switching tabs within the delay left the previous note's last keystrokes in
+// memory only, lost on a reload.
+const pendingSaves = new Map() // note id -> timeout id
+
+function scheduleSave(doc) {
+  clearTimeout(pendingSaves.get(doc.id))
+  pendingSaves.set(doc.id, setTimeout(() => {
+    pendingSaves.delete(doc.id)
+    persistDoc(doc).catch(reportError)
+  }, 400))
+}
+
+/** Drop a note's pending debounced write. For a note leaving memory, a late
+ *  write would undo a deletion or pull a binned note back out of the bin. */
+function cancelSave(id) {
+  clearTimeout(pendingSaves.get(id))
+  pendingSaves.delete(id)
+}
+
+/** Write every note that still has a debounced write pending. */
+function flushSaves() {
+  const writes = []
+  for (const id of [...pendingSaves.keys()]) {
+    const doc = state.docs.get(id)
+    cancelSave(id)
+    if (doc) writes.push(persistDoc(doc).catch(reportError))
+  }
+  return Promise.all(writes)
 }
 
 /**
  * Write a document immediately, bypassing the debounce. The in-memory document
  * is always current — only the database write is delayed — so this captures
- * whatever was typed last.
+ * whatever was typed last, and makes its pending debounced write redundant.
  */
-const saveNow = (doc) => (doc ? persistDoc(doc).catch(reportError) : Promise.resolve())
+function saveNow(doc) {
+  if (!doc) return Promise.resolve()
+  cancelSave(doc.id)
+  return persistDoc(doc).catch(reportError)
+}
+
+// Writes to a note's source (a file on disk, a Drive file), run one at a time
+// per note. Two saves in flight at once could finish in either order, and the
+// file would keep whichever landed last, not the newer text.
+//
+// Each save also takes its text once, before writing, and marks exactly that
+// text as saved afterwards. Reading `doc.text` again after the await would
+// declare saved whatever was typed while the write was in flight, though the
+// file holds the older text.
+const sourceWrites = new Map() // note id -> the last write's promise
+
+function inOrder(doc, write) {
+  const run = (sourceWrites.get(doc.id) ?? Promise.resolve()).then(write)
+  const settled = run.catch(() => {})
+  sourceWrites.set(doc.id, settled)
+  settled.then(() => { if (sourceWrites.get(doc.id) === settled) sourceWrites.delete(doc.id) })
+  return run
+}
 
 const saveSession = () =>
   drafts
@@ -385,9 +430,9 @@ function addDoc(name, text, remote = null, origin = null, local = null) {
     // A local-file source: { handle, name, lastModified, size, savedAt }. Its
     // handle writes back to the same file on disk.
     local,
-    // How the note began, for the status line: 'new' (the New button) shows
-    // "New"; an opened file ('file') stays quiet until edited. A cloud or local
-    // note has a source instead and needs neither.
+    // How the note began, for the status line: once edited, 'new' (New or a
+    // template) shows "Not saved" and an opened file ('file') shows "Changed".
+    // A cloud or local note has a source instead and needs neither.
     origin,
     createdAt: Date.now(),
     updatedAt: Date.now(),
@@ -434,9 +479,10 @@ function deleteAndDrop(id) {
 async function binAndDrop(id) {
   const doc = state.docs.get(id)
   if (!doc) return
+  // A debounced write landing after this one would store the note unbinned.
+  cancelSave(id)
   const clean = { ...doc, binnedAt: Date.now() }
   for (const k of TRANSIENT_KEYS) delete clean[k]
-  delete clean.closeAfterSave
   await drafts.putDoc(clean).catch(reportError)
   dropTab(id)
 }
@@ -455,6 +501,7 @@ async function restoreFromBin(doc) {
  * (where writing it back would undo the deletion).
  */
 function dropTab(id) {
+  cancelSave(id)
   const i = state.openIds.indexOf(id)
   if (i === -1) return
   state.openIds.splice(i, 1)
@@ -477,9 +524,11 @@ function onEdit(text) {
   const wasClean = doc.text === doc.savedText
   doc.text = text
   doc.updatedAt = Date.now()
-  if (wasClean) { renderTabs(); renderCloudStatus() }
+  // Redraw the tab dot and the status when the note turns dirty, and also when
+  // it turns clean again, e.g. after undoing back to the saved text.
+  if (wasClean !== (text === doc.savedText)) { renderTabs(); renderCloudStatus() }
   schedulePreview()
-  scheduleSave()
+  scheduleSave(doc)
 
   // The first keystroke is the earliest point where the user has something to
   // lose, and it follows a real gesture — see requestPersistenceOnce.
@@ -913,9 +962,14 @@ function cloudStatusText(doc) {
   const dirty = doc.text !== doc.savedText
   const source = noteSource(doc)
   if (!source) {
-    if (doc.origin === 'new') return { text: 'New', cls: 'cloud-state', title: 'A new note, not saved anywhere yet' }
-    if (dirty) return { text: 'Changed', cls: 'cloud-state warn', title: 'Edited since it was opened' }
-    return null // an opened file, unedited and with no source: say nothing
+    // Untouched, there is nothing to lose: a blank note, a template as it came,
+    // a file just opened. Say nothing. Once edited, the browser holds the only
+    // copy of the edits, which is worth a warning. "Not saved" rather than the
+    // old "New": that word sat beside the toolbar's buttons and read as the New
+    // command, and a page of unsaved text deserves amber, not neutral grey.
+    if (!dirty) return null
+    if (doc.origin === 'new') return { text: 'Not saved', cls: 'cloud-state warn', title: 'Not saved anywhere yet — only in this browser' }
+    return { text: 'Changed', cls: 'cloud-state warn', title: 'Edited since it was opened' }
   }
   if (source === 'local') {
     if (doc.localBusy) return { text: 'Saving…', cls: 'cloud-state' }
@@ -1900,10 +1954,13 @@ async function saveToLocal(doc) {
     }
     doc.localBusy = true
     renderCloudStatus()
-    const saved = await localFiles.write({ handle: base?.handle, name: doc.name, text: doc.text })
+    // What is written is what becomes "saved", even if typing goes on meanwhile
+    // (see inOrder).
+    const text = doc.text
+    const saved = await inOrder(doc, () => localFiles.write({ handle: base?.handle, name: doc.name, text }))
     doc.local = { handle: saved.handle, name: saved.name, lastModified: saved.lastModified, size: saved.size, savedAt: Date.now() }
     doc.name = saved.name
-    doc.savedText = doc.text
+    doc.savedText = text
     doc.localChanged = false
     await saveNow(doc)
     renderTabs()
@@ -1924,10 +1981,11 @@ async function saveToLocalAs(doc) {
   try {
     doc.localBusy = true
     renderCloudStatus()
-    const saved = await localFiles.write({ handle: null, name: doc.name, text: doc.text })
+    const text = doc.text
+    const saved = await inOrder(doc, () => localFiles.write({ handle: null, name: doc.name, text }))
     doc.local = { handle: saved.handle, name: saved.name, lastModified: saved.lastModified, size: saved.size, savedAt: Date.now() }
     doc.name = saved.name
-    doc.savedText = doc.text
+    doc.savedText = text
     doc.localChanged = false
     // The new local file is now the note's home; drop any cloud link so Save
     // goes here, not back to Drive.
@@ -2066,6 +2124,9 @@ function openSaveTarget() {
   saveTarget.local.classList.toggle('disabled', !canLocal)
   saveTarget.drive.hidden = !canDrive
   saveTarget.unsupported.hidden = canLocal
+  // A choice closes the dialog with 'chosen'; anything else (×, Esc) leaves this
+  // empty, which is how its close handler tells a dismissal from a choice.
+  saveTarget.dialog.returnValue = ''
   saveTarget.dialog.showModal()
 }
 
@@ -2125,14 +2186,43 @@ function closeActionSet(doc, srcChanged) {
   return [discard, { label: 'Save', value: 'save', primary: true, title: src ? `Save your changes ${inWhere}.` : 'Choose where to save this note.' }]
 }
 
-/** Carry out a choice from the unsaved-changes dialog or its diff. A save that
- *  leaves the note clean finishes the close; a cancelled one keeps it open. */
+/**
+ * Carry out a choice from the unsaved-changes dialog or its diff. Only a discard
+ * goes to the bin: the bin holds what the user chose to throw away. A save that
+ * leaves the note clean finishes the close the way a clean close does, by
+ * removing the note, since its file now holds it. A cancelled save keeps it open.
+ */
 async function handleCloseAction(doc, value) {
   if (value === 'discard') return binAndDrop(doc.id)
-  if (value === 'save') { await saveActive(); if (doc.text === doc.savedText) binAndDrop(doc.id); return }
-  if (value === 'copy') { await copyToSource(doc); if (doc.text === doc.savedText) binAndDrop(doc.id); return }
-  if (value === 'overwrite') { await overwriteSource(doc); if (doc.text === doc.savedText) binAndDrop(doc.id) }
+  if (value === 'save') {
+    // A note with no file yet only opens "where to save" here; the choice made
+    // there finishes the close (see pendingClose).
+    if (!noteSource(doc)) { pendingClose = doc; return saveActive() }
+    await saveActive()
+  } else if (value === 'copy') await copyToSource(doc)
+  else if (value === 'overwrite') await overwriteSource(doc)
+  else return
+  if (doc.text === doc.savedText) deleteAndDrop(doc.id)
 }
+
+/**
+ * The note whose close waits on the "where to save" dialogs: Close → Save on a
+ * note with no file yet. Those dialogs are modal, so there is at most one.
+ * Whichever way they end calls settlePendingClose (a save was attempted) or
+ * dropPendingClose (they were dismissed), so a pending close never outlives
+ * them and cannot close the note later, by surprise, on some unrelated save.
+ */
+let pendingClose = null
+
+/** A save started from the close dialog has finished: close the note if it is
+ *  now clean, and keep it open if the save failed or was cancelled. */
+function settlePendingClose() {
+  const doc = pendingClose
+  pendingClose = null
+  if (doc && state.docs.has(doc.id) && doc.text === doc.savedText) deleteAndDrop(doc.id)
+}
+
+const dropPendingClose = () => { pendingClose = null }
 
 /**
  * The note being closed has unsaved edits. Offer to save, discard (to the bin,
@@ -2163,16 +2253,19 @@ async function overwriteSource(doc) {
   try {
     if (src === 'local') {
       if (!(await localFiles.ensurePermission(doc.local.handle))) return
-      const saved = await localFiles.write({ handle: doc.local.handle, name: doc.name, text: doc.text })
+      const text = doc.text
+      const saved = await inOrder(doc, () => localFiles.write({ handle: doc.local.handle, name: doc.name, text }))
       doc.local = { handle: saved.handle, name: saved.name, lastModified: saved.lastModified, size: saved.size, savedAt: Date.now() }
       doc.localChanged = false
+      doc.savedText = text
     } else if (src === 'gdrive') {
       const provider = providerFor(doc)
-      const saved = await provider.write({ id: doc.remote.id, name: doc.name, text: doc.text })
+      const text = doc.text
+      const saved = await inOrder(doc, () => provider.write({ id: doc.remote.id, name: doc.name, text }))
       doc.remote = remoteLink(provider, saved)
       doc.remoteChanged = doc.remoteRenamed = doc.remoteTrashed = false
+      doc.savedText = text
     }
-    doc.savedText = doc.text
   } catch (err) {
     if (src === 'gdrive') cloudFailed('save to the cloud', err)
     else localFailed(err)
@@ -2188,10 +2281,11 @@ async function copyToSource(doc) {
     try {
       const folder = await ensureAppFolder(provider)
       if (!folder) return
-      const saved = await createInAppFolder(provider, { name: copyName(doc.name), text: doc.text }, folder)
+      const text = doc.text
+      const saved = await inOrder(doc, () => createInAppFolder(provider, { name: copyName(doc.name), text }, folder))
       doc.remote = remoteLink(provider, saved)
       doc.name = saved.name
-      doc.savedText = doc.text
+      doc.savedText = text
       doc.remoteChanged = doc.remoteRenamed = doc.remoteTrashed = false
     } catch (err) {
       cloudFailed('save to the cloud', err)
@@ -2212,10 +2306,11 @@ async function overwriteToCloud(doc) {
 
     doc.cloudBusy = true
     renderCloudStatus()
+    const text = doc.text
     if (choice === 'copy') {
       const folder = await ensureAppFolder(provider)
       if (!folder) return
-      const saved = await createInAppFolder(provider, { name: copyName(doc.name), text: doc.text }, folder)
+      const saved = await inOrder(doc, () => createInAppFolder(provider, { name: copyName(doc.name), text }, folder))
       doc.remote = remoteLink(provider, saved)
       doc.name = saved.name
     } else {
@@ -2224,11 +2319,11 @@ async function overwriteToCloud(doc) {
       // name. All three write to the same file.
       if (choice === 'restore') await provider.untrash(doc.remote.id)
       const name = choice === 'follow' ? cur.name : doc.name
-      const saved = await provider.write({ id: doc.remote.id, name, text: doc.text })
+      const saved = await inOrder(doc, () => provider.write({ id: doc.remote.id, name, text }))
       doc.remote = remoteLink(provider, saved)
       if (saved.name) doc.name = saved.name
     }
-    doc.savedText = doc.text
+    doc.savedText = text
     doc.remoteChanged = doc.remoteRenamed = doc.remoteTrashed = false
     await saveNow(doc)
     renderTabs()
@@ -2484,6 +2579,7 @@ async function addExternalFolder() {
   // it is up and back in with the result; the typed name is preserved. The
   // added folder joins the My Drive tab, and we open straight into it.
   const typed = saveAs.name.value
+  steppingOut = true // this close is not a dismissal: see the close handler
   saveAs.dialog.close()
   try {
     const folder = await pickerProvider.pickFolder()
@@ -2517,18 +2613,22 @@ async function confirmSaveAs() {
   saveAs.confirm.disabled = true
   doc.cloudBusy = true
   renderCloudStatus()
+  let saved = false
   try {
-    const saved = existing
-      ? await pickerProvider.write({ id: existing.id, name, text: doc.text })
-      : await pickerProvider.write({ name, text: doc.text, parents: [current().id] })
+    const text = doc.text
+    const parents = [current().id]
+    const saved = await inOrder(doc, () => existing
+      ? pickerProvider.write({ id: existing.id, name, text })
+      : pickerProvider.write({ name, text, parents }))
     doc.remote = remoteLink(pickerProvider, saved)
     doc.name = saved.name || name
-    doc.savedText = doc.text
+    doc.savedText = text
     doc.remoteChanged = false
     await markRootSaved(pickerProvider, pickerPath[0].id)
     await saveNow(doc)
     renderTabs()
     saveAs.dialog.close()
+    saved = true
   } catch (err) {
     cloudFailed('save to the cloud', err)
   } finally {
@@ -2536,6 +2636,9 @@ async function confirmSaveAs() {
     doc.cloudBusy = false
     renderCloudStatus()
   }
+  // A failed save leaves the dialog open to try again, so only a finished one
+  // settles a close that was waiting on it.
+  if (saved) settlePendingClose()
 }
 
 /* ---------- templates ---------- */
@@ -2569,12 +2672,9 @@ for (const t of templates) {
 
 /* ---------- wiring ---------- */
 
-document.getElementById('btn-new').onclick = () => {
-  setActive(addDoc('untitled.md', '# \n', null, 'new'))
-  // A blank note is an invitation to type, so this is the one action that
-  // always lands in the editor.
-  setMode('edit', { focus: true })
-}
+// New is the blank template without the picker, so the two cannot drift apart.
+// A blank note is an invitation to type, so it always lands in the editor.
+document.getElementById('btn-new').onclick = () => newFromTemplate(templates.find((t) => t.id === 'blank'))
 document.getElementById('btn-new-template').onclick = () => templatePicker.dialog.showModal()
 el.modeBtn.onclick = toggleMode
 document.getElementById('btn-open').onclick = openLocal
@@ -2597,14 +2697,40 @@ fi.save.onclick = () => { fi.dialog.close(); saveActive() }
 diff.prev.onclick = () => gotoHunk(-1)
 diff.next.onclick = () => gotoHunk(1)
 document.getElementById('diff-close').onclick = () => diff.dialog.close()
-saveTarget.local.onclick = () => { saveTarget.dialog.close(); saveToLocal(active()) }
-saveTarget.drive.onclick = () => { saveTarget.dialog.close(); openSaveAs() }
-saveTarget.download.onclick = (e) => { e.preventDefault(); saveTarget.dialog.close(); downloadActive() }
+// Each choice also settles a close waiting on it (pendingClose). Drive goes on to
+// its own dialog, which settles the close when it saves or is dismissed.
+saveTarget.local.onclick = async () => {
+  saveTarget.dialog.close('chosen')
+  await saveToLocal(active())
+  settlePendingClose()
+}
+saveTarget.drive.onclick = async () => {
+  saveTarget.dialog.close('chosen')
+  await openSaveAs()
+  if (!saveAs.dialog.open) dropPendingClose() // it never got as far as showing
+}
+saveTarget.download.onclick = (e) => {
+  e.preventDefault()
+  saveTarget.dialog.close('chosen')
+  downloadActive()
+  settlePendingClose()
+}
+saveTarget.dialog.addEventListener('close', () => {
+  if (saveTarget.dialog.returnValue !== 'chosen') dropPendingClose()
+})
 for (const t of saveAs.tabs.querySelectorAll('.cloud-tab')) t.onclick = () => openTab(t.dataset.tab)
 saveAs.newFolder.onclick = newFolder
 saveAs.addExternal.onclick = addExternalFolder
 saveAs.confirm.onclick = confirmSaveAs
 saveAs.cancel.onclick = () => saveAs.dialog.close()
+// Closing the Drive dialog without saving (Cancel, ×, Esc) dismisses a close
+// that was waiting on it. Stepping out for Google's folder picker closes it too,
+// briefly, and must not count.
+let steppingOut = false
+saveAs.dialog.addEventListener('close', () => {
+  if (steppingOut) { steppingOut = false; return }
+  dropPendingClose()
+})
 
 /* ---------- keyboard shortcuts ---------- */
 
@@ -2712,6 +2838,13 @@ async function dropHandles(promises) {
 // landed, so that is when open cloud notes are re-checked for changes.
 addEventListener('visibilitychange', maybeCheckRemote)
 addEventListener('focus', maybeCheckRemote)
+
+// Leaving the page writes what the debounce still holds. Turning hidden comes
+// first and is the dependable signal: it fires on switching tabs, minimising,
+// and as the first step of closing, while there is still time for IndexedDB.
+// `pagehide` covers a navigation that skips it.
+document.addEventListener('visibilitychange', () => { if (document.hidden) flushSaves() })
+addEventListener('pagehide', flushSaves)
 
 el.splitter.onmousedown = (down) => {
   down.preventDefault()

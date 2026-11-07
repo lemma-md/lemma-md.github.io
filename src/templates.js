@@ -121,7 +121,7 @@ Links work too — hold **Ctrl** and click [example.com](https://example.com).
  * id from editor/index.html.
  */
 export const templates = [
-  { id: 'blank', name: 'untitled.md', label: 'Blank note', description: 'Start from nothing.', text: '# \n', mode: 'edit', icon: 'icon-new' },
+  { id: 'blank', name: 'untitled.md', label: 'Blank note', description: 'Start from nothing.', text: '', mode: 'edit', icon: 'icon-new' },
   { id: 'welcome', name: 'welcome.md', label: 'Welcome & basics', description: 'Markdown and TeX in five minutes.', text: WELCOME, mode: 'view', icon: 'icon-info' },
   { id: 'slides', name: 'demo-slides.md', label: 'Slide demo', description: 'A short deck — open it, then Present (Alt+P).', text: DEMO_SLIDES, mode: 'view', icon: 'icon-present' },
 ]

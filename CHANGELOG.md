@@ -8,6 +8,25 @@ This is the *when*. The *why* behind a decision is in
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), and what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md).
 
+## 2026-11-07
+
+### Changed
+
+- A new blank note starts empty, instead of with a `#` heading to type over.
+- The toolbar status of a new note says **Not saved**, in amber, once it has
+  been edited, and nothing before that. It used to say "New" in grey, which
+  read as the *New* command.
+- Only a note closed with *Discard changes* goes to the bin. One saved from the
+  close dialog is closed like any saved note.
+
+### Fixed
+
+- Edits made just before switching tabs, or just before leaving the page,
+  could be lost on a reload.
+- Text typed while a save was in progress could be marked as saved though the
+  file held the older version.
+- *Save* in the close dialog of a new note saved it but left the tab open.
+
 ## 2026-09-21
 
 ### Changed

@@ -32,13 +32,19 @@ matches wins.
 
 | condition | status |
 |---|---|
-| `origin: 'new'` | **New** |
-| edited since opening (`text ≠ savedText`) | **Changed** |
-| otherwise (an opened file, untouched) | *nothing shown* |
+| untouched (`text = savedText`) | *nothing shown* |
+| `origin: 'new'`, edited | **Not saved** |
+| an opened file, edited | **Changed** |
 
-So a dropped-in file you only read shows no status — there is nothing to say
-about a place it was never saved to. Edit it and it becomes **Changed**; the
-File info **Save** button then offers to put it in a storage.
+Both words are amber. An untouched note shows no status, whether it is a
+blank note, a template as it came, or a file you only read: there is nothing
+to lose and nothing to say about a place it was never saved to. Once edited,
+the browser holds the only copy of the edits. The File info **Save** button
+then offers to put the note in a storage.
+
+A new note used to show **New** in grey from the start. That word sat beside
+the toolbar's buttons and read as the *New* command, and grey understated a
+page of text that existed only in the browser *(2026-11)*.
 
 **Google Drive source:**
 

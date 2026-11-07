@@ -145,6 +145,16 @@ and no reason to fill the bin with it. Deleting from Settings is explicit and
 confirmed. The invariant: every note in storage is either open in a tab or in
 the bin.
 
+**The bin holds only what was discarded** *(2026-11)*. Choosing *Save* in the
+close dialog removes the note once the save has finished, exactly like a clean
+close. Before, it binned the note, so the same note could end up in the bin or
+not depending on how it was closed. For a note with no file yet, *Save* first
+asks where to save, and the close finishes only after that choice saves it; if
+that dialog is dismissed or the save fails, the note stays open. A note
+"saved" only by *Download* is likewise removed on close. That trusts the
+download, which by default goes straight to the Downloads folder; the rare
+download that fails silently is an accepted risk.
+
 This replaces the first version's rule that a closed note always stayed in
 storage. That rule fitted a time when this database held the *only* copy of
 every note. Once notes could be saved to a real file, keeping every closed one
