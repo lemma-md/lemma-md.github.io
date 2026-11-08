@@ -171,6 +171,13 @@ body { display: flex; flex-direction: column; }
   border-radius: 8px;
   background: var(--bg);
   box-shadow: 0 8px 28px rgba(0, 0, 0, .14);
+  /* Taller than a laptop's window once the browser's own bars are counted: it
+     scrolls within itself, rather than stretching the page under the editor.
+     50px is the bar above it and a margin below. */
+  max-height: calc(100vh - 50px);
+  max-height: calc(100dvh - 50px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 #menu[hidden] { display: none; }

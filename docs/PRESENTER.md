@@ -27,7 +27,7 @@ exist" over ghost `ReferenceError`s in the console buffer.
 | [`src/present/ink-svg.js`](../src/present/ink-svg.js) | Pure ink geometry & static SVG rendering (`ribbonPath`, `strokeElement`, `createAnnotationSvg`, `createBoardSvg`, `nonEmptyBoards`, `annotationBottom`, palettes, defs) — **shared** by `ink.js` and the PDF export. No duplicate ink renderer. |
 | [`src/present/ink.js`](../src/present/ink.js) | **Everything else** — the live ink layer, tools, palette, modes, board, navigator, overview, settings/help dialogs, blank screen, the **Export as PDF…** menu item, and the one keyboard handler. The big file. Imports its stroke rendering from `ink-svg.js`. |
 | [`pdf/index.html`](../pdf/index.html) · [`src/pdf/pdf.js`](../src/pdf/pdf.js) · [`src/pdf.css`](../src/pdf.css) | The PDF export page (see below). No reveal.js — it lays out its own fixed pages. |
-| [`src/pdf/preview.js`](../src/pdf/preview.js) · [`src/pdf-preview.css`](../src/pdf-preview.css) | The in-page preview **modal** (an iframe onto `pdf/`), **shared** by the projector (`ink.js`) and the editor (`app.js`, menu item **Export as PDF…** after *Download as .html*). |
+| [`src/pdf/preview.js`](../src/pdf/preview.js) · [`src/pdf-preview.css`](../src/pdf-preview.css) | The in-page preview **modal** (an iframe onto `pdf/`), **shared** by the projector (`ink.js`) and the editor (`app.js`, menu item **Export as PDF…** after the downloads). |
 | [`src/present.css`](../src/present.css) | The theme + all the projector chrome. No reveal theme is vendored — this *is* the theme. |
 | [`src/slides.css`](../src/slides.css) | Slide-body / `deck-*` styles **shared** with the editor's reading-view preview and the PDF export. |
 | [`src/drafts.js`](../src/drafts.js) | IndexedDB (`docs` / `meta` / `annotations` stores). |
@@ -215,7 +215,7 @@ the note first).
 selectable and the ink stays vector — no rasterising, no new dependency. It is a
 **separate static page** (`pdf/`), shown as an in-page preview modal (an
 `<iframe>`), reachable from the **presenter menu** and from the **editor's menu**
-(after *Download as .html*). The modal opener (`src/pdf/preview.js`) and its
+(after the downloads). The modal opener (`src/pdf/preview.js`) and its
 styles (`src/pdf-preview.css`) are shared by both:
 
    The URL carries two switches: **`ink=1`** includes the annotations and board

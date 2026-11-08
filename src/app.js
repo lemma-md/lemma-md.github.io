@@ -7,6 +7,7 @@ import { googleDrive } from './storage/gdrive.js'
 import { localFiles } from './storage/local.js'
 import { lineDiff, diffStats, sideBySide, inlineDiff } from './diff.js'
 import { buildStandaloneHtml, extractMarkdown } from './export-html.js'
+import { buildTex } from './export-tex.js'
 import { openPdfPreview } from './pdf/preview.js'
 import { WELCOME, templates } from './templates.js'
 import { helpUrl } from './help.js'
@@ -842,16 +843,20 @@ async function openLocal() {
   }
 }
 
-function downloadActive() {
-  const doc = active()
-  if (!doc) return
-  const name = doc.name.endsWith('.md') ? doc.name : `${doc.name}.md`
-  const url = URL.createObjectURL(new Blob([doc.text], { type: 'text/markdown' }))
+/** Hand the browser a file to save under `name`. */
+function download(name, text, type) {
+  const url = URL.createObjectURL(new Blob([text], { type }))
   const a = document.createElement('a')
   a.href = url
   a.download = name
   a.click()
   URL.revokeObjectURL(url)
+}
+
+function downloadActive() {
+  const doc = active()
+  if (!doc) return
+  download(doc.name.endsWith('.md') ? doc.name : `${doc.name}.md`, doc.text, 'text/markdown')
 
   doc.savedText = doc.text
   storeDoc(doc)
@@ -867,12 +872,18 @@ function exportHtml() {
   const doc = active()
   if (!doc) return
   const base = doc.name.replace(/\.md$/i, '') || 'note'
-  const url = URL.createObjectURL(new Blob([buildStandaloneHtml(doc.name, doc.text)], { type: 'text/html' }))
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `${base}.html`
-  a.click()
-  URL.revokeObjectURL(url)
+  download(`${base}.html`, buildStandaloneHtml(doc.name, doc.text), 'text/html')
+}
+
+/**
+ * Export the note as a .tex file: a Beamer presentation when it is shown as
+ * slides, an article otherwise (export-tex.js). Not a save either.
+ */
+function exportTex() {
+  const doc = active()
+  if (!doc) return
+  const base = doc.name.replace(/\.md$/i, '') || 'note'
+  download(`${base}.tex`, buildTex(doc.name, doc.text, { slides: viewOf(doc) === 'slides' }), 'text/x-tex')
 }
 
 /**
@@ -2922,6 +2933,7 @@ el.modeBtn.onclick = toggleMode
 document.getElementById('btn-open').onclick = openLocal
 document.getElementById('btn-save').onclick = downloadActive
 document.getElementById('btn-export-html').onclick = exportHtml
+document.getElementById('btn-export-tex').onclick = exportTex
 document.getElementById('btn-export-pdf').onclick = exportPdf
 document.getElementById('btn-present').onclick = present
 document.getElementById('btn-close').onclick = () => { if (state.activeId) closeTab(state.activeId) }

@@ -32,6 +32,7 @@
 <p class="how">
   Served from the repository root, as the site is: start the server with
   <code>_tools/lemma_start</code> and open <code>http://localhost:8001/_tools/tests/</code>.
+  <code>?only=tex,render</code> runs only those files, while working on them.
   Nothing here is published: Jekyll skips <code>_tools/</code>.
 </p>
 
@@ -51,6 +52,7 @@
   const TESTS = [
     './render.test.js',
     './export.test.js',
+    './tex.test.js',
     './slides.test.js',
     './help.test.js',
     './storage.test.js',
@@ -58,12 +60,24 @@
     './presentations.test.js',
   ]
 
+  // ?only=tex,render runs those files alone, while working on them. A change is
+  // done when the page has run everything, without it.
+  const name = (file) => file.slice(2, -'.test.js'.length)
+  const only = new URLSearchParams(location.search).get('only')?.split(',').map((s) => s.trim()).filter(Boolean) ?? null
+  const unknown = (only ?? []).filter((n) => !TESTS.some((file) => name(file) === n))
+  if (unknown.length) {
+    document.title = `FAIL: no tests named ${unknown.join(', ')}`
+    document.getElementById('results').textContent = `${document.title}. The files are: ${TESTS.map(name).join(', ')}.`
+    throw new Error(document.title)
+  }
+  const chosen = only ? TESTS.filter((file) => only.includes(name(file))) : TESTS
+
   // Load what is on disk, not what the browser cached before the last edit.
   // The editor tests run the whole app in a frame, so its modules too.
-  await refresh([...TESTS, '../../src/app.js', '../../src/presentations.js', './fake-drive.js'])
+  await refresh([...chosen, '../../src/app.js', '../../src/presentations.js', './fake-drive.js'])
   const { run } = await import('./runner.js')
-  for (const file of TESTS) await import(file)
-  run(document.getElementById('results'))
+  for (const file of chosen) await import(file)
+  run(document.getElementById('results'), { only })
 </script>
 
 </body>

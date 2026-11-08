@@ -8,6 +8,17 @@ This is the *when*. The *why* behind a decision is in
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), and what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md).
 
+## 2026-11-09
+
+### Added
+
+- **Export as .tex**, in the editor's menu, beside *Export as PDF…*. A note becomes a LaTeX article,
+  and a note shown as slides a Beamer presentation, its front-matter the title
+  page. Formulas go as written; Greek letters, symbols such as ∈ or ℝ, and
+  KaTeX's own macros are made LaTeX's, and emoji left out. The preamble follows
+  the text: pdfLaTeX for English, accented Latin and Cyrillic, LuaLaTeX for
+  Chinese, Japanese, Korean, Arabic and Hebrew.
+
 ## 2026-11-08
 
 ### Added

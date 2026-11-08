@@ -73,6 +73,19 @@ test('Discard changes sends the note to the bin', () => withEditor(async (ed) =>
   assert.ok(binned?.binnedAt, 'in the bin, with its text')
 }))
 
+test('a menu taller than the window scrolls within itself', () => withEditor(async (ed) => {
+  ed.win.frameElement.style.height = '400px'
+  ed.$('#btn-menu').click()
+  const menu = ed.$('#menu')
+  await waitFor(() => !menu.hidden, 'the menu open')
+  assert.ok(menu.getBoundingClientRect().bottom <= ed.win.innerHeight, 'the menu ends inside the window')
+  assert.ok(menu.scrollHeight > menu.clientHeight, 'and scrolls')
+  assert.ok(ed.doc.documentElement.scrollHeight <= ed.win.innerHeight, 'the page does not grow under it')
+  menu.scrollTop = menu.scrollHeight
+  const last = ed.$('#btn-help').getBoundingClientRect()
+  assert.ok(last.bottom <= menu.getBoundingClientRect().bottom + 1, 'its last entry can be reached')
+}))
+
 test('the preview makes a title slide exactly when the projector does', () => withEditor(async (ed) => {
   await ed.newNote()
   const editor = await ed.editor()

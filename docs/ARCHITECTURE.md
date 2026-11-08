@@ -333,6 +333,49 @@ them:
   libraries — a reversal of an earlier "no network" intent: a self-contained
   variant would inline the libraries and the ~1 MB of KaTeX fonts, and the small
   file won. (Embedding documents in the URL was considered and rejected.)
+- **`.tex`** *(2026-11)*, for a note that goes on as a paper or a talk in TeX
+  (`src/export-tex.js`). A note becomes an `article`; a note shown as slides,
+  a `beamer` presentation, a frame per slide, the slide's opening heading its
+  frame title and the front-matter its title page. Only the text goes: ink and
+  the board stay with the presentation. The converter walks marked's tokens,
+  the parse the preview makes with the same math extension, so formulas pass
+  through exactly as written and nothing new is vendored; pandoc would need a
+  large WebAssembly build. Where the preview and LaTeX differ, the export
+  bridges it rather than leaving the author an error:
+  - **The preamble follows the text**, so an English note gets nothing extra.
+    Accented Latin letters bring `T1` and `lmodern` (OT1 has no ą, and composes
+    ü from parts that break hyphenation and search). Cyrillic brings `T2A` and
+    `babel`, whose language matters for hyphenation: Ukrainian if і, ї, є or ґ
+    appear, Russian otherwise, and the main language the one with more letters
+    outside formulas. A language is not guessed for Latin text: ü is German,
+    Turkish or Hungarian, and English hyphenation only errs, where none at all
+    for Cyrillic overflows the margin. These all compile with plain pdfLaTeX,
+    which journals and arXiv expect.
+  - **Chinese, Japanese, Korean, Arabic and Hebrew** need LuaLaTeX, which pdfLaTeX
+    cannot stand in for at all. Such a note gets a LuaLaTeX preamble: babel's
+    `onchar` switches language and font by script, with fonts that TeX Live and
+    MiKTeX ship (Fandol, Harano Aji, UnBatang, Amiri, Libertinus; CMU for
+    Cyrillic, which Latin Modern lacks), and `bidi=basic` for right-to-left.
+    `% !TEX program = lualatex` lets TeXstudio and TeXShop pick the engine, and
+    `\RequireLuaTeX` stops pdfLaTeX at once with a message saying so, where it
+    would stop anyway at the first such character. LuaLaTeX was preferred to
+    XeLaTeX because babel does the most for it.
+  - **What a chat writes as characters**: Greek letters and symbols such as ∈,
+    ≤ or ℝ become commands, in formulas and in text (`\ensuremath`); emoji are
+    left out, but for ✓ and ✗. KaTeX's own macros (`\R`, `\lt`, `\argmax`) are
+    provided with `\providecommand`, and a formula's `\color`, `\cancel`, `\bm`
+    or `\mathscr` brings its package. An amsmath environment written inside
+    `$$` stands on its own, as amsmath requires.
+  - **Pictures become links** to their web address, with the address in a
+    comment: `\includegraphics` needs the file beside the `.tex`, which waits
+    for pictures that live with the note (ROADMAP 1.3).
+  - **A slide's background** is CSS, so a colour name is read as CSS means it
+    (xcolor's green is CSS's lime), and a dark one gets light text, as reveal.js
+    gives it.
+  Headings are numbered sections, as a paper's are. Whether the output compiles
+  was checked with pdfLaTeX and LuaLaTeX (MiKTeX) when this was built, in every
+  script above; the test page has no TeX to run, so its tests check the LaTeX
+  written.
 - **`.pdf`** via browser print, because mathematicians send PDFs.
 
 ## Presentation
@@ -543,6 +586,11 @@ that something driving the page can read it without looking.
   vendored copy, for little more than the runner already does.
 - **In `_tools/`**, so Jekyll leaves it out of the site, like the other
   development scripts.
+- **A part can run alone** *(2026-11)*: `?only=tex,render` loads just those
+  files, and the title says so, so that a partial pass is not read as the whole.
+  A run of everything takes about a minute, most of it the editor; a change is
+  done after one. A test file therefore imports no other test file, which would
+  bring that file's tests along.
 - **The export is tested offline.** The downloaded `.html` loads its libraries
   from a CDN; the tests swap them for the vendored copies, and check first that
   the versions are the same, which is what makes the swap fair.

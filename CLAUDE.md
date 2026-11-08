@@ -64,7 +64,9 @@ being capable of stripping MathML.
 test there, in the file for its area. The export tests also fail when
 `RENDER_MIN` was not regenerated after a change to the renderer. A run takes
 about a minute, most of it the editor tests; the page reloads every module
-itself, so a plain reload runs what is on disk.
+itself, so a plain reload runs what is on disk. While working on one area,
+`?only=tex,render` runs just those files (named without `.test.js`), and the
+title says `(only …)`; a change is done after a run of everything.
 
 The start scripts run `_tools/serve.py`, which sends `Cache-Control: no-cache`,
 so a reload asks for every file again. Plain `python -m http.server` sends no

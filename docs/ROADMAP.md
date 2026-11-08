@@ -98,36 +98,17 @@ Open questions:
   for example Gmail attachment links.
 - **Size.** Should a pasted screenshot be scaled down or recompressed before
   it is stored?
-
-### 1.4 Download as LaTeX
-
-A `.tex` file from the note, for someone who goes on in Overleaf or a local
-TeX installation. The formulas are already TeX and pass through unchanged. The
-Markdown around them maps onto LaTeX: headings to `\section`, emphasis to
-`\emph`, lists to `itemize` and `enumerate`, code to `verbatim`, links to
-`\href`, tables to `tabular`, and images to `\includegraphics`. The converter
-can walk marked's own tokens, the same parse the preview uses, so it needs no
-new library; pandoc does not run in a browser without a large WebAssembly
-build. When it ships, the front page's *Save it, send it, print it* card names
-`.tex` beside `.md`.
-
-Open questions:
-
-- **The preamble**: which document class and packages (`amsmath`, `amssymb`,
-  `hyperref`, `graphicx`). The front-matter's `title`, `author` and `date` fill
-  `\title`, `\author` and `\date`.
-- **Decks**: export a deck as a Beamer presentation, one frame per slide, or
-  always as an article?
-- **Images**: `\includegraphics` needs the picture beside the `.tex`. Download
-  a `.zip` with the pictures, or leave the links for the user to resolve? This
-  ties in with 1.3.
-- **Open in Overleaf** directly, as well as downloading. Overleaf accepts a
-  document posted to it, but that sends the note's text to a third party, so it
-  would be an explicit button, never automatic.
+- **Pictures in Export as .tex.** Today a picture becomes a link to its web
+  address (ARCHITECTURE → Export). Once pictures live with the note,
+  `\includegraphics` needs them beside the `.tex`: download a `.zip` with the
+  pictures, or leave the links for the user to resolve?
 
 ### Later
 
 - **Merging** two versions in *Compare changes*, beyond choosing one side.
+- **Open in Overleaf** directly, as well as *Export as .tex*. Overleaf
+  accepts a document posted to it, but that sends the note's text to a third
+  party, so it would be an explicit button, never automatic.
 
 ## 2. Presenter
 
@@ -301,7 +282,8 @@ Writing:
 13. **Formulas pasted from ChatGPT** (`#chatgpt-formulas`). `\( \)` and
     `\[ \]`, and *Fix* in the problems panel once 1.1 ships.
 14. **Downloading and exporting** (`#export`). `.md`; a standalone `.html` that
-    can be dragged back in; PDF through the browser's print.
+    can be dragged back in; `.tex`, and which engine compiles it; PDF through
+    the browser's print.
 
 Presenting:
 

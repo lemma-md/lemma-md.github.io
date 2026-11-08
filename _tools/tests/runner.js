@@ -52,9 +52,10 @@ function withTimeout(promise, ms) {
 /**
  * Run every registered test and list the results in `out`. The summary also
  * goes into the page title and `window.testResults`, for whatever drives the
- * page without looking at it.
+ * page without looking at it. `only` names the files a partial run loaded: the
+ * summary says so, so that it is not taken for the whole.
  */
-export async function run(out, { timeout = 10000 } = {}) {
+export async function run(out, { timeout = 10000, only = null } = {}) {
   const summary = document.createElement('p')
   summary.className = 'summary'
   summary.textContent = `Running ${tests.length} tests…`
@@ -84,12 +85,13 @@ export async function run(out, { timeout = 10000 } = {}) {
     list.append(li)
   }
 
+  const part = only ? ` (only ${only.join(', ')})` : ''
   const text = failures.length
-    ? `FAIL ${failures.length} of ${tests.length}`
-    : `PASS ${tests.length}`
+    ? `FAIL ${failures.length} of ${tests.length}${part}`
+    : `PASS ${tests.length}${part}`
   summary.textContent = text
   summary.classList.add(failures.length ? 'fail' : 'pass')
   document.title = text
-  window.testResults = { total: tests.length, failed: failures.length, failures }
+  window.testResults = { total: tests.length, failed: failures.length, failures, only }
   return window.testResults
 }

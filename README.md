@@ -48,6 +48,10 @@ Working today:
   browser has agreed to keep them permanently
 - download as `.md`, or export a self-contained `.html` that renders the note —
   Markdown and TeX — anywhere, and can be dragged back in to recover the source
+- export as `.tex`: an article, or a Beamer presentation for a note shown as
+  slides, with a preamble that follows the text — plain pdfLaTeX for English,
+  accented Latin and Cyrillic, LuaLaTeX for Chinese, Japanese, Korean, Arabic
+  and Hebrew
 - open and save real files on disk where the browser allows it; elsewhere, open
   by drag-and-drop and "save" means download
 - save notes to Google Drive and open them back, with conflicts and outside
@@ -70,8 +74,6 @@ Planned, numbered as in [docs/ROADMAP.md](docs/ROADMAP.md):
    - **1.2** editor and preview in step: jump from the text to the preview and
      back
    - **1.3** inserting images by pasting, dropping or choosing a file
-   - **1.4** download as LaTeX, a `.tex` file to continue in Overleaf or a TeX
-     installation
 2. **Presenter**
    - **2.1** presentation management: each presentation keeps its own copy of
      the slides and its ink, so editing or closing the note no longer disturbs
@@ -148,7 +150,7 @@ same rendered Markdown and TeX you see while reading; only the layout changes.
   **Board** (`Alt+B`) is a blank surface to work on mid-talk. Each mode remembers
   its own tool and colour, and the mode you were in is restored when you reopen.
 - **Export as PDF…** (in the presenter menu, and in the editor's menu after
-  *Download as .html*) opens an in-app preview; *Save as PDF* there opens the
+  the downloads) opens an in-app preview; *Save as PDF* there opens the
   system print dialog. Text and formulas stay selectable and any ink stays vector
   (nothing is rasterised). What comes out depends on the note:
   - a **deck** prints one `960×700` page per slide. From the **presenter** the
@@ -270,6 +272,7 @@ privacy.html        the privacy policy
 src/examples.js     renders the FAQ's Markdown examples with viewer.js
 src/app.js          tabs, drag & drop, autosave, pane splitter
 src/viewer.js       markdown + TeX -> sanitised HTML
+src/export-*.js     a note as a page that renders itself (html), or as LaTeX (tex)
 src/editor.js       Ace, loaded on demand
 src/present/        slide splitting, reveal.js setup, the drawing tools, and the
                     catalog the presentations page lists

@@ -4,10 +4,18 @@
 
 import { splitSlides, parseDeck, parseDirectives, hasTitle } from '../../src/present/slides.js'
 import { templates, WELCOME } from '../../src/templates.js'
-import { errors } from './render.test.js'
+import { render } from '../../src/viewer.js'
 import { suite, test, assert } from './runner.js'
 
 const count = (md) => splitSlides(md).length
+
+/** How many formulas KaTeX could not typeset. (Not imported from
+ *  render.test.js: that would run its tests too, in a run of these alone.) */
+function errors(md) {
+  const div = document.createElement('div')
+  div.innerHTML = render(md)
+  return div.querySelectorAll('.katex-error').length
+}
 
 suite('slides')
 
