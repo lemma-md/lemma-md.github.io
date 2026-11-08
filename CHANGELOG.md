@@ -8,19 +8,39 @@ This is the *when*. The *why* behind a decision is in
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), and what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md).
 
-## 2026-11-07
+## 2026-11-08
 
 ### Added
 
-- A **help page**, linked from the front page and from *Help* at the bottom of
-  the editor's menu, with four answers to start
-  with: why there is no server or account, saving into files on disk (and why
-  only in Chromium browsers), where notes are kept before they are saved, and
-  how to let the site store data. The app links to it where a browser setting
-  is in the way.
+- A **Presentations** page, linked from the front page and the editor's menu.
+  It lists every note presented in this browser, with its title, slides and
+  drawings, and shows one again from the slide it stopped at. *Start with a
+  blank board* opens the projector on a board with no slides, for a talk at
+  the blackboard; once drawn on, it is listed with the others.
+- A **Guide**, linked from the front page and from the bottom of the
+  editor's menu, in sections. Its FAQ answers what Markdown is, why the site exists,
+  why there is no server or account, saving into files on disk (and why only
+  in Chromium browsers), where notes are kept before they are saved, and
+  which other tools view and edit `.md` files. Troubleshooting explains how
+  to let the site store data, and the app links there when a browser setting
+  is in the way. Sections for the editor and presentations are to come.
 
 ### Changed
 
+- The front page, presentations and help share the FAQ's layout: the logo and
+  the page's contents in a column on the left, always in view, the part being
+  read marked. On a phone they fold into a bar with a ☰ button. On the front
+  page the column starts with *Jump in*: the editor, presentations, and the
+  guide; on the guide's pages and presentations, with *Go to*. The front page
+  gives the address to write to.
+- The front page has a new headline and says what you can do, from sharing
+  math as plain text to giving a talk and reviewing the board, instead of
+  listing tools, and a few questions that lead to the FAQ. What Markdown
+  is, with its examples, why the site exists and the other tools to view and
+  edit `.md` move there.
+- The privacy policy names the site's host, GitHub Pages, which logs the IP
+  address of each visit, and says that the site loads nothing from any other
+  host but Google's, once you connect to Drive.
 - A new blank note starts empty, instead of with a `#` heading to type over.
 - The toolbar status of a new note says **Not saved**, in amber, once it has
   been edited, and nothing before that. It used to say "New" in grey, which
@@ -39,6 +59,11 @@ This is the *when*. The *why* behind a decision is in
 
 ### Fixed
 
+- The editor's slide preview shows a title slide only when the projector
+  does: front-matter holding only options, such as `fontsize:`, makes none.
+- Slides are no longer split at a `---` inside a code block that holds a
+  shorter fence or one of the other kind, nor run together by `$$` in inline
+  code.
 - Slow answers from Drive are applied to what they were for. *Save As* saves
   the note it was opened for, even if another tab is opened while it gets
   ready; a folder's listing that comes late no longer replaces the one on

@@ -8,6 +8,7 @@
 // module.
 
 import * as drafts from '../drafts.js'
+import { getBoard } from './catalog.js'
 import { buildDeckSections } from './deck-dom.js'
 import { createInk, W, H } from './ink.js'
 
@@ -24,14 +25,18 @@ async function main() {
   if (!id) return fail('No note to present. Open a note in the editor and choose Present.')
 
   const doc = await drafts.getDoc(id).catch(() => null)
-  if (!doc) return fail('That note could not be found in this browser.')
+  const board = doc ? null : await getBoard(id).catch(() => null)
+  if (!doc && !board) return fail('That note could not be found in this browser.')
 
-  document.title = `${doc.name} — lemma-md`
+  document.title = doc ? `${doc.name} — lemma-md` : 'Board — lemma-md'
 
   // buildDeckSections is shared with the PDF export (deck-dom.js), so the section
   // order — and thus the ordinal that each slide's annotations are keyed by — is
-  // identical in both.
-  const { sections, meta } = buildDeckSections(doc.text)
+  // identical in both. A board of its own has no note and no slides: one blank
+  // slide stands under it, so that reveal has a deck to lay out.
+  const { sections, meta } = doc
+    ? buildDeckSections(doc.text)
+    : { sections: [document.createElement('section')], meta: {} }
   if (!sections.length) return fail('This note is empty — nothing to present.')
 
   for (const s of sections) slidesEl.appendChild(s)
@@ -89,7 +94,7 @@ async function main() {
   reveal.on('overviewhidden', () => document.body.classList.remove('overview'))
 
   // Ink after reveal, so the sections exist and are laid out.
-  await createInk(reveal, id)
+  await createInk(reveal, id, { start: board ? 'board' : undefined })
 }
 
 main().catch((err) => {

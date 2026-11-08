@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>lemma-md — presentations</title>
+<meta name="description" content="Every note you have presented in this browser, to show again where you left off.">
+
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="icon" href="../favicon-32.png" sizes="32x32" type="image/png">
+<link rel="icon" href="../favicon-16.png" sizes="16x16" type="image/png">
+<link rel="apple-touch-icon" href="../apple-touch-icon.png">
+
+<link rel="stylesheet" href="../src/theme.css">
+<link rel="stylesheet" href="../src/landing.css">
+</head>
+
+<body class="paged">
+
+<div class="layout">
+
+<aside class="side">
+  <header class="masthead">
+    <a class="home" href="../">
+      <img src="../favicon.svg" alt="" width="26" height="26">
+      <span class="wordmark">lemma-md</span>
+    </a>
+    <!-- Only on a narrow screen, where the contents fold away behind it. -->
+    <button class="toc-toggle" type="button" aria-controls="toc" aria-expanded="false" aria-label="Contents" title="Contents">
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <path d="M4 6h16M4 12h16M4 18h16"/>
+      </svg>
+    </button>
+  </header>
+  <nav id="toc" class="toc" aria-label="Contents">
+    <!-- The rest of the site, before what this page says. -->
+    <p class="toc-title">Go to</p>
+    <ul>
+      <li><a href="../editor/">Editor</a></li>
+      <li><a href="../help/">Guide</a></li>
+    </ul>
+  </nav>
+</aside>
+
+<main>
+
+<div class="hero">
+  <h1>Presentations</h1>
+  <p class="lede">
+    Every note you have presented in this browser, with its drawings. Show one
+    again to go on where you left off.
+  </p>
+  <div class="cta">
+    <!-- A talk with no slides: the projector opens on a blank board. -->
+    <button id="new-board" class="button" type="button">Start with a blank board</button>
+    <a class="button quiet" href="../editor/">Open the editor</a>
+  </div>
+</div>
+
+<section>
+  <!-- Filled by src/presentations.js. Until it runs the note says so: should
+       its script fail to load, the page then says something rather than
+       looking like an empty list. -->
+  <ul id="decks" class="decks" aria-live="polite"></ul>
+  <p id="decks-note" class="note">Loading the list… If this stays, reload the page.</p>
+</section>
+
+<footer>
+  <p>
+    Presentations live in this browser, with the notes they were made from.
+    <a href="../help/faq/#browser-storage">Where notes are kept</a>
+  </p>
+</footer>
+
+</main>
+</div>
+
+<script type="module" src="../src/presentations.js"></script>
+<script type="module" src="../src/toc.js"></script>
+</body>
+</html>

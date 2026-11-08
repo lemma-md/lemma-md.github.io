@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>lemma-md — guide: FAQ</title>
+<meta name="description" content="What Markdown is, why lemma-md exists, and what it means that it runs entirely in your browser: no server or account, files on your computer, and where your notes are kept.">
+
+<link rel="icon" href="../../favicon.svg" type="image/svg+xml">
+<link rel="icon" href="../../favicon-32.png" sizes="32x32" type="image/png">
+<link rel="icon" href="../../favicon-16.png" sizes="16x16" type="image/png">
+<link rel="apple-touch-icon" href="../../apple-touch-icon.png">
+
+<link rel="stylesheet" href="../../vendor/katex/katex.min.css">
+<link rel="stylesheet" href="../../src/theme.css">
+<link rel="stylesheet" href="../../src/markdown.css">
+<link rel="stylesheet" href="../../src/landing.css">
+</head>
+
+<body class="paged">
+
+<!-- Every section id below is permanent: the app links to them (src/help.js),
+     so renaming one breaks a link in a build that is already out. -->
+
+<div class="layout">
+
+<aside class="side">
+  <header class="masthead">
+    <a class="home" href="../../">
+      <img src="../../favicon.svg" alt="" width="26" height="26">
+      <span class="wordmark">lemma-md</span>
+    </a>
+    <!-- Only on a narrow screen, where the contents fold away behind it. -->
+    <button class="toc-toggle" type="button" aria-controls="toc" aria-expanded="false" aria-label="Contents" title="Contents">
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <path d="M4 6h16M4 12h16M4 18h16"/>
+      </svg>
+    </button>
+  </header>
+  <nav id="toc" class="toc" aria-label="Contents">
+    <!-- The rest of the site, before what this page says. -->
+    <p class="toc-title">Go to</p>
+    <ul>
+      <li><a href="../../editor/">Editor</a></li>
+      <li><a href="../../presentations/">Presentations</a></li>
+    </ul>
+    <p class="toc-title">Other guides</p>
+    <ul>
+      <li><a href="../editor/">Editing</a></li>
+      <li><a href="../presentations/">Presenting</a></li>
+      <li><a href="../troubleshooting/">Troubleshooting</a></li>
+    </ul>
+    <p class="toc-title">FAQ</p>
+    <ul>
+      <li><a href="#markdown">What Markdown is</a></li>
+      <li><a href="#why">Why this site exists</a></li>
+      <li><a href="#no-server">No server, no account</a></li>
+      <li><a href="#files">Files on your computer</a></li>
+      <li><a href="#browser-storage">Where notes are kept</a></li>
+      <li><a href="#other-tools">Other tools to view and edit .md</a></li>
+    </ul>
+  </nav>
+</aside>
+
+<!-- The first question's anchor is the page itself: arriving at #markdown
+     shows the title above it, not a heading cut loose from the page. -->
+<main id="markdown">
+
+<div class="hero">
+  <nav class="crumbs" aria-label="Breadcrumb"><a href="../">Guide</a> <span aria-hidden="true">›</span> FAQ</nav>
+  <h1>Questions and answers</h1>
+  <p class="lede">
+    The questions you may ask first: what Markdown is, why this site exists,
+    and what it means that it runs entirely in your browser.
+  </p>
+</div>
+
+<section>
+  <h2>What is Markdown?</h2>
+  <p>
+    You type <span class="lit">## A lemma</span> and get a heading. You type
+    <span class="lit">*convex*</span> and get <em>convex</em>. That is nearly
+    all of it — the rules fit on the back of a postcard, and you can see them
+    all <a href="#examples">below</a>.
+  </p>
+  <p>
+    The point is what the file stays: <strong>plain text</strong>. It is
+    readable exactly as you typed it, even with nothing to render it. It opens
+    in any editor on any machine, it goes into version control sensibly, and it
+    will still open in twenty years. Formatting, without the words being locked
+    inside a program.
+  </p>
+  <p>
+    <strong>Formulas are LaTeX.</strong> Write
+    <span class="lit">$e^{i\pi} + 1 = 0$</span> inside a sentence, or put
+    <span class="lit">$$…$$</span> on its own lines for a displayed equation.
+    If you already write LaTeX, you already know the part that matters — the
+    Markdown around it is the small tax.
+  </p>
+  <h3 id="examples">A little Markdown</h3>
+  <p>
+    What you type on the left, what comes out on the right. Everything below is
+    rendered on this page by the same code the editor uses.
+  </p>
+
+  <div class="examples">
+    <div class="example">
+<pre class="src">
+# Notes on convexity
+
+## A lemma
+
+A set is *convex* if it contains
+every segment between its points.
+</pre>
+      <div class="out md pending">rendering…</div>
+    </div>
+
+    <div class="example">
+<pre class="src">
+Convex sets are:
+
+- closed under intersection
+- **not** closed under union
+
+See [the notes](https://example.org).
+</pre>
+      <div class="out md pending">rendering…</div>
+    </div>
+
+    <div class="example">
+<pre class="src">
+Euler's identity $e^{i\pi} + 1 = 0$
+sits inside the sentence, at the
+right size for the line.
+</pre>
+      <div class="out md pending">rendering…</div>
+    </div>
+
+    <div class="example">
+<pre class="src">
+A displayed formula stands alone:
+
+$$
+\int_0^\infty e^{-x^2}\,dx
+  = \frac{\sqrt{\pi}}{2}
+$$
+</pre>
+      <div class="out md pending">rendering…</div>
+    </div>
+  </div>
+</section>
+
+<section id="why">
+  <h2>Why does this site exist?</h2>
+  <p>For a few ordinary situations, each awkward without a tool at hand.</p>
+  <p>
+    <strong>Someone sent you a <span class="lit">.md</span> file.</strong>
+    Opened in a text editor it looks like source code — stray asterisks, hash
+    marks, dollar signs. You want to read it, not decode it.
+  </p>
+  <p>
+    <strong>You have heard Markdown is convenient</strong> and would like to
+    find out in a minute rather than an afternoon — without installing an
+    editor, creating an account or reading a manual first.
+  </p>
+  <p>
+    <strong>You have a talk to give</strong> and would rather write it as a
+    note than build it slide by slide: the same file, a line between slides,
+    and a blackboard for what does not fit on them.
+  </p>
+  <p class="note">
+    So everything here runs in your browser, and your notes stay on your own
+    machine.
+  </p>
+</section>
+
+<section id="no-server">
+  <h2>Is there a server? Do I need an account?</h2>
+  <p>
+    No, and no. <span class="brand">lemma-md</span> is a set of files — pages, scripts, fonts — that your
+    browser downloads, as it does for any website. From then on everything
+    happens in your browser: the editor, the typesetting of formulas, the
+    slides. There is no <span class="brand">lemma-md</span> server for your notes to go to, so they go to
+    none.
+  </p>
+  <p>
+    That is also why there is no sign-up. An account would only be needed to
+    keep your notes somewhere of ours, and there is no such place. A note
+    leaves your computer only when you save it to Google Drive, and then it goes
+    straight from your browser to Google.
+  </p>
+  <p class="note">
+    The other side of having no server: nobody keeps a copy of your notes for
+    you. A note is where you put it — in a file on your computer, in your own
+    Google Drive, or, until you save it, in the browser.
+  </p>
+</section>
+
+<section id="files">
+  <h2>Can I open and save files on my computer?</h2>
+  <p>
+    Yes, in <strong>Chrome, Edge, Opera</strong> and other browsers built on
+    Chromium, on a computer. There <span class="brand">lemma-md</span> works like a desktop editor:
+    <strong>Open a file…</strong> opens a <span class="lit">.md</span> file, you
+    edit it, and saving writes back into that same file. After a reload the
+    browser may ask once more whether <span class="brand">lemma-md</span> may edit it.
+  </p>
+  <p>
+    This rests on a browser feature called the File System Access API. Firefox
+    and Safari have chosen not to add it, judging that letting a web page write
+    into files on your disk is too easy to abuse. Some Chromium browsers, such
+    as Brave, switch it off as well, and browsers on phones and tablets do not
+    have it.
+  </p>
+  <h3>In Firefox, Safari, and on a phone</h3>
+  <ul>
+    <li><strong>Opening</strong> works: drag a file onto the page, or use
+        <strong>Open a file…</strong>.</li>
+    <li><strong>Saving</strong> downloads a copy (<strong>Download as .md</strong>),
+        into your Downloads folder unless the browser asks where to put it.</li>
+    <li><span class="brand">lemma-md</span> cannot write over a file on your disk. To carry on with a
+        downloaded copy later, open it again.</li>
+  </ul>
+  <p class="note">
+    In every browser, notes are also kept in the browser as you type, and
+    Google Drive works the same everywhere.
+  </p>
+</section>
+
+<section id="browser-storage">
+  <h2>Where are my notes before I save them?</h2>
+  <p>
+    In your browser’s storage for this site, called <strong>IndexedDB</strong>.
+    Every site has its own, and no other site can read it. <span class="brand">lemma-md</span> writes each
+    note there as you type, a moment after you stop.
+  </p>
+  <p>
+    Think of the recovery files a desktop editor keeps. Close the tab, quit the
+    browser, restart the computer: your notes are back in their tabs when you
+    return. You do not have to save a note to go on with it tomorrow.
+  </p>
+  <p>But this is not a copy to rely on:</p>
+  <ul>
+    <li>It belongs to <strong>this browser on this device</strong>. Another
+        browser, another computer or your phone sees none of it.</li>
+    <li><strong>Clearing the browser’s data</strong> for this site (“cookies and
+        site data”) deletes it.</li>
+    <li>A <strong>private or incognito window</strong> keeps it only until the
+        window closes.</li>
+    <li>When the disk runs low, the browser <strong>may delete a site’s
+        data</strong> to make room, unless the site was allowed to keep it.
+        <strong>Settings → Keep them permanently</strong> asks for that.</li>
+    <li><strong>Safari</strong> deletes a site’s data once you have not visited
+        it for seven days of using Safari.</li>
+  </ul>
+  <p>
+    So for anything that matters, save the note to a file or to Google Drive.
+  </p>
+  <p class="note">
+    The browser’s storage holds the notes open in your tabs, and the bin. A
+    saved note leaves it when you close its tab, since its file is now the
+    copy. A note you close with <strong>Discard changes</strong> goes to the
+    bin, in Settings, for 15 days, in case you change your mind.
+  </p>
+  <p class="note">
+    If <span class="brand">lemma-md</span> says this browser won’t let it store
+    anything, see <a href="../troubleshooting/#storage-blocked">Troubleshooting</a>.
+  </p>
+</section>
+
+<section id="other-tools">
+  <h2>Which other tools view and edit .md files?</h2>
+  <p>
+    Once Markdown starts earning its keep, these are where people go for more:
+    a notebook of linked notes, citations, a co-author. Every one of them reads
+    and writes the same <span class="lit">.md</span> files, so nothing you write
+    here is trapped.
+  </p>
+  <ul class="elsewhere">
+    <li>
+      <a href="https://code.visualstudio.com/" target="_blank" rel="noopener noreferrer">VS Code</a> —
+      <span class="what">free and open source, and the usual choice if you also
+      write code. Previews Markdown out of the box; an extension adds TeX.</span>
+    </li>
+    <li>
+      <a href="https://obsidian.md/" target="_blank" rel="noopener noreferrer">Obsidian</a> —
+      <span class="what">free for personal use. Turns a folder of
+      <span class="lit">.md</span> files into a linked notebook; TeX included.
+      Widely used by researchers.</span>
+    </li>
+    <li>
+      <a href="https://www.zettlr.com/" target="_blank" rel="noopener noreferrer">Zettlr</a> —
+      <span class="what">free and open source, built for academic writing:
+      citations, footnotes, export to LaTeX and Word.</span>
+    </li>
+    <li>
+      <a href="https://joplinapp.org/" target="_blank" rel="noopener noreferrer">Joplin</a> —
+      <span class="what">free and open source. A notebook that syncs between
+      your own devices, with formulas and no account required.</span>
+    </li>
+    <li>
+      <a href="https://hackmd.io/" target="_blank" rel="noopener noreferrer">HackMD</a> —
+      <span class="what">in the browser, free to use, and collaborative — the
+      one to reach for when writing with a co-author. Does formulas and
+      slides.</span>
+    </li>
+  </ul>
+</section>
+
+<footer>
+  <p>
+    Something missing here? Write to
+    <a href="mailto:lemma2md@gmail.com">lemma2md@gmail.com</a>.
+  </p>
+  <p>
+    Source, and the reasoning behind it, on
+    <a href="https://github.com/lemma-md" target="_blank" rel="noopener noreferrer">GitHub</a>.
+  </p>
+</footer>
+
+</main>
+</div>
+
+<script type="module" src="../../src/toc.js"></script>
+
+<!-- Renders the Markdown examples, with the editor's own code. -->
+<script type="module" src="../../src/examples.js"></script>
+
+</body>
+</html>

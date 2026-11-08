@@ -10,7 +10,8 @@ import { buildStandaloneHtml, extractMarkdown } from './export-html.js'
 import { openPdfPreview } from './pdf/preview.js'
 import { WELCOME, templates } from './templates.js'
 import { helpUrl } from './help.js'
-import { parseDeck, buildTitleBody } from './present/slides.js'
+import { parseDeck, buildTitleBody, hasTitle } from './present/slides.js'
+import { projectorUrl, projectorWindow } from './present/catalog.js'
 
 register(googleDrive)
 
@@ -122,7 +123,7 @@ function retryFailedWrites() {
 /**
  * The database would not open, so nothing will be stored while this page lives:
  * every note exists only in memory. Said once, at the start, and kept on screen.
- * Usually the browser is set not to let sites keep data; the help page says how
+ * Usually the browser is set not to let sites keep data; the FAQ says how
  * to allow it. A `VersionError` instead means a newer build in another tab has
  * already upgraded the database, which a reload fixes.
  */
@@ -143,7 +144,7 @@ function storageUnavailable(err) {
     {
       kind: 'unavailable',
       title: String(err?.message ?? err),
-      link: { text: 'How to allow it', href: helpUrl('storage-blocked') },
+      link: { text: 'How to allow it', href: helpUrl('troubleshooting', 'storage-blocked') },
       sticky: true,
     },
   )
@@ -242,7 +243,7 @@ const banner = {
 
 /**
  * Show a notice. `action` adds a button that runs `onAction`; `link` adds a
- * link to the help page, which opens in a new tab; `sticky` hides the ×, for a
+ * link to the FAQ, which opens in a new tab; `sticky` hides the ×, for a
  * notice that stays true until acted on. `title` is a tooltip on the text, the
  * place for the browser's own wording of an error. `kind` names the notice, so
  * that whatever raised it can take it down again.
@@ -378,7 +379,10 @@ function renderDeckPreview(doc) {
     children.push(node)
   }
 
-  if (deck.title && Object.keys(deck.title).length) {
+  // The projector's rule, not a looser one of its own: front-matter holding only
+  // options such as `fontsize:` makes no title slide. A card the projector does
+  // not have would also number every slide after it one higher than there.
+  if (hasTitle(deck.title)) {
     place('t:' + JSON.stringify(deck.title), () => slideCard(buildTitleBody(deck.title), 'title center', 0))
   }
   for (const s of deck.slides) {
@@ -882,7 +886,7 @@ function present() {
   const doc = active()
   if (!doc) return
   saveNow(doc) // flush the debounced write so the projector reads the latest text
-  window.open(`../present/?id=${encodeURIComponent(doc.id)}`, `lemma-present-${doc.id}`)
+  window.open(projectorUrl(doc.id), projectorWindow(doc.id))
 }
 
 /**
@@ -2931,7 +2935,11 @@ document.getElementById('btn-save-as').hidden = !localFiles.isSaveSupported()
 document.getElementById('btn-file-info').onclick = openFileInfo
 // In a tab of its own, so the editor and what it holds stay put; the name
 // sends a second click to that same tab instead of opening another.
-document.getElementById('btn-help').onclick = () => window.open(helpUrl(), 'lemma-help')
+document.getElementById('btn-help').onclick = () =>
+  window.open(new URL('../help/', import.meta.url).href, 'lemma-help')
+// The list of presentations, likewise in a tab of its own.
+document.getElementById('btn-presentations').onclick = () =>
+  window.open(new URL('../presentations/', import.meta.url).href, 'lemma-presentations')
 // The status in the bar is a shortcut to the same panel.
 if (el.cloudState) el.cloudState.onclick = openFileInfo
 fi.save.onclick = () => { fi.dialog.close(); saveActive() }

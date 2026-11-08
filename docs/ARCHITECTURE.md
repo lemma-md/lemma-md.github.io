@@ -214,7 +214,7 @@ transaction with no `error` event, so every write listens for `abort` as well.
 - **A database that will not open is a state of the whole page**, told once at
   startup by a notice that stays, rather than by the first failed write. It
   usually means the browser was set to block site data, so the notice links to
-  the help section that says how to allow it.
+  the FAQ answer that says how to allow it.
 
 **A newer build in another tab takes the database over** *(2026-11)*. A schema
 upgrade waits until every open page lets go of the database. An older page
@@ -342,6 +342,30 @@ mixed with the editor. The slide engine is **reveal.js** — vendored, a classic
 `<script>` global, loaded only by that page so a reader never pays for it. It
 earns its place on the parts that are dear to build well: scaling a fixed
 960×700 slide box to any projector, navigation, and transitions.
+
+**Presentations have a page of their own** *(2026-11)*, `presentations/`,
+linked from the front page next to *Open the editor*, from its *Slides* card
+and from the editor's menu. It lists every presentation in this browser and
+shows one again in the projector window, from the slide it stopped at. It is a
+page, not a dialog in the editor, so that it can be opened beside a talk and
+reached without opening a note.
+
+- **For now a presentation is still its note.** The projector reads the note
+  by its id and keeps the ink and the last slide shown under that id, so a note
+  counts as a presentation once presenting it has left either behind
+  (`src/present/catalog.js`). ROADMAP 2.1 makes it a record of its own.
+- **A board of its own** *(2026-11)*: *Start with a blank board* on the page
+  begins a talk with no note and no slides, and the projector opens on the
+  board. Already the shape 2.1 gives every presentation, in small: a meta cell
+  `present-board:<id>` marks it and holds when it began, and its ink is kept
+  under that id as a note's is. With no note behind it, closing a note can
+  never take its drawings. It is listed once something is drawn on it, so a
+  board opened and left blank leaves no line. Opening on the board does not
+  become the mode the next talk opens in. The projector's window is opened
+  in the click, before the board is written, where a popup blocker allows it.
+- **The projector opens in its own window**, named after the note as the
+  editor's *Present* names it: from either place, a presentation already
+  showing comes forward instead of opening twice.
 The full design, data model, meta keys and hard-won lessons are written up in
 [PRESENTER.md](PRESENTER.md) — start there when touching the presenter.
 
@@ -353,7 +377,13 @@ Some things are deliberately **not** reveal's:
   the same reason the landing page and the editor share `render()`. Slides are
   split on a line of `---` (never inside a `$$…$$` or fenced-code block), with an
   optional YAML front-matter block becoming a title slide; both are borrowed
-  conventions (Jekyll, Marp), not a borrowed renderer.
+  conventions (Jekyll, Marp), not a borrowed renderer. A fence closes as in
+  CommonMark, only by the same character run at least as long, and `$$` in
+  inline code opens no formula *(2026-11)*. Front-matter makes a title slide
+  only when it holds a title field (`hasTitle` in `deck-dom.js`), in the
+  projector and the editor's preview alike: one with only options such as
+  `fontsize:` makes none, and a card in one but not the other would number the
+  slides differently.
 - **Three modes** (`src/present/ink.js`): Present (laser only, no toolbar),
   Annotate (draw over the slides) and Board. They are on a rail top-left and in
   the menu, and on `Alt+P`/`Alt+A`/`Alt+B` (intercepted before reveal, whose
@@ -414,19 +444,71 @@ speaker/second-screen view, which is left for later.
   its pages. Non-empty board pages follow the slides; a slide taller than one page
   is flagged, to clip or continue across pages. See [PRESENTER.md](PRESENTER.md).
 
+## The site's pages
+
+**The front page, presentations and help share one layout** *(2026-11)*,
+first made for the FAQ: a column on the left with the logo and the page's
+own contents, always in view, the part being read marked (`src/toc.js`,
+`body.paged` in `landing.css`). The privacy policy keeps the plain page.
+
+- **The page's own contents, not a map of the site.** A map in that column
+  was the alternative, with each page's parts under its name; on most pages it
+  would bury the few entries the reader needs under the ones they do not.
+  First the way to the rest of the site, then the page's own parts under the
+  page's own name rather than "Contents" (*Welcome*, *FAQ*, *Editing*,
+  *Presenting*, *Troubleshooting*). The first is *Jump in* on the front page,
+  where it leads into the tools and the guide, since that is what most people
+  come to it for, and *Go to* elsewhere. The guide's own page lists its
+  sections there, each opening the section's page in one click rather than
+  scrolling to it, and each section's page lists the others under *Other
+  guides*. The presentations page has only *Go to* for now: its own parts
+  would be sections of the page, and listing the presentations there was
+  tried and dropped. A group with nothing in it is not shown.
+- **On a narrow screen the column is a bar** with the logo and a ☰ button,
+  and the contents open below it, so the logo stays in view with them, as it
+  does on a wide screen. Without the script the contents stay open below the
+  logo and nothing sticks.
+
 ## Help
 
-**One help page, `help/`, of questions and answers** *(2026-11)*. Three things
-about this app need explaining that a usual web app does not: there is no
-server, a note lives in the browser until it is saved, and saving into a file
-works only in Chromium browsers. Each answer is a section of that page. The
-front page links to it from its footer, the editor from the bottom of its menu.
+**Help, called the *Guide*, is a page of sections, `help/`, each a page of
+its own** *(2026-11)*:
+the FAQ (`help/faq/`), the editor and presentations, whose pages are
+placeholders listing the answers to come, and troubleshooting
+(`help/troubleshooting/`). The guide's own page is their contents: every
+answer, under its section, worded as its page words it, with a test to keep
+the two in step; a placeholder lists what it will answer, without links. Each
+section links back to
+`help/` above its title. The front page links to help under its buttons,
+in *Jump in*, and in a sentence after a few of its questions, which lead
+into the FAQ; the editor's menu opens `help/`.
+
+**The FAQ answers what a usual web app would not need to.** There is no
+server, a note lives in the browser until it is saved, and saving into a
+file works only in Chromium browsers. Each answer is a section of its page.
+The first one's anchor is the page itself (`main#markdown`), so arriving at
+it shows the page's title rather than a heading cut loose from it;
+troubleshooting does the same for its first problem.
 
 - **Plain HTML**, like `privacy.html`, on the front page's stylesheet. A
   Markdown file shown by the app's renderer was the alternative: it would read
   like a note, but needs scripts to show anything, and the Jekyll that GitHub
-  Pages runs may render a `.md` file as a page of its own.
+  Pages runs may render a `.md` file as a page of its own. The one script, for
+  the examples in *What is Markdown?*, renders them with the editor's own code
+  (`src/examples.js`), so they cannot drift from what the editor produces;
+  without it they still show their source. They lived on the front page until
+  it turned to what the app does *(2026-11)*.
 - **English only**, like the rest of the site.
+- **The site's name is set in the formulas' typeface on a light blue** in
+  running text (`<span class="brand">`, KaTeX's Computer Modern, the tint of
+  the browser boxes) *(2026-11)*. In the body font the lowercase, hyphenated
+  *lemma-md* was lost in a sentence, and the typeface alone was still too
+  quiet. Bold is what the help already uses for the labels of a browser's
+  settings; a colour of its own read as a link, or as a visited one; white on
+  the logo's blue shouted on a page that names the site sixteen times. The font
+  is declared in `landing.css` from KaTeX's files, so pages without KaTeX can
+  use it, and only its faces in use are fetched. A test fails on a name left
+  unmarked.
 - **Paths in words, no screenshots**, for now. A screenshot of a browser's
   settings dates with every release of that browser, and a page of them would
   be wrong somewhere at any moment. Each step names the menu path, and also the
@@ -434,6 +516,12 @@ front page links to it from its footer, the editor from the bottom of its menu.
   (`chrome://settings/…`), which outlasts a renamed menu.
 - **Section anchors are permanent.** The app links to them through
   `src/help.js`, so renaming one breaks a link in a build already out.
+- **A problem goes to troubleshooting, not to the FAQ.** A browser that
+  will not let the site store anything is not a question people ask about
+  the site but a message they meet in it; its page is headed by that message,
+  so that it is found by what the reader saw. It moved there from the FAQ
+  before help was first published *(2026-11)*, so no link already out pointed
+  at the old place.
 - **A notice that points at a browser setting links to the answer** instead of
   giving the steps itself. The steps differ by browser and change with its
   releases; one page is easier to keep current than strings in the code. The
@@ -458,8 +546,8 @@ that something driving the page can read it without looking.
 - **The export is tested offline.** The downloaded `.html` loads its libraries
   from a CDN; the tests swap them for the vendored copies, and check first that
   the versions are the same, which is what makes the swap fair.
-- **Links into help are found, not listed.** The help tests read the app's own
-  files for `helpUrl('…')` and `help/#…`, so a new link is checked without
+- **Links into help are found, not listed.** The help tests read the app's
+  own files for `helpUrl('…', '…')` and `help/…/#…`, so a new link is checked without
   anyone remembering to add it.
 - **Storage tests never touch real notes.** `drafts.js` takes its database name
   from `globalThis.lemmaTestDatabase` when set, and only the test page sets it:
@@ -494,15 +582,16 @@ that something driving the page can read it without looking.
 - **Coming back is repeated.** The app re-checks files and Drive on focus but
   not more than once in three seconds, and a frame can get a real focus event
   of its own, so a test dispatches `focus` until the change is noticed.
-- **What runs is what is on disk.** The local server sends no cache headers,
-  so before loading anything the page fetches every module the tests reach,
-  the app's included, with `cache: 'reload'` (`fresh.js`). A plain reload of
-  the page runs the code as it is now.
+- **What runs is what is on disk.** Before loading anything the page fetches
+  every module the tests reach, the app's included, with `cache: 'reload'`
+  (`fresh.js`), so a plain reload runs the code as it is now even from a server
+  that sends no cache headers. The one the start scripts run sends
+  `no-cache` anyway.
 
 What is covered so far: the rendering rules (formulas, display blocks,
 headings, sanitising), the export against the preview with both copies of its
 renderer, the round trip of a note through the `.html`, cutting a note into
-slides, the templates, the help links, browser storage (notes, the bin,
+slides, the templates, the FAQ links, browser storage (notes, the bin,
 settings, and every failure the app shows), and the editor's flows: autosave,
 statuses, closing and the bin, the storage notices, files on disk, and Drive.
 

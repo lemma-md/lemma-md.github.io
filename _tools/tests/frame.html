@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>frame</title>
+</head>
+<body>
+<!--
+  A page of the app with a query of its own, for the test harness
+  (editor-harness.js). Most pages are loaded as srcdoc, which lets a script run
+  before the app's, but a srcdoc document has no query and cannot be given one,
+  and the projector reads its note's id from `?id=`. So the harness loads this
+  page with that query and then calls loadApp(): the app's page is written over
+  this one with document.open(), which keeps the window and the address, query
+  included, while the harness's head script runs before the app's modules.
+-->
+<script>
+  window.loadApp = async (dir, head) => {
+    const page = await (await fetch(`../../${dir}/index.html`, { cache: 'no-store' })).text()
+    document.open()
+    document.write(page.replace('<head>', `<head>\n${head}`))
+    document.close()
+  }
+</script>
+</body>
+</html>

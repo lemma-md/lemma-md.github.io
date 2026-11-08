@@ -3,210 +3,139 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>lemma-md — plain text notes, typeset mathematics</title>
-<meta name="description" content="Read and write Markdown with TeX formulas in the browser. Nothing to install, no account.">
+<title>lemma-md — notes and talks in Markdown and LaTeX</title>
+<meta name="description" content="Write Markdown with LaTeX formulas, see it typeset as you type, and present it with a chalkboard. In the browser: nothing to install, no account.">
 
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="icon" href="favicon-32.png" sizes="32x32" type="image/png">
 <link rel="icon" href="favicon-16.png" sizes="16x16" type="image/png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 
-<link rel="stylesheet" href="vendor/katex/katex.min.css">
 <link rel="stylesheet" href="src/theme.css">
-<link rel="stylesheet" href="src/markdown.css">
 <link rel="stylesheet" href="src/landing.css">
 </head>
 
-<body>
+<body class="paged">
 
-<header class="masthead">
-  <img src="favicon.svg" alt="" width="26" height="26">
-  <span class="wordmark">lemma-md</span>
-</header>
+<div class="layout">
+
+<aside class="side">
+  <header class="masthead">
+    <a class="home" href="./">
+      <img src="favicon.svg" alt="" width="26" height="26">
+      <span class="wordmark">lemma-md</span>
+    </a>
+    <!-- Only on a narrow screen, where the contents fold away behind it. -->
+    <button class="toc-toggle" type="button" aria-controls="toc" aria-expanded="false" aria-label="Contents" title="Contents">
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <path d="M4 6h16M4 12h16M4 18h16"/>
+      </svg>
+    </button>
+  </header>
+  <nav id="toc" class="toc" aria-label="Contents">
+    <!-- The way in to the tools themselves, before what this page says. -->
+    <p class="toc-title">Jump in</p>
+    <ul>
+      <li><a href="editor/">Editor</a></li>
+      <li><a href="presentations/">Presentations</a></li>
+      <li><a href="help/">Guide</a></li>
+    </ul>
+    <p class="toc-title">Welcome</p>
+    <ul>
+      <li><a href="#what">What you can do</a></li>
+      <li><a href="#questions">Questions</a></li>
+      <li><a href="#privacy">Privacy</a></li>
+    </ul>
+  </nav>
+</aside>
+
+<main>
 
 <div class="hero">
-  <h1>Write in plain text.<br>Get typeset mathematics.</h1>
+  <h1>Write the lemma.<br>Give the talk.</h1>
   <p class="lede">
-    Markdown is writing where a handful of punctuation marks do the formatting,
-    and formulas go between dollar signs exactly as in TeX. Nothing to install,
-    no account, no sign-up.
+    Notes in Markdown with formulas in LaTeX, typeset as you type, and a
+    projector with a chalkboard when it is time to present. All in the
+    browser: nothing to install, no account.
   </p>
   <div class="cta">
     <a class="button" href="editor/">Open the editor</a>
-    <a class="button quiet" href="#examples">See what it looks like</a>
+    <a class="button quiet" href="presentations/">Presentations</a>
   </div>
+  <p class="cta-more">Questions along the way? The <a href="help/">guide</a> has the answers.</p>
 </div>
 
-<section>
-  <h2>What Markdown is</h2>
-  <p>
-    You type <span class="lit">## A lemma</span> and get a heading. You type
-    <span class="lit">*convex*</span> and get <em>convex</em>. That is nearly
-    all of it — the rules fit on the back of a postcard, and you can see them
-    all <a href="#examples">further down this page</a>.
-  </p>
-  <p>
-    The point is what the file stays: <strong>plain text</strong>. It is
-    readable exactly as you typed it, even with nothing to render it. It opens
-    in any editor on any machine, it goes into version control sensibly, and it
-    will still open in twenty years. Formatting, without the words being locked
-    inside a program.
-  </p>
-  <p>
-    <strong>Formulas are TeX.</strong> Write
-    <span class="lit">$e^{i\pi} + 1 = 0$</span> inside a sentence, or put
-    <span class="lit">$$…$$</span> on its own lines for a displayed equation.
-    If you already write TeX, you already know the part that matters — the
-    Markdown around it is the small tax.
-  </p>
-</section>
-
-<section>
-  <h2>Why this site exists</h2>
-  <p>Two ordinary situations, both awkward without a tool at hand.</p>
-  <p>
-    <strong>Someone sent you a <span class="lit">.md</span> file.</strong>
-    Opened in a text editor it looks like source code — stray asterisks, hash
-    marks, dollar signs. You want to read it, not decode it.
-  </p>
-  <p>
-    <strong>You have heard Markdown is convenient</strong> and would like to
-    find out in a minute rather than an afternoon — without installing an
-    editor, creating an account or reading a manual first.
-  </p>
-  <p class="note">
-    So everything here runs in your browser. Your notes stay on your own
-    machine and are uploaded nowhere unless you explicitly ask for it.
-  </p>
-</section>
-
-<section>
-  <h2>Tools</h2>
+<section id="what">
+  <h2>What you can do</h2>
+  <!-- One note, from first reading to the talk and back: each card is a thing
+       people come to do, not a part of the app. -->
   <div class="tools">
-    <!-- Reading and writing are two modes of one page, so both cards lead
-         there. They are kept apart because the two intentions are: someone
-         sent me a file, versus I want to write something. -->
-    <a class="tool" href="editor/">
-      <span class="tag">Ready</span>
-      <h3>Viewer →</h3>
-      <p>Drop a <span class="lit">.md</span> file in and read it, typeset. The
-      editor stays out of the way until you ask for it.</p>
-    </a>
-    <a class="tool" href="editor/">
-      <span class="tag">Ready</span>
-      <h3>Editor →</h3>
-      <p>One button away: source on the left, the result on the right, changing
-      as you type.</p>
-    </a>
-    <div class="tool soon">
-      <span class="tag">Coming</span>
-      <h3>Slides</h3>
-      <p>Turn a note into a talk, with a laser pointer and a chalkboard.</p>
+    <div class="tool">
+      <h3>Share math as plain text</h3>
+      <p>AI already writes math this way: Markdown with LaTeX, which survives
+      any email or message. <span class="brand">lemma-md</span> typesets it for
+      you and for anyone you send it to — no plugin, no app, no account.</p>
+    </div>
+    <div class="tool">
+      <h3>Write TeX, no compile</h3>
+      <p>Type on the left; the page on the right follows as you go, formulas
+      included. Close the tab whenever you like — the note is still here when
+      you come back.</p>
+    </div>
+    <div class="tool">
+      <h3>Write slides like notes</h3>
+      <p>Start a note with a line of <span class="lit">---</span> and it becomes
+      slides; each further <span class="lit">---</span> starts the next one.
+      Same Markdown, same formulas, and a title and author at the top make the
+      title slide.</p>
+    </div>
+    <div class="tool">
+      <h3>Give the talk</h3>
+      <p><em>Present</em> puts a note on the projector, as slides or one page you
+      scroll. Laser and pen to mark it up, and a blackboard with chalk for what
+      does not fit on a slide — or for a talk without slides.</p>
+    </div>
+    <div class="tool">
+      <h3>Review your board</h3>
+      <p>An answer to a question, an idea worked out on the spot: what you write
+      during a talk is kept, on the slides and on every page of the board, to go
+      through again afterwards.</p>
+    </div>
+    <div class="tool">
+      <h3>Save it, send it, print it</h3>
+      <p>Keep notes in a file on your computer or on Google Drive. Send one as
+      <span class="lit">.md</span> or as a web page anyone can open; export a
+      talk to PDF, chalk and board included.</p>
     </div>
   </div>
+  <p class="note">
+    Everything runs in your browser. Your notes stay on your machine and go
+    nowhere unless you save them to Google Drive.
+  </p>
 </section>
 
-<section id="examples">
-  <h2>A little Markdown</h2>
-  <p>
-    What you type on the left, what comes out on the right. Everything below is
-    rendered on this page by the same code the editor uses.
-  </p>
-
-  <div class="examples">
-    <div class="example">
-<pre class="src">
-# Notes on convexity
-
-## A lemma
-
-A set is *convex* if it contains
-every segment between its points.
-</pre>
-      <div class="out md pending">rendering…</div>
-    </div>
-
-    <div class="example">
-<pre class="src">
-Convex sets are:
-
-- closed under intersection
-- **not** closed under union
-
-See [the notes](https://example.org).
-</pre>
-      <div class="out md pending">rendering…</div>
-    </div>
-
-    <div class="example">
-<pre class="src">
-Euler's identity $e^{i\pi} + 1 = 0$
-sits inside the sentence, at the
-right size for the line.
-</pre>
-      <div class="out md pending">rendering…</div>
-    </div>
-
-    <div class="example">
-<pre class="src">
-A displayed formula stands alone:
-
-$$
-\int_0^\infty e^{-x^2}\,dx
-  = \frac{\sqrt{\pi}}{2}
-$$
-</pre>
-      <div class="out md pending">rendering…</div>
-    </div>
-  </div>
-</section>
-
-<section>
-  <h2>When you outgrow this</h2>
-  <p>
-    This site is a doorway, not a workshop. Once Markdown starts earning its
-    keep, these are where people go — and every one of them reads and writes
-    the same <span class="lit">.md</span> files, so nothing you write here is
-    trapped.
-  </p>
-  <ul class="elsewhere">
-    <li>
-      <a href="https://code.visualstudio.com/" target="_blank" rel="noopener noreferrer">VS Code</a> —
-      <span class="what">free and open source, and the usual choice if you also
-      write code. Previews Markdown out of the box; an extension adds TeX.</span>
-    </li>
-    <li>
-      <a href="https://obsidian.md/" target="_blank" rel="noopener noreferrer">Obsidian</a> —
-      <span class="what">free for personal use. Turns a folder of
-      <span class="lit">.md</span> files into a linked notebook; TeX included.
-      Widely used by researchers.</span>
-    </li>
-    <li>
-      <a href="https://www.zettlr.com/" target="_blank" rel="noopener noreferrer">Zettlr</a> —
-      <span class="what">free and open source, built for academic writing:
-      citations, footnotes, export to LaTeX and Word.</span>
-    </li>
-    <li>
-      <a href="https://joplinapp.org/" target="_blank" rel="noopener noreferrer">Joplin</a> —
-      <span class="what">free and open source. A notebook that syncs between
-      your own devices, with formulas and no account required.</span>
-    </li>
-    <li>
-      <a href="https://hackmd.io/" target="_blank" rel="noopener noreferrer">HackMD</a> —
-      <span class="what">in the browser, free to use, and collaborative — the
-      one to reach for when writing with a co-author. Does formulas and
-      slides.</span>
-    </li>
+<section id="questions">
+  <h2>The questions you may ask first</h2>
+  <ul class="questions">
+    <li><a href="help/faq/#markdown">What is Markdown, and what does it look like?</a></li>
+    <li><a href="help/faq/#why">Why does this site exist?</a></li>
+    <li><a href="help/faq/#no-server">Is there a server? Do I need an account?</a></li>
+    <li><a href="help/faq/#browser-storage">Where are my notes before I save them?</a></li>
   </ul>
+  <p class="note">
+    More in the <a href="help/">guide</a>: how to work in the editor and manage
+    presentations, and what to do when something does not work.
+  </p>
 </section>
 
-<footer>
+<footer id="privacy">
   <p>
     Notes live in this browser, on this computer. Nothing leaves it unless you
-    ask for it.
+    ask for it. <a href="privacy.html">Privacy policy</a>
   </p>
   <p>
-    <a href="help/">Help</a> · <a href="privacy.html">Privacy policy</a>
+    Questions, ideas, something that does not work? Write to
+    <a href="mailto:lemma2md@gmail.com">lemma2md@gmail.com</a>.
   </p>
   <p>
     Source, and the reasoning behind it, on
@@ -214,6 +143,9 @@ $$
   </p>
 </footer>
 
-<script type="module" src="src/landing.js"></script>
+</main>
+</div>
+
+<script type="module" src="src/toc.js"></script>
 </body>
 </html>

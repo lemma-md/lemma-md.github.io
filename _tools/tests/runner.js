@@ -13,9 +13,10 @@ export function suite(name) {
   currentSuite = name
 }
 
-/** Register a test. `fn` may be async; throwing fails it. */
-export function test(name, fn) {
-  tests.push({ suite: currentSuite, name, fn })
+/** Register a test. `fn` may be async; throwing fails it. `timeout` (ms)
+ *  overrides the default limit, for a test that loads several pages. */
+export function test(name, fn, { timeout } = {}) {
+  tests.push({ suite: currentSuite, name, fn, timeout })
 }
 
 export class AssertionError extends Error {}
@@ -64,7 +65,7 @@ export async function run(out, { timeout = 10000 } = {}) {
   for (const t of tests) {
     let error = null
     try {
-      await withTimeout(Promise.resolve().then(t.fn), timeout)
+      await withTimeout(Promise.resolve().then(t.fn), t.timeout ?? timeout)
     } catch (err) {
       error = err
       failures.push({ suite: t.suite, name: t.name, message: String(err?.message ?? err) })

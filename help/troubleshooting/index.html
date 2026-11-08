@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>lemma-md — guide: troubleshooting</title>
+<meta name="description" content="When lemma-md does not work as it should: what its message means, and how to fix it.">
+
+<link rel="icon" href="../../favicon.svg" type="image/svg+xml">
+<link rel="icon" href="../../favicon-32.png" sizes="32x32" type="image/png">
+<link rel="icon" href="../../favicon-16.png" sizes="16x16" type="image/png">
+<link rel="apple-touch-icon" href="../../apple-touch-icon.png">
+
+<link rel="stylesheet" href="../../src/theme.css">
+<link rel="stylesheet" href="../../src/landing.css">
+</head>
+
+<body class="paged">
+
+<!-- One section per problem, its heading the message the app shows. Every
+     problem's id is permanent: the app links to them (src/help.js), so
+     renaming one breaks a link in a build that is already out. -->
+
+
+<div class="layout">
+
+<aside class="side">
+  <header class="masthead">
+    <a class="home" href="../../">
+      <img src="../../favicon.svg" alt="" width="26" height="26">
+      <span class="wordmark">lemma-md</span>
+    </a>
+    <!-- Only on a narrow screen, where the contents fold away behind it. -->
+    <button class="toc-toggle" type="button" aria-controls="toc" aria-expanded="false" aria-label="Contents" title="Contents">
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <path d="M4 6h16M4 12h16M4 18h16"/>
+      </svg>
+    </button>
+  </header>
+  <nav id="toc" class="toc" aria-label="Contents">
+    <!-- The rest of the site, before what this page says. -->
+    <p class="toc-title">Go to</p>
+    <ul>
+      <li><a href="../../editor/">Editor</a></li>
+      <li><a href="../../presentations/">Presentations</a></li>
+    </ul>
+    <p class="toc-title">Other guides</p>
+    <ul>
+      <li><a href="../faq/">FAQ</a></li>
+      <li><a href="../editor/">Editing</a></li>
+      <li><a href="../presentations/">Presenting</a></li>
+    </ul>
+    <p class="toc-title">Troubleshooting</p>
+    <ul>
+      <li><a href="#storage-blocked">Can’t store anything</a></li>
+    </ul>
+  </nav>
+</aside>
+
+<!-- The first problem's anchor is the page itself, as in the FAQ: arriving at
+     #storage-blocked shows the title above it. -->
+<main id="storage-blocked">
+
+<div class="hero">
+  <nav class="crumbs" aria-label="Breadcrumb"><a href="../">Guide</a> <span aria-hidden="true">›</span> Troubleshooting</nav>
+  <h1>Troubleshooting</h1>
+  <p class="lede">
+    When something does not work as it should: what the message means, and
+    how to put it right.
+  </p>
+</div>
+
+<section>
+  <h2>“This browser won’t let <span class="brand">lemma-md</span> store anything”</h2>
+  <p>
+    <strong>No browser blocks this by default.</strong> The message means the
+    browser was set to stop sites from keeping data on your device: in its settings, by an extension, or by whoever manages the
+    computer. Usually it comes with blocking all cookies, because browsers
+    treat a site’s storage like its cookies.
+  </p>
+  <p>
+    Until it is allowed, <span class="brand">lemma-md</span> still works but keeps nothing, so save or download
+    each note before you close the tab. Allowing <span class="brand">lemma-md</span> alone is enough; the
+    rest of the web can stay blocked. When you have changed the setting,
+    reload the <span class="brand">lemma-md</span> page — after saving your notes, since while storage is
+    blocked a reload loses them.
+  </p>
+  <p>
+    The site to allow is <span class="lit">lemma-md.github.io</span>.
+  </p>
+
+  <div class="browser">
+    <h3>Chrome</h3>
+    <ol>
+      <li>Open <strong>Settings → Privacy and security → Site settings →
+          Additional content settings → On-device site data</strong>, or type
+          <span class="lit">chrome://settings/content/siteData</span> into the
+          address bar.</li>
+      <li>For <span class="brand">lemma-md</span> alone: next to <strong>Allowed to save data on your
+          device</strong>, click <strong>Add</strong> and enter the site.</li>
+      <li>Or, for every site: under <strong>Default behavior</strong>, choose
+          <strong>Allow sites to save data on your device</strong>.</li>
+    </ol>
+    <p class="note">
+      If your notes vanish each time you quit Chrome, the same page has
+      <strong>Delete data sites have saved to your device when you close all
+      windows</strong> selected. Adding <span class="brand">lemma-md</span> to the allowed sites fixes that
+      too.
+    </p>
+  </div>
+
+  <div class="browser">
+    <h3>Edge</h3>
+    <ol>
+      <li>Open <strong>Settings → Cookies and site permissions → Manage and
+          delete cookies and site data</strong>, or type
+          <span class="lit">edge://settings/content/cookies</span> into the
+          address bar.</li>
+      <li>For <span class="brand">lemma-md</span> alone: next to <strong>Allow</strong>, click
+          <strong>Add</strong> and enter the site.</li>
+      <li>Or, for every site: turn on <strong>Allow sites to save and read
+          cookie data</strong>.</li>
+    </ol>
+  </div>
+
+  <div class="browser">
+    <h3>Firefox</h3>
+    <ol>
+      <li>Open <strong>Settings → Privacy &amp; Security</strong>, and under
+          <strong>Cookies and Site Data</strong> click <strong>Manage
+          Exceptions…</strong>.</li>
+      <li>Enter the site, click <strong>Allow</strong>, then <strong>Save
+          Changes</strong>.</li>
+    </ol>
+    <p class="note">
+      An exception also keeps your notes when <strong>Delete cookies and site
+      data when Firefox is closed</strong> is on.
+    </p>
+  </div>
+
+  <div class="browser">
+    <h3>Safari</h3>
+    <ol>
+      <li>On a Mac: <strong>Safari → Settings → Privacy</strong>, and turn off
+          <strong>Block all cookies</strong>.</li>
+      <li>On an iPhone or iPad: in the <strong>Settings</strong> app, open
+          <strong>Safari</strong> (under <strong>Apps</strong> on recent
+          versions) and turn off <strong>Block All Cookies</strong>.</li>
+    </ol>
+    <p class="note">Safari has no exception for a single site.</p>
+  </div>
+
+  <h3>If that is not it</h3>
+  <ul>
+    <li>A setting that is greyed out, or marked as managed by your
+        organisation, can be changed only by whoever manages the computer.</li>
+    <li>A privacy or cookie-blocking extension can do the same. Allow
+        <span class="brand">lemma-md</span> in it, or try a window where extensions are off.</li>
+  </ul>
+</section>
+
+<footer>
+  <p>
+    Something else not working? Write to
+    <a href="mailto:lemma2md@gmail.com">lemma2md@gmail.com</a>.
+  </p>
+  <p><a href="../">Back to the guide</a></p>
+</footer>
+
+</main>
+</div>
+
+<script type="module" src="../../src/toc.js"></script>
+</body>
+</html>

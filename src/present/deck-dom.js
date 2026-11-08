@@ -6,16 +6,7 @@
 // 1. A second copy of this ordering would silently shift every annotation.
 
 import { render } from '../viewer.js'
-import { parseDeck, buildTitleBody } from './slides.js'
-
-// The front-matter fields that, if any is present, justify an opening title
-// slide (so a deck whose front-matter carries only options — e.g. `fontsize:` —
-// gets no blank title page).
-const TITLE_FIELDS = ['title', 'author', 'affiliation', 'place', 'date']
-
-export function hasTitle(meta) {
-  return !!meta && TITLE_FIELDS.some((k) => meta[k])
-}
+import { parseDeck, buildTitleBody, hasTitle } from './slides.js'
 
 /** The opening title slide from front-matter fields. Text is set with
  *  textContent inside buildTitleBody, never innerHTML. */

@@ -5,10 +5,44 @@ body { max-width: 820px; margin: 0 auto; padding: 0 24px 80px; }
 
 a { color: var(--accent); }
 
+/* The light blue of the help's browser boxes and of the site's name. */
+:root { --tint: #ddf4ff; --tint-line: #b6e3ff; --tint-ink: #0a3069; }
+
+/* The site's own name in running text, `<span class="brand">lemma-md</span>`:
+   in the formulas' typeface, KaTeX's Computer Modern, on the light blue, so
+   that it reads as a name rather than as a word, and is not taken for a bold
+   label or a link. The typeface alone was too quiet to be seen.
+   The font is declared here, not borrowed from katex.css, because most pages
+   on this stylesheet load no KaTeX; the files are the same, so a page that
+   has both fetches each once. Only the faces a page uses are fetched. */
+@font-face {
+  font-family: "lemma-md name";
+  src: url("../vendor/katex/fonts/KaTeX_Main-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: "lemma-md name";
+  src: url("../vendor/katex/fonts/KaTeX_Main-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-display: swap;
+}
+.brand {
+  font-family: "lemma-md name", "Latin Modern Roman", serif;
+  font-size: 1.12em;  /* Computer Modern is small on the eye beside the text */
+  line-height: 1;     /* and must not push its line apart from the others */
+  white-space: nowrap;
+  padding: .05em .3em;
+  border-radius: 4px;
+  background: var(--tint);
+  color: var(--tint-ink);
+}
+
 /* ---------- masthead ---------- */
 
 .masthead { display: flex; align-items: center; gap: 10px; padding: 22px 0; }
 .masthead img { display: block; }
+.masthead .home { display: flex; align-items: center; gap: 10px; text-decoration: none; color: inherit; }
 .masthead .wordmark { font-size: 1.05em; font-weight: 600; letter-spacing: -.01em; }
 
 /* ---------- hero ---------- */
@@ -17,6 +51,7 @@ a { color: var(--accent); }
 .hero h1 { font-size: 2.3em; line-height: 1.15; letter-spacing: -.02em; margin-bottom: .35em; }
 .hero .lede { font-size: 1.15em; color: var(--muted); max-width: 34em; }
 .hero .cta { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-top: 22px; }
+.hero .cta-more { margin-top: 16px; } /* a way in that is a sentence, not a third button */
 
 .button {
   display: inline-block;
@@ -30,6 +65,8 @@ a { color: var(--accent); }
 .button:hover { filter: brightness(1.08); }
 .button.quiet { background: none; color: var(--accent); border: 1px solid var(--line); }
 .button.quiet:hover { border-color: var(--accent); filter: none; }
+button.button { border: 0; font: inherit; cursor: pointer; }
+.button:disabled { opacity: .5; cursor: default; filter: none; }
 
 /* ---------- sections ---------- */
 
@@ -43,6 +80,18 @@ section > h2 {
 }
 section p { margin: .8em 0; max-width: 40em; }
 section p.note { color: var(--muted); font-size: .95em; }
+/* An aside in running text — in the FAQ, the line that closes an answer and
+   leads to the next — is set off by a bar at its left rather than by grey,
+   smaller type, which was hard to read and not plainly different. The same
+   goes for the asides of the front page and the privacy policy, and for the
+   presentations page's status line. A note inside a box (`.browser`) keeps
+   the grey: the box already sets it off. */
+section > p.note {
+  color: #3b434b;
+  font-size: 1em;
+  border-left: 3px solid #d0d7de;
+  padding: .1em 0 .1em 1em;
+}
 
 kbd, .lit {
   font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
@@ -51,7 +100,12 @@ kbd, .lit {
   border-radius: 4px;
   padding: .08em .35em;
   font-size: .9em;
+  /* One line, so that `lemma-md.github.io` is not split at its hyphen into
+     what looks like two words. The settings addresses in the browser boxes
+     are longer than a phone's line, and may break anywhere instead. */
+  white-space: nowrap;
 }
+.browser .lit { white-space: normal; overflow-wrap: anywhere; }
 
 /* ---------- tools ---------- */
 
@@ -67,10 +121,20 @@ kbd, .lit {
   background: var(--bg);
 }
 a.tool:hover { border-color: var(--accent); }
-.tool h3 { font-size: 1.05em; margin-bottom: .3em; }
+.tool h3 { font-size: 1.05em; margin: 0 0 .3em; } /* not the FAQ's section h3 margin */
+
+/* The way back from a help section to the help page, above its title. */
+.crumbs {
+  display: flex;
+  gap: .55em;  /* not a word space: the › needs air on both sides */
+  align-items: baseline;
+  font-size: .9em;
+  color: var(--muted);
+  margin-bottom: 1em;
+}
+.crumbs a { color: inherit; }
+.crumbs a:hover { color: var(--accent); }
 .tool p { font-size: .92em; color: var(--muted); margin: 0; }
-.tool .tag { font-size: .72em; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
-.tool.soon { background: var(--surface); }
 
 /* ---------- examples ---------- */
 
@@ -99,21 +163,27 @@ a.tool:hover { border-color: var(--accent); }
 .elsewhere li:first-child { border-top: 0; }
 .elsewhere .what { color: var(--muted); font-size: .95em; }
 
-/* ---------- help page (help/index.html) ---------- */
+/* ---------- the page: the logo and its contents on the left ---------- */
 
-/* Contents on the left, always in view, beside the answers. */
-body.help { max-width: 1080px; }
-.help-layout { display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 48px; align-items: start; }
-.help-layout > main { min-width: 0; }
+/* Every page on this stylesheet but the privacy policy (`body.paged`): a
+   column on the left with the logo and the page's contents, always in view,
+   beside the page itself. src/toc.js marks the part being read, and on a
+   narrow screen folds the contents away. */
+body.paged { max-width: 1080px; }
+.layout { display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 48px; align-items: start; }
+.layout > main { min-width: 0; }
 
-.toc {
+.side {
   position: sticky;
-  top: 24px;
-  max-height: calc(100vh - 48px);
+  top: 0;
+  max-height: 100vh;
   overflow-y: auto;
-  padding-top: 32px; /* level with the page title */
-  font-size: .93em;
+  padding-bottom: 24px;
 }
+.side [hidden] { display: none !important; } /* outweighs .toc-ready's display */
+
+.toc { padding-top: 22px; font-size: .93em; }
+.toc ul + .toc-title { margin-top: 1.6em; } /* a second group, as on the front page */
 .toc-title { font-size: .78em; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-bottom: .6em; }
 .toc ul { list-style: none; border-left: 1px solid var(--line); }
 .toc li a {
@@ -140,6 +210,16 @@ body.help { max-width: 1080px; }
 }
 .toc-toggle svg { display: block; }
 
+/* ---------- the guide's own page (help/index.html) ---------- */
+
+/* Its sections, each headed by the way to its page, and every answer in it.
+   What a placeholder will answer is listed in grey, without links. */
+.guide section > h2 a { color: inherit; text-decoration: none; }
+.guide section > h2 a:hover { color: var(--accent); }
+.guide ul.coming li { color: var(--muted); }
+
+/* ---------- help: answers on any help page ---------- */
+
 section h3 { font-size: 1.05em; margin: 1.6em 0 .4em; }
 
 /* One box per browser, its name on a tinted band, so that the steps for the
@@ -147,56 +227,92 @@ section h3 { font-size: 1.05em; margin: 1.6em 0 .4em; }
 .browser {
   max-width: 40em;
   margin: 1.2em 0;
-  border: 1px solid #b6e3ff;
+  border: 1px solid var(--tint-line);
   border-radius: 9px;
   overflow: hidden;
 }
 .browser > h3 {
   margin: 0;
   padding: 7px 14px;
-  background: #ddf4ff;
-  color: #0a3069;
-  border-bottom: 1px solid #b6e3ff;
+  background: var(--tint);
+  color: var(--tint-ink);
+  border-bottom: 1px solid var(--tint-line);
 }
 .browser > ol { margin: .7em 14px .7em 0; padding-left: calc(14px + 1.4em); }
 .browser > p { margin: .7em 14px; }
 section ul:not(.elsewhere), section ol { margin: .6em 0; padding-left: 1.4em; max-width: 40em; }
 section li { margin: .35em 0; }
 
-/* A question linked to from the app lands with some air above it. */
-section[id] { scroll-margin-top: 16px; }
+/* A part linked to, from the app or the contents, lands with some air above it. */
+main [id], main[id] { scroll-margin-top: 16px; }
 
-/* Narrow: one column, and the contents fold away behind the ☰ button in a bar
-   that stays at the top. Without the page's script they stay open above the
-   text instead (`toc-ready` is set by it). */
+/* Narrow: one column. The logo and the ☰ button make a bar that stays at the
+   top, and the contents fold away behind the button. Without the page's
+   script they stay open below the logo instead, and nothing sticks
+   (`toc-ready` is set by src/toc.js). */
 @media (max-width: 880px) {
-  .help-layout { display: block; }
-  .help .masthead {
+  .layout { display: block; }
+  .side { position: static; max-height: none; overflow: visible; padding-bottom: 0; }
+  .side .masthead { padding: 12px 0; }
+  .toc-ready .side {
     position: sticky;
     top: 0;
     z-index: 10;
-    padding: 12px 0;
     background: var(--bg);
     border-bottom: 1px solid var(--line);
   }
   .toc-ready .toc-toggle { display: block; }
-  .toc { position: static; max-height: none; padding-top: 24px; }
+  .toc { padding-top: 8px; }
   .toc-ready .toc { display: none; }
+  /* Open, the contents hang below the bar, which stays above the shade with
+     the logo and the button that closes them: the same column as on a wide
+     screen. The sticky bar is what they are placed against, so `100%` is its
+     height; -24px is the body's side padding, to reach the window's edge. */
+  .toc-ready .side .masthead {
+    position: relative;
+    z-index: 1;
+    margin: 0 -24px;     /* across the body's padding, so no shade shows beside it */
+    padding: 12px 24px;
+    background: var(--bg);
+  }
   .toc-ready .toc.open {
     display: block;
-    position: fixed;
-    top: 0;
-    bottom: 0;
-    left: 0;
-    z-index: 20;
+    position: absolute;
+    top: 100%;
+    left: -24px;
+    height: calc(100vh - 100%);
     width: min(300px, 85vw);
-    padding: 20px 20px 20px 16px;
+    padding: 16px 20px 20px 24px;
     overflow-y: auto;
     background: var(--bg);
     border-right: 1px solid var(--line);
     box-shadow: 0 0 0 100vmax rgba(0, 0, 0, .25);
   }
-  section[id] { scroll-margin-top: 72px; }
+  main [id], main[id] { scroll-margin-top: 72px; }
+}
+
+/* ---------- presentations page (presentations/index.html) ---------- */
+
+/* `section ul.decks` to outweigh the FAQ's rule for lists in a section. */
+section ul.decks { list-style: none; padding: 0; margin: 0; max-width: none; }
+section .deck {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: 0;
+  padding: 14px 0;
+  border-top: 1px solid var(--line);
+}
+.deck:first-child { border-top: 0; }
+.deck-text { flex: 1; min-width: 0; }
+.deck h3 { font-size: 1.05em; margin: 0 0 .2em; overflow-wrap: anywhere; }
+.deck h3 .tag { font-size: .65em; font-weight: 500; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); border: 1px solid var(--line); border-radius: 4px; padding: 1px 5px; vertical-align: middle; }
+.deck-facts { margin: 0; color: var(--muted); font-size: .92em; }
+.deck .button { flex: none; padding: 8px 14px; border: 0; font: inherit; cursor: pointer; }
+
+@media (max-width: 620px) {
+  section .deck { flex-direction: column; align-items: stretch; }
+  .deck .button { align-self: flex-start; }
 }
 
 /* ---------- footer ---------- */

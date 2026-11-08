@@ -8,9 +8,10 @@ so a later session can pick it up quickly. For the user-facing summary see the
 whole app, [ARCHITECTURE.md](ARCHITECTURE.md).
 
 Verify changes the way the rest of the project does: serve on **port 8001** and
-inspect the DOM in a real browser (see [../CLAUDE.md](../CLAUDE.md)). `python
--m http.server` does not bust caches — `fetch(path, { cache: 'reload' })` before
-reloading, and reload CSS with a `?v=` query. One recurring red herring: the
+inspect the DOM in a real browser (see [../CLAUDE.md](../CLAUDE.md)). Start the
+server with the `_tools` scripts, which turn caching off; plain `python -m
+http.server` does not, and an old copy of a file can outlive an edit. One
+recurring red herring: the
 browser console keeps **stale errors across reloads**; a genuine failure in
 `createInk` would leave the chrome unbuilt, so trust "the palette/board/menu all
 exist" over ghost `ReferenceError`s in the console buffer.
@@ -200,6 +201,7 @@ live in the global `meta` store:
 | `present-mode-tools` | `{ annotate:{tool,slot}, board:{tool,slot} }` |
 | `present-board-surface` | `dark` / `light` (default **dark**) |
 | `present-board-grid` | boolean (default **on**) |
+| `present-board:<id>` | `{ created }`: `<id>` is a board of its own, with no note (*Start with a blank board*); the projector opens it on the board |
 
 Deleting a note deletes its `annotations` record too. **Watch the orphan-flush
 trap:** an open projector flushes its ink on `pagehide`, so navigating one tab

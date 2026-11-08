@@ -1,6 +1,8 @@
-// The local server sends no cache headers, so after an edit the browser may
-// still run the old copy of a module (CLAUDE.md → Verifying changes): a test
-// would then pass or fail against code that is no longer on disk. Before any
+// A server that sends no cache headers, as plain `python -m http.server` does,
+// lets the browser run an old copy of a module after an edit (CLAUDE.md →
+// Verifying changes): a test would then pass or fail against code that is no
+// longer on disk. _tools/serve.py sends no-cache, but the tests do not count on
+// being served by it. Before any
 // test module loads, this fetches every module the tests can reach, the app's
 // own included, with `cache: 'reload'`, which puts the copy on disk into the
 // cache that module loading reads from.

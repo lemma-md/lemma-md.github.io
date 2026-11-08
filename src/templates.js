@@ -45,7 +45,7 @@ place: Your seminar or conference
 date: September 11, 2026
 ---
 
-# A deck is just a note
+# Slides are just a note
 
 Separate slides with a line of three dashes:
 
@@ -125,5 +125,5 @@ Links work too — hold **Ctrl** and click [example.com](https://example.com).
 export const templates = [
   { id: 'blank', name: 'untitled.md', label: 'Blank note', description: 'Start from nothing.', text: '', mode: 'edit', icon: 'icon-new' },
   { id: 'welcome', name: 'welcome.md', label: 'Welcome & basics', description: 'Markdown and TeX in five minutes.', text: WELCOME, mode: 'view', icon: 'icon-info' },
-  { id: 'slides', name: 'demo-slides.md', label: 'Slide demo', description: 'A short deck — open it, then Present (Alt+P).', text: DEMO_SLIDES, mode: 'view', icon: 'icon-present' },
+  { id: 'slides', name: 'demo-slides.md', label: 'Slide demo', description: 'A few slides — open it, then Present (Alt+P).', text: DEMO_SLIDES, mode: 'view', icon: 'icon-present' },
 ]

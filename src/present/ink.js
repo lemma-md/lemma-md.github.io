@@ -108,7 +108,7 @@ function icon(name) {
  * for `noteId`, draws them, builds the floating tool palette, and wires pointer
  * drawing. Returns { flush } so the caller can force a save (e.g. on unload).
  */
-export async function createInk(reveal, noteId) {
+export async function createInk(reveal, noteId, { start } = {}) {
   const deckEl = reveal.getRevealElement()
   const sections = [...deckEl.querySelectorAll('.slides > section')]
 
@@ -393,7 +393,7 @@ export async function createInk(reveal, noteId) {
   // Switch mode. Remember the tool of the mode we leave, restore the tool of the
   // one we enter (present is always the laser). The board is a full overlay, so
   // hide the deck (and its keyboard nav) while it is up and re-lay it out on return.
-  function setMode(next) {
+  function setMode(next, { remember = true } = {}) {
     if (!['present', 'annotate', 'board'].includes(next) || next === mode) return
     if (mode !== 'present') { modeMem[mode].tool = tool; modeMem[mode].slot = slot }
     mode = next
@@ -415,7 +415,7 @@ export async function createInk(reveal, noteId) {
     paintModeUI()
     paintNav()
     persistModeMem()
-    drafts.putMeta('present-mode', mode).catch(() => {})
+    if (remember) drafts.putMeta('present-mode', mode).catch(() => {})
   }
 
   function setSurface(next) {
@@ -1354,8 +1354,10 @@ export async function createInk(reveal, noteId) {
   reveal.on('slidechanged', paintNav)
 
   // Resume in the mode we left off in (Present by default). setMode applies the
-  // board/palette/tool state for that mode.
-  if (savedMode === 'annotate' || savedMode === 'board') setMode(savedMode)
+  // board/palette/tool state for that mode. A board of its own opens on the
+  // board (`start`), without making that the mode the next talk opens in.
+  if (start) setMode(start, { remember: false })
+  else if (savedMode === 'annotate' || savedMode === 'board') setMode(savedMode)
 
   // Undo/redo on the current slide: Ctrl/Cmd+Z undoes; Ctrl+Y or Ctrl/Cmd+Shift+Z
   // redoes. Matched on the physical key (event.code) so a Cyrillic layout does not

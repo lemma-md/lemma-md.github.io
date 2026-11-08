@@ -37,7 +37,7 @@ async function renderStorage() {
   if (await drafts.openFailure()) {
     el.usage.textContent = 'This browser won’t let lemma-md store anything, so no note is kept here after its tab closes. '
     const link = document.createElement('a')
-    link.href = helpUrl('storage-blocked')
+    link.href = helpUrl('troubleshooting', 'storage-blocked')
     link.target = '_blank'
     link.rel = 'noopener'
     link.textContent = 'How to allow it'

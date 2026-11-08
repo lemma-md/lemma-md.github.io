@@ -40,4 +40,5 @@ echo
 echo "  Press Ctrl+C to stop."
 echo
 
-exec "$PY" -m http.server "$PORT" --directory "$(pwd)"
+# http.server with caching off: see serve.py for why.
+exec "$PY" _tools/serve.py "$PORT" "$(pwd)"

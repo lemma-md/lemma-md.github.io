@@ -30,8 +30,10 @@ Working today:
   downloaded until then, which is 565 kB, or 47% of everything vendored
 - a bar holding only that toggle and a menu button, so the tab strip keeps its
   room; everything occasional lives in the menu, each entry showing its shortcut
-- shortcuts: `Ctrl+E` read/write, `Ctrl+O` open, `Ctrl+S` download, `Alt+N` new,
-  `Alt+W` close. New and close sit on Alt because Chrome and Firefox reserve
+- shortcuts: `Ctrl+E` read/write, `Ctrl+O` open, `Ctrl+S` save (back to the
+  note's file or Drive, or asking where for a new one), `Alt+N` new, `Alt+W`
+  close, `Alt+P` present, `Alt+I` file info, `Ctrl+,` settings. New and close
+  sit on Alt because Chrome and Firefox reserve
   `Ctrl+N`, `Ctrl+W` and `Ctrl+F4` for their own windows and tabs and never
   deliver those keypresses to a page — a binding there would look right and do
   nothing. Matching is on the physical key, so a Cyrillic layout does not
@@ -41,9 +43,9 @@ Working today:
 - multiple notes in tabs, restored when you come back
 - automatic saving of drafts. Closing a note with unsaved changes asks first,
   and a discarded note goes to a bin in Settings, from where it can be restored
-- a Settings window listing every saved note — reopen or delete any of them —
-  along with how much space they take and whether the browser has agreed to
-  keep them permanently
+- a Settings window with the bin, where a discarded note can be restored or
+  deleted for good, along with how much space the notes take and whether the
+  browser has agreed to keep them permanently
 - download as `.md`, or export a self-contained `.html` that renders the note —
   Markdown and TeX — anywhere, and can be dragged back in to recover the source
 - open and save real files on disk where the browser allows it; elsewhere, open
@@ -73,14 +75,16 @@ Planned, numbered as in [docs/ROADMAP.md](docs/ROADMAP.md):
 2. **Presenter**
    - **2.1** presentation management: each presentation keeps its own copy of
      the slides and its ink, so editing or closing the note no longer disturbs
-     it. A page of its own lists past presentations, to reopen, delete or start
-     afresh, and starts new ones from a note, a file on disk or Google Drive
+     it. The presentations page, which already lists them to show again, gains
+     delete and start afresh, and starts new ones from a note, a file on disk or
+     Google Drive
    - **2.2** PDF files as presentations, drawn over like slides
    - **2.3** presentation themes: swappable colour, spacing and font sets,
      chosen per deck in the front-matter
 3. **Help**
-   - **3.1** more answers on the help page: Google Drive, what the status
-     says, conflicts, the bin, slides, export, offline use
+   - **3.1** the help's sections on the editor and presentations, and more
+     FAQ answers: Google Drive, what the status says, conflicts, the bin,
+     slides, export, offline use
 4. **Tests**
    - **4.1** a live Google Drive check before a release, and the tests run from
      one command
@@ -197,11 +201,17 @@ tool, or left behind by a console that has since been closed. It finds the
 process by the port. On Windows use the `.cmd` version even from Git Bash,
 which ships neither `lsof` nor `fuser`.
 
-The equivalent by hand, if you would rather:
+The scripts run [_tools/serve.py](_tools/serve.py), Python's own `http.server`
+with caching off: it sends `Cache-Control: no-cache`, so after an edit a reload
+gets the files as they are now, never a mix of old and new. The equivalent by
+hand, if you would rather:
 
 ```bash
-python -m http.server 8001
+python _tools/serve.py 8001 .
 ```
+
+Plain `python -m http.server 8001` works too, but sends no cache headers, and
+the browser may then keep running an old copy of a file after it changed.
 
 Then open <http://localhost:8001> for the front page, or
 <http://localhost:8001/editor/> to go straight to the editor.
@@ -235,31 +245,45 @@ reverted in 3.3.1, and only `vendor/bundle/` and its siblings are excluded now.
 If the deployed site ever loses its libraries while working locally, this is
 where to look first.
 
+GitHub Pages serves every file with `Cache-Control: max-age=600`. A browser
+uses its copy for ten minutes without asking, then asks again. So for ten
+minutes after a push, someone who loaded the site just before it can be
+running old files beside new ones, and may see the editor misbehave; a reload
+after that sets it right, and their notes, kept in the browser, are untouched.
+There is no build to stamp file names with a version, and for a window this
+short none is wanted.
+
 ## Layout
 
 The site has a front page and, under it, one directory per tool.
 
 ```
-index.html          front page: what markdown is, and where the tools are
+index.html          front page: what you can do here, and what Markdown is
 editor/index.html   the editor; loads the vendored libraries and the sprite
 present/index.html  the projector window; loads reveal.js and the ink layer
-help/index.html     questions and answers, plain HTML; the app links to its sections
+help/               help, in sections: faq/, editor/, presentations/,
+                    troubleshooting/; plain HTML, and the app links to
+                    their answers
+presentations/      the presentations page: every note presented, to show again
 privacy.html        the privacy policy
 
-src/landing.js      renders the front page's examples with viewer.js
+src/examples.js     renders the FAQ's Markdown examples with viewer.js
 src/app.js          tabs, drag & drop, autosave, pane splitter
 src/viewer.js       markdown + TeX -> sanitised HTML
 src/editor.js       Ace, loaded on demand
-src/present/        slide splitting, reveal.js setup and the drawing tools
+src/present/        slide splitting, reveal.js setup, the drawing tools, and the
+                    catalog the presentations page lists
+src/presentations.js the presentations page
 src/drafts.js       IndexedDB persistence (notes and presentation ink)
 src/settings.js     the Settings window
-src/help.js         links into help/, whose section anchors are permanent
+src/help.js         links into help/, whose answers' anchors are permanent
+src/toc.js          the contents beside the front page, presentations and help
 src/storage/        cloud providers behind one interface (see docs/CLOUD-SETUP.md)
 src/config.js       the app's own Google ids, one set for every origin
 
 src/theme.css       colours, reset, base type — every page
 src/markdown.css    how rendered markdown looks — every page that renders it
-src/landing.css     the front page, the help page and the privacy policy
+src/landing.css     the front page, help, presentations and the privacy policy
 src/ui.css          the editor's chrome
 src/present.css     the projector and its tools, on top of reveal.js
 
@@ -269,7 +293,7 @@ _tools/             scripts for working on the site, never published — see
                     Deployment for what the underscore does
 ```
 
-The stylesheets are split that way because the front page shows rendered
+The stylesheets are split that way because the FAQ shows rendered
 markdown too, and it is a promise about what the editor produces. A second copy
 of those rules would eventually make it a false one.
 

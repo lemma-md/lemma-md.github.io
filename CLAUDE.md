@@ -66,12 +66,13 @@ test there, in the file for its area. The export tests also fail when
 about a minute, most of it the editor tests; the page reloads every module
 itself, so a plain reload runs what is on disk.
 
-`python -m http.server` sends no cache-busting headers, so a browser will
-happily serve an old `index.html` or `ui.css` after an edit. This has already
-caused two phantom bugs. Before concluding anything from a page, check that the
-file the browser holds is the file on disk — compare against
-`fetch(path, { cache: 'reload' })`, or reload the stylesheet with a query
-string appended.
+The start scripts run `_tools/serve.py`, which sends `Cache-Control: no-cache`,
+so a reload asks for every file again. Plain `python -m http.server` sends no
+such header, and a browser then happily serves an old `index.html` or `ui.css`
+after an edit: two phantom bugs and one broken editor came from that. A page
+already open still holds what it loaded, so reload it after an edit; and if a
+page looks wrong, check that the server running is the one the scripts start
+(`lemma_stop`, then `lemma_start`) before concluding anything from it.
 
 One caveat: an automated browser tab usually reports `visibilityState:
 "hidden"`, and `requestAnimationFrame` never fires there. Ace's render loop is

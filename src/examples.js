@@ -1,4 +1,6 @@
-// Front page: render the examples with the very code the editor uses.
+// Render a page's Markdown examples (`.example`: the source in `.src`, the result
+// in `.out`) with the very code the editor uses. The FAQ's "What is
+// Markdown?" has them; the front page had them before it.
 //
 // The claim the examples make — "this is what you get" — would rot if the page
 // carried hand-written HTML beside each snippet. So the markdown on the left is
@@ -8,8 +10,8 @@
 import { loadScript } from './load-script.js'
 
 // marked, DOMPurify and KaTeX together weigh more than the rest of the page,
-// and none of them is needed to read the text above the examples. They arrive
-// after first paint; until they do, each box says so.
+// and none of them is needed to read its text. They arrive after first paint;
+// until they do, each box says so.
 const VENDOR = ['../vendor/marked.min.js', '../vendor/purify.min.js', '../vendor/katex/katex.min.js']
 
 async function renderExamples() {
@@ -35,8 +37,8 @@ async function renderExamples() {
 }
 
 renderExamples().catch((err) => {
-  // A front page that renders nothing is still a front page: the markdown
-  // sources stay visible and every link still works.
+  // A page whose examples render nothing still reads: the markdown sources stay
+  // visible and every link still works.
   console.error(err)
   for (const out of document.querySelectorAll('.example .out')) {
     out.textContent = 'Could not render this example.'

@@ -145,7 +145,7 @@ Three ways this goes wrong locally:
 
 - **The port is part of the origin and is matched exactly.** `http://localhost:8001`
   does not authorise `http://localhost:8080`. Serve the app on the one port you
-  registered — the `python -m http.server 8001` in [README.md](../README.md) —
+  registered — `_tools/lemma_start` serves on 8001, see [README.md](../README.md) —
   or register each port you actually use.
 - **`localhost` and `127.0.0.1` are different origins.** `python -m http.server`
   advertises `0.0.0.0`, and following that link lands you on `127.0.0.1`.
@@ -283,9 +283,10 @@ It almost never means the key is mistyped. In order of likelihood:
    API is not enough, and the Picker API is easy to miss because searching the
    API Library for "Picker" surfaces the unrelated Photos Picker instead. Enable
    it at <https://console.cloud.google.com/apis/library/picker.googleapis.com>.
-3. **The page may be running an older `config.js`.** `python -m http.server`
-   sends no cache headers, so after filling in the credentials, reload with the
-   cache bypassed. An empty `apiKey` reaches the picker as `developerKey=` with
+3. **The page may be running an older `config.js`.** A server that sends no
+   cache headers, as plain `python -m http.server` does, lets the browser keep
+   the old copy; the `_tools` scripts send `no-cache`. Either way, after filling
+   in the credentials, reload the page. An empty `apiKey` reaches the picker as `developerKey=` with
    nothing after it, which it reports as an invalid key. To check, open the
    picker and look at the `iframe` whose source is `docs.google.com/picker`: the
    `developerKey` parameter must carry the key, and `appId` the project number.

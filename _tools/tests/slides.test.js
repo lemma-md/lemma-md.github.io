@@ -2,7 +2,7 @@
 // slides, what counts as front-matter, and the directive comment on a slide.
 // Then the templates a new note can start from, which must render cleanly.
 
-import { splitSlides, parseDeck, parseDirectives } from '../../src/present/slides.js'
+import { splitSlides, parseDeck, parseDirectives, hasTitle } from '../../src/present/slides.js'
 import { templates, WELCOME } from '../../src/templates.js'
 import { errors } from './render.test.js'
 import { suite, test, assert } from './runner.js'
@@ -37,6 +37,28 @@ test('a closing line with text after $$ closes the formula', () => {
 
 test('an unclosed $$ ends at a blank line, not at the end of the deck', () => {
   assert.equal(count('one\n$$\nx\n\n---\n\ntwo\n\n---\n\nthree'), 3)
+})
+
+test('a four-backtick fence holds a three-backtick one', () => {
+  assert.equal(count('a\n\n````\n```\n---\n```\n````\n\n---\n\nb'), 2)
+})
+
+test('~~~ does not close a ``` fence', () => {
+  assert.equal(count('```\n~~~\n---\nstill code\n```'), 1)
+})
+
+test('a closing fence holds nothing else on its line', () => {
+  assert.equal(count('```\n``` not a close\n---\nstill code\n```'), 1)
+})
+
+test('$$ in inline code opens no formula', () => {
+  // No blank line before the separator, which would end a formula anyway.
+  assert.equal(count('a `$$` b\n---\nc'), 2)
+})
+
+test('options alone in the front-matter make no title slide', () => {
+  assert.ok(!hasTitle({ fontsize: '28' }), 'fontsize only')
+  assert.ok(hasTitle({ title: 'A talk', fontsize: '28' }), 'a title')
 })
 
 test('front-matter becomes the title, not a slide', () => {

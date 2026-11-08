@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>lemma-md — help</title>
-<meta name="description" content="How lemma-md works without a server or an account, where your notes are kept, and how to let the site store them.">
+<title>lemma-md — guide</title>
+<meta name="description" content="Help for lemma-md: questions and answers, the editor, and presentations.">
 
 <link rel="icon" href="../favicon.svg" type="image/svg+xml">
 <link rel="icon" href="../favicon-32.png" sizes="32x32" type="image/png">
@@ -15,225 +15,100 @@
 <link rel="stylesheet" href="../src/landing.css">
 </head>
 
-<body class="help">
+<body class="paged guide">
 
-<!-- Every section id below is permanent: the app links to them (src/help.js),
-     so renaming one breaks a link in a build that is already out. -->
+<!-- Help, in sections: each is a page of its own under help/, and links back
+     here. The app links into them by section anchors, which are permanent. -->
 
-<header class="masthead">
-  <a href="../" style="display:flex; align-items:center; gap:10px; text-decoration:none; color:inherit;">
-    <img src="../favicon.svg" alt="" width="26" height="26">
-    <span class="wordmark">lemma-md</span>
-  </a>
-  <!-- Only on a narrow screen, where the contents fold away behind it. -->
-  <button class="toc-toggle" type="button" aria-controls="toc" aria-expanded="false" aria-label="Contents" title="Contents">
-    <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-      <path d="M4 6h16M4 12h16M4 18h16"/>
-    </svg>
-  </button>
-</header>
+<div class="layout">
 
-<div class="help-layout">
-
-<nav id="toc" class="toc" aria-label="Contents">
-  <p class="toc-title">Contents</p>
-  <ul>
-    <li><a href="#no-server">No server, no account</a></li>
-    <li><a href="#files">Files on your computer</a></li>
-    <li><a href="#browser-storage">Where notes are kept</a></li>
-    <li><a href="#storage-blocked">Letting the site store data</a></li>
-  </ul>
-</nav>
+<aside class="side">
+  <header class="masthead">
+    <a class="home" href="../">
+      <img src="../favicon.svg" alt="" width="26" height="26">
+      <span class="wordmark">lemma-md</span>
+    </a>
+    <!-- Only on a narrow screen, where the contents fold away behind it. -->
+    <button class="toc-toggle" type="button" aria-controls="toc" aria-expanded="false" aria-label="Contents" title="Contents">
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <path d="M4 6h16M4 12h16M4 18h16"/>
+      </svg>
+    </button>
+  </header>
+  <nav id="toc" class="toc" aria-label="Contents">
+    <!-- The rest of the site, before what this page says. -->
+    <p class="toc-title">Go to</p>
+    <ul>
+      <li><a href="../editor/">Editor</a></li>
+      <li><a href="../presentations/">Presentations</a></li>
+    </ul>
+    <p class="toc-title">Guide</p>
+    <ul>
+      <li><a href="faq/">FAQ</a></li>
+      <li><a href="editor/">Editing</a></li>
+      <li><a href="presentations/">Presenting</a></li>
+      <li><a href="troubleshooting/">Troubleshooting</a></li>
+    </ul>
+  </nav>
+</aside>
 
 <main>
 
 <div class="hero">
-  <h1>Help</h1>
+  <h1>Guide</h1>
   <p class="lede">
-    Most questions about lemma-md come from one fact: it runs entirely in your
-    browser. Here is what that means.
+    Answers about <span class="brand">lemma-md</span>, by what you came to do.
   </p>
 </div>
 
-<section id="no-server">
-  <h2>Is there a server? Do I need an account?</h2>
-  <p>
-    No, and no. lemma-md is a set of files — pages, scripts, fonts — that your
-    browser downloads, as it does for any website. From then on everything
-    happens in your browser: the editor, the typesetting of formulas, the
-    slides. There is no lemma-md server for your notes to go to, so they go to
-    none.
-  </p>
-  <p>
-    That is also why there is no sign-up. An account would only be needed to
-    keep your notes somewhere of ours, and there is no such place. A note
-    leaves your computer only when you save it to Google Drive, and then it goes
-    straight from your browser to Google.
-  </p>
-  <p class="note">
-    GitHub, which serves the files, sees that your browser asked for them, as
-    any web host does; it never sees your notes. The details are in the
-    <a href="../privacy.html">privacy policy</a>. The other side of having no
-    server: nobody keeps a copy for you. See
-    <a href="#browser-storage">where your notes are before you save them</a>.
-  </p>
-</section>
-
-<section id="files">
-  <h2>Can I open and save files on my computer?</h2>
-  <p>
-    Yes, in <strong>Chrome, Edge, Opera</strong> and other browsers built on
-    Chromium, on a computer. There lemma-md works like a desktop editor:
-    <strong>Open a file…</strong> opens a <span class="lit">.md</span> file, you
-    edit it, and saving writes back into that same file. After a reload the
-    browser may ask once more whether lemma-md may edit it.
-  </p>
-  <p>
-    This rests on a browser feature called the File System Access API. Firefox
-    and Safari have chosen not to add it, judging that letting a web page write
-    into files on your disk is too easy to abuse. Some Chromium browsers, such
-    as Brave, switch it off as well, and browsers on phones and tablets do not
-    have it.
-  </p>
-  <h3>In Firefox, Safari, and on a phone</h3>
+<!-- Every answer, under the section it belongs to, worded as its page words
+     it: help.test.js checks that the two agree. A placeholder lists what it
+     will answer, without links. -->
+<section id="faq">
+  <h2><a href="faq/">FAQ →</a></h2>
+  <p>What <span class="brand">lemma-md</span> is, and what it means that it runs entirely in your browser.</p>
   <ul>
-    <li><strong>Opening</strong> works: drag a file onto the page, or use
-        <strong>Open a file…</strong>.</li>
-    <li><strong>Saving</strong> downloads a copy (<strong>Download as .md</strong>),
-        into your Downloads folder unless the browser asks where to put it.</li>
-    <li>lemma-md cannot write over a file on your disk. To carry on with a
-        downloaded copy later, open it again.</li>
+    <li><a href="faq/#markdown">What is Markdown?</a></li>
+    <li><a href="faq/#why">Why does this site exist?</a></li>
+    <li><a href="faq/#no-server">Is there a server? Do I need an account?</a></li>
+    <li><a href="faq/#files">Can I open and save files on my computer?</a></li>
+    <li><a href="faq/#browser-storage">Where are my notes before I save them?</a></li>
+    <li><a href="faq/#other-tools">Which other tools view and edit .md files?</a></li>
   </ul>
-  <p class="note">
-    In every browser, notes are also kept in the browser as you type, and
-    Google Drive works the same everywhere.
-  </p>
 </section>
 
-<section id="browser-storage">
-  <h2>Where are my notes before I save them?</h2>
-  <p>
-    In your browser’s storage for this site, called <strong>IndexedDB</strong>.
-    Every site has its own, and no other site can read it. lemma-md writes each
-    note there as you type, a moment after you stop.
-  </p>
-  <p>
-    Think of the recovery files a desktop editor keeps. Close the tab, quit the
-    browser, restart the computer: your notes are back in their tabs when you
-    return. You do not have to save a note to go on with it tomorrow.
-  </p>
-  <p>But this is not a copy to rely on:</p>
-  <ul>
-    <li>It belongs to <strong>this browser on this device</strong>. Another
-        browser, another computer or your phone sees none of it.</li>
-    <li><strong>Clearing the browser’s data</strong> for this site (“cookies and
-        site data”) deletes it.</li>
-    <li>A <strong>private or incognito window</strong> keeps it only until the
-        window closes.</li>
-    <li>When the disk runs low, the browser <strong>may delete a site’s
-        data</strong> to make room, unless the site was allowed to keep it.
-        <strong>Settings → Keep them permanently</strong> asks for that.</li>
-    <li><strong>Safari</strong> deletes a site’s data once you have not visited
-        it for seven days of using Safari.</li>
+<section id="editing">
+  <h2><a href="editor/">Editing →</a></h2>
+  <p>Writing a note, saving it, and taking it elsewhere. Being written; it will answer:</p>
+  <ul class="coming">
+    <li>Markdown and formulas: what is supported, and where KaTeX differs from LaTeX</li>
+    <li>Formulas pasted from ChatGPT</li>
+    <li>What the status in the toolbar says</li>
+    <li>Saving to a file or to Google Drive, and what happens when the file changed elsewhere</li>
+    <li>The bin</li>
+    <li>Downloading a note, as <span class="lit">.md</span> or as a page of its own</li>
+    <li>Other tabs, other browsers, other devices</li>
   </ul>
-  <p>
-    So for anything that matters, save the note to a file or to Google Drive.
-  </p>
-  <p class="note">
-    The browser’s storage holds the notes open in your tabs, and the bin. A
-    saved note leaves it when you close its tab, since its file is now the
-    copy. A note you close with <strong>Discard changes</strong> goes to the
-    bin, in Settings, for 15 days, in case you change your mind.
-  </p>
 </section>
 
-<section id="storage-blocked">
-  <h2>lemma-md says it can’t store anything. How do I allow it?</h2>
-  <p>
-    <strong>No browser blocks this by default.</strong> If lemma-md says it
-    can’t store anything, the browser was set to stop sites from keeping data
-    on your device: in its settings, by an extension, or by whoever manages the
-    computer. Usually it comes with blocking all cookies, because browsers
-    treat a site’s storage like its cookies.
-  </p>
-  <p>
-    Until it is allowed, lemma-md still works but keeps nothing, so save or download
-    each note before you close the tab. Allowing lemma-md alone is enough; the
-    rest of the web can stay blocked. When you have changed the setting,
-    reload the lemma-md page — after saving your notes, since while storage is
-    blocked a reload loses them.
-  </p>
-  <p>
-    The site to allow is <span class="lit">lemma-md.github.io</span>.
-  </p>
+<section id="presenting">
+  <h2><a href="presentations/">Presenting →</a></h2>
+  <p>Slides, the projector and the board. Being written; it will answer:</p>
+  <ul class="coming">
+    <li>Slides from a note: <span class="lit">---</span> between slides, and a title slide from the front-matter</li>
+    <li>The projector: Present, Annotate and Board</li>
+    <li>The laser pointer, pen, chalk, highlighter and eraser</li>
+    <li>Starting with a blank board, for a talk without slides</li>
+    <li>Where drawings are kept, and showing a talk again from the presentations page</li>
+    <li>Exporting a talk as PDF, with its drawings and board pages</li>
+  </ul>
+</section>
 
-  <div class="browser">
-    <h3>Chrome</h3>
-    <ol>
-      <li>Open <strong>Settings → Privacy and security → Site settings →
-          Additional content settings → On-device site data</strong>, or type
-          <span class="lit">chrome://settings/content/siteData</span> into the
-          address bar.</li>
-      <li>For lemma-md alone: next to <strong>Allowed to save data on your
-          device</strong>, click <strong>Add</strong> and enter the site.</li>
-      <li>Or, for every site: under <strong>Default behavior</strong>, choose
-          <strong>Allow sites to save data on your device</strong>.</li>
-    </ol>
-    <p class="note">
-      If your notes vanish each time you quit Chrome, the same page has
-      <strong>Delete data sites have saved to your device when you close all
-      windows</strong> selected. Adding lemma-md to the allowed sites fixes that
-      too.
-    </p>
-  </div>
-
-  <div class="browser">
-    <h3>Edge</h3>
-    <ol>
-      <li>Open <strong>Settings → Cookies and site permissions → Manage and
-          delete cookies and site data</strong>, or type
-          <span class="lit">edge://settings/content/cookies</span> into the
-          address bar.</li>
-      <li>For lemma-md alone: next to <strong>Allow</strong>, click
-          <strong>Add</strong> and enter the site.</li>
-      <li>Or, for every site: turn on <strong>Allow sites to save and read
-          cookie data</strong>.</li>
-    </ol>
-  </div>
-
-  <div class="browser">
-    <h3>Firefox</h3>
-    <ol>
-      <li>Open <strong>Settings → Privacy &amp; Security</strong>, and under
-          <strong>Cookies and Site Data</strong> click <strong>Manage
-          Exceptions…</strong>.</li>
-      <li>Enter the site, click <strong>Allow</strong>, then <strong>Save
-          Changes</strong>.</li>
-    </ol>
-    <p class="note">
-      An exception also keeps your notes when <strong>Delete cookies and site
-      data when Firefox is closed</strong> is on.
-    </p>
-  </div>
-
-  <div class="browser">
-    <h3>Safari</h3>
-    <ol>
-      <li>On a Mac: <strong>Safari → Settings → Privacy</strong>, and turn off
-          <strong>Block all cookies</strong>.</li>
-      <li>On an iPhone or iPad: in the <strong>Settings</strong> app, open
-          <strong>Safari</strong> (under <strong>Apps</strong> on recent
-          versions) and turn off <strong>Block All Cookies</strong>.</li>
-    </ol>
-    <p class="note">Safari has no exception for a single site.</p>
-  </div>
-
-  <h3>If that is not it</h3>
+<section id="troubleshooting">
+  <h2><a href="troubleshooting/">Troubleshooting →</a></h2>
+  <p>When the app says something is in the way: what it means, and how to put it right.</p>
   <ul>
-    <li>A setting that is greyed out, or marked as managed by your
-        organisation, can be changed only by whoever manages the computer.</li>
-    <li>A privacy or cookie-blocking extension can do the same. Allow
-        lemma-md in it, or try a window where extensions are off.</li>
+    <li><a href="troubleshooting/#storage-blocked">“This browser won’t let <span class="brand">lemma-md</span> store anything”</a></li>
   </ul>
 </section>
 
@@ -242,55 +117,11 @@
     Something missing here? Write to
     <a href="mailto:lemma2md@gmail.com">lemma2md@gmail.com</a>.
   </p>
-  <p>
-    Source, and the reasoning behind it, on
-    <a href="https://github.com/lemma-md" target="_blank" rel="noopener noreferrer">GitHub</a>.
-  </p>
 </footer>
 
 </main>
 </div>
 
-<script>
-// The contents: on a narrow screen a panel behind the ☰ button, and on any
-// screen the entry for the section being read is marked. Without this script
-// the contents simply stay open above the text.
-{
-  const toc = document.getElementById('toc')
-  const toggle = document.querySelector('.toc-toggle')
-  document.body.classList.add('toc-ready')
-
-  const setOpen = (open) => {
-    toc.classList.toggle('open', open)
-    toggle.setAttribute('aria-expanded', String(open))
-  }
-  toggle.onclick = () => setOpen(!toc.classList.contains('open'))
-  toc.addEventListener('click', (e) => { if (e.target.closest('a')) setOpen(false) })
-  document.addEventListener('click', (e) => {
-    if (toc.classList.contains('open') && !toc.contains(e.target) && !toggle.contains(e.target)) setOpen(false)
-  })
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') setOpen(false) })
-
-  // The section being read is the last one whose top has passed a line near
-  // the top of the window; at the very bottom, the last one.
-  const links = [...toc.querySelectorAll('a[href^="#"]')]
-  const sections = links.map((a) => document.getElementById(a.hash.slice(1)))
-  const mark = () => {
-    let current = -1
-    sections.forEach((s, i) => { if (s.getBoundingClientRect().top <= 120) current = i })
-    if (innerHeight + scrollY >= document.documentElement.scrollHeight - 2) current = sections.length - 1
-    links.forEach((a, i) => {
-      if (i === current) a.setAttribute('aria-current', 'true')
-      else a.removeAttribute('aria-current')
-    })
-  }
-  addEventListener('scroll', mark, { passive: true })
-  addEventListener('resize', mark)
-  addEventListener('hashchange', mark)
-  addEventListener('load', mark) // after the jump to a #section the page was opened at
-  mark()
-}
-</script>
-
+<script type="module" src="../src/toc.js"></script>
 </body>
 </html>

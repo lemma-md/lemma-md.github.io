@@ -56,4 +56,5 @@ echo.
 echo   Press Ctrl+C to stop.
 echo.
 
-%PY% -m http.server %PORT% --directory "%CD%"
+rem http.server with caching off: see serve.py for why.
+%PY% _tools\serve.py %PORT% "%CD%"

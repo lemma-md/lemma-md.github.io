@@ -45,7 +45,10 @@ export function extractFrontMatter(md) {
  * Split markdown into slide chunks on lines that are exactly `---`, but never
  * inside a fenced code block or a `$$…$$` math block — a horizontal rule the
  * author wrote as content, or a `---` that happens to sit in code, must not cut
- * the deck. Math is tracked by counting `$$` per line (an odd count toggles the
+ * the deck. A fence is closed as CommonMark closes it: by a line holding only a
+ * run of the same character, at least as long as the one that opened it, so a
+ * ```` fence can show ``` inside it and ~~~ never closes ```. Math is tracked
+ * by counting `$$` per line, leaving out inline code (an odd count toggles the
  * state, so `$$x$$` on one line is a no-op while a lone `$$` opens or closes).
  * A blank line ends it, as in the renderer (TeX allows no blank line in math):
  * otherwise one unclosed `$$` merged every later slide into one.
@@ -54,19 +57,23 @@ export function splitSlides(md) {
   const lines = String(md ?? '').split('\n')
   const chunks = []
   let current = []
-  let inFence = false
+  let fence = null // inside a code block: the run of ` or ~ that opened it
   let inMath = false
 
   for (const line of lines) {
     const trimmed = line.trim()
-    if (/^(```|~~~)/.test(trimmed)) inFence = !inFence
-    else if (!inFence) {
+    const run = /^ {0,3}(`{3,}|~{3,})/.exec(line)?.[1]
+    if (fence) {
+      if (run && run[0] === fence[0] && run.length >= fence.length && trimmed === run) fence = null
+    } else if (run && !inMath) {
+      fence = run
+    } else {
       if (trimmed === '') inMath = false
-      const dollars = (line.match(/\$\$/g) || []).length
+      const dollars = (line.replace(/(`+)[^`][\s\S]*?\1/g, '').match(/\$\$/g) || []).length
       if (dollars % 2 === 1) inMath = !inMath
     }
 
-    if (!inFence && !inMath && /^---\s*$/.test(line)) {
+    if (!fence && !inMath && /^---\s*$/.test(line)) {
       chunks.push(current.join('\n'))
       current = []
       continue
@@ -151,6 +158,20 @@ export function buildTitleBody(meta) {
 
   return body
 }
+
+// The front-matter fields that, if any is present, justify an opening title
+// slide (so a deck whose front-matter carries only options — e.g. `fontsize:` —
+// gets no blank title page). The one rule for the projector, the PDF export,
+// the editor's preview and the presentations page.
+const TITLE_FIELDS = ['title', 'author', 'affiliation', 'place', 'date']
+
+export function hasTitle(meta) {
+  return !!meta && TITLE_FIELDS.some((k) => meta[k])
+}
+
+/** How many slides the projector shows for a deck: its title slide, if any,
+ *  and one per chunk. */
+export const slideCount = (deck) => (hasTitle(deck.title) ? 1 : 0) + deck.slides.length
 
 export function parseDeck(markdown) {
   const { meta, body } = extractFrontMatter(markdown)

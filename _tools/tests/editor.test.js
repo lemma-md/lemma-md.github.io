@@ -73,6 +73,21 @@ test('Discard changes sends the note to the bin', () => withEditor(async (ed) =>
   assert.ok(binned?.binnedAt, 'in the bin, with its text')
 }))
 
+test('the preview makes a title slide exactly when the projector does', () => withEditor(async (ed) => {
+  await ed.newNote()
+  const editor = await ed.editor()
+  const cards = () => ed.$$('#preview .slide-card')
+  const titled = () => cards()[0]?.classList.contains('title')
+
+  editor.setValue('---\nfontsize: 28\n---\n\n# One\n\n---\n\n# Two', 1)
+  await waitFor(() => cards().length === 2, 'two slides')
+  assert.ok(!titled(), 'options alone make no title slide')
+
+  editor.setValue('---\ntitle: A talk\n---\n\n# One\n\n---\n\n# Two', 1)
+  await waitFor(() => cards().length === 3, 'a title slide and two more')
+  assert.ok(titled(), 'a title makes one')
+}))
+
 suite('editor: storage')
 
 test('a refused write shows Storage error and a notice; Try again stores it', () => withEditor(async (ed) => {
@@ -147,7 +162,7 @@ test('blocked storage is said at once, with a way to fix it', () => withEditor({
   const notice = await waitFor(() => ed.banner(), 'the notice')
   assert.ok(notice.text.startsWith('This browser won’t let lemma-md store anything'), notice.text)
   assert.ok(!notice.closable, 'it stays')
-  assert.ok(notice.link?.href.endsWith('/help/#storage-blocked'), 'links to the answer')
+  assert.ok(notice.link?.href.endsWith('/help/troubleshooting/#storage-blocked'), 'links to the answer')
   assert.equal(notice.link.target, '_blank', 'in a new tab')
 
   ed.$('#btn-settings').click()

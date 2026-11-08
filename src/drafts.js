@@ -128,6 +128,7 @@ export const deleteDoc = (id) =>
 // { id, slides: { [index]: Stroke[] }, updatedAt }. The projector reads and
 // writes these directly; the note's own record never carries them.
 export const getAnnotations = (id) => run(ANNOT, 'readonly', (s) => s.get(id)).then((r) => r ?? null)
+export const listAnnotations = () => run(ANNOT, 'readonly', (s) => s.getAll())
 export const putAnnotations = (record) => run(ANNOT, 'readwrite', (s) => s.put(record))
 export const deleteAnnotations = (id) => run(ANNOT, 'readwrite', (s) => s.delete(id))
 
@@ -255,6 +256,10 @@ export const getMeta = (key) =>
 
 export const putMeta = (key, value) =>
   run(META, 'readwrite', (s) => s.put({ key, value }))
+
+/** Every cell whose key starts with `prefix`, as `{ key, value }`. */
+export const listMeta = (prefix) =>
+  run(META, 'readonly', (s) => s.getAll(IDBKeyRange.bound(prefix, `${prefix}￿`)))
 
 export const getSession = () => getMeta('session')
 export const putSession = (value) => putMeta('session', value)

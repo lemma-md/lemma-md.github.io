@@ -64,19 +64,6 @@ async function readAll(name, store) {
   }
 }
 
-async function writeMeta(name, meta) {
-  const db = await openDatabase(name)
-  try {
-    await new Promise((resolve, reject) => {
-      const tx = db.transaction('meta', 'readwrite')
-      for (const [key, value] of Object.entries(meta)) tx.objectStore('meta').put({ key, value })
-      tx.oncomplete = resolve
-      tx.onerror = () => reject(tx.error)
-    })
-  } finally {
-    db.close()
-  }
-}
 
 // Runs in the frame before the app. Kept as a function so that it is real code
 // here, then sent over as text.
@@ -115,6 +102,52 @@ function frameSetup(database) {
   }
 }
 
+/** Put records into the test database before a page opens it:
+ *  { docs: [...], annotations: [...], meta: { key: value } }. */
+async function seed(name, { docs = [], annotations = [], meta = {} } = {}) {
+  const db = await openDatabase(name)
+  try {
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction(['docs', 'annotations', 'meta'], 'readwrite')
+      for (const d of docs) tx.objectStore('docs').put(d)
+      for (const a of annotations) tx.objectStore('annotations').put(a)
+      for (const [key, value] of Object.entries(meta)) tx.objectStore('meta').put({ key, value })
+      tx.oncomplete = resolve
+      tx.onerror = () => reject(tx.error)
+    })
+  } finally {
+    db.close()
+  }
+}
+
+/**
+ * Load the app's page in `dir` into a hidden frame, on `database`. With a
+ * `query` (the projector's `id=…`), through frame.html, since a srcdoc page
+ * has no query of its own.
+ */
+async function loadFrame(dir, database, { before = '', extraHead = '', query = '' } = {}) {
+  const head = [
+    `<base href="${location.origin}/${dir}/">`,
+    `<script>(${frameSetup})(${JSON.stringify(database)});\n${before}</script>`,
+    extraHead,
+  ].join('\n')
+
+  const frame = document.createElement('iframe')
+  frame.style.cssText = 'width:1000px;height:700px;border:0'
+  document.getElementById('scratch').append(frame)
+  const loaded = new Promise((resolve) => { frame.onload = resolve })
+  if (query) {
+    frame.src = `frame.html?${query}`
+    await loaded
+    await frame.contentWindow.loadApp(dir, head)
+    return frame
+  }
+  const page = await (await fetch(`../../${dir}/index.html`, { cache: 'no-store' })).text()
+  frame.srcdoc = page.replace('<head>', `<head>\n${head}`)
+  await loaded
+  return frame
+}
+
 /**
  * Load the editor. `meta` is written to its database first (settings the app
  * reads on start); `before` is more code to run before the app, as text;
@@ -122,34 +155,54 @@ function frameSetup(database) {
  */
 export async function openEditor({ meta = null, before = '', fakeDrive = false } = {}) {
   const database = `${PREFIX}${RUN}-${++made}`
-  if (meta) await writeMeta(database, meta)
+  if (meta) await seed(database, { meta })
 
-  const page = await (await fetch('../../editor/index.html', { cache: 'no-store' })).text()
-  const head = [
-    `<base href="${location.origin}/editor/">`,
-    `<script>(${frameSetup})(${JSON.stringify(database)});\n${before}</script>`,
+  const frame = await loadFrame('editor', database, {
+    before,
     // Module scripts run in order, so this one patches the provider before
     // app.js starts using it; both import the same module instance.
-    fakeDrive
+    extraHead: fakeDrive
       ? `<script type="module">
           import { googleDrive } from '../src/storage/gdrive.js'
           import { installFakeDrive } from '../_tools/tests/fake-drive.js'
           installFakeDrive(googleDrive)
         </script>`
       : '',
-  ].join('\n')
-
-  const frame = document.createElement('iframe')
-  frame.style.cssText = 'width:1000px;height:700px;border:0'
-  document.getElementById('scratch').append(frame)
-  const loaded = new Promise((resolve) => { frame.onload = resolve })
-  frame.srcdoc = page.replace('<head>', `<head>\n${head}`)
-  await loaded
+  })
 
   const editor = driver(frame, database)
   await waitFor(() => editor.tabs().length, 'the app to start')
   return editor
 }
+
+/**
+ * Load another page of the app (`presentations`, say) on a database of its
+ * own, holding `records` (see seed). Resolves once the page's scripts have run;
+ * waiting for what they draw is the test's to do. With `database`, it shares
+ * that one instead (an open editor's, say) and leaves it in place on closing;
+ * `before` is code to run before the page's own, as for openEditor; `query` is
+ * the page's query string, such as the projector's `id=…`.
+ */
+export async function openPage(dir, records = {}, { database = null, before = '', query = '' } = {}) {
+  const own = !database
+  database ??= `${PREFIX}${RUN}-${++made}`
+  await seed(database, records)
+  const frame = await loadFrame(dir, database, { before, query })
+  return {
+    database,
+    get win() { return frame.contentWindow },
+    get doc() { return frame.contentDocument },
+    $: (selector) => frame.contentDocument.querySelector(selector),
+    $$: (selector) => [...frame.contentDocument.querySelectorAll(selector)],
+    async close() {
+      frame.remove()
+      if (own) await dropDatabase(database)
+    },
+  }
+}
+
+/** Everything in one store of a test database, read straight. */
+export const storedIn = (database, store) => readAll(database, store)
 
 /** What a test can do with an open editor. */
 function driver(frame, database) {
@@ -225,10 +278,13 @@ function driver(frame, database) {
      * coming back later, this keeps coming back for a while.
      */
     comeBack(check, what) {
+      // Three seconds of throttle, then the check itself, in a tab whose
+      // timers may run once a second: 5 s left too little and failed now and
+      // then. 8 s still fits in a test's 10.
       return waitFor(() => {
         e.win.dispatchEvent(new e.win.Event('focus'))
         return check()
-      }, what, 5000)
+      }, what, 8000)
     },
 
     /** Would leaving the page ask first? */

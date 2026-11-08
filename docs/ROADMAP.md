@@ -108,7 +108,8 @@ Markdown around them maps onto LaTeX: headings to `\section`, emphasis to
 `\href`, tables to `tabular`, and images to `\includegraphics`. The converter
 can walk marked's own tokens, the same parse the preview uses, so it needs no
 new library; pandoc does not run in a browser without a large WebAssembly
-build.
+build. When it ships, the front page's *Save it, send it, print it* card names
+`.tex` beside `.md`.
 
 Open questions:
 
@@ -149,11 +150,11 @@ The change is that a presentation becomes a record of its own:
 - **A source, not an owner.** A presentation remembers where it came from: a
   note in this browser, a file on disk, or a Drive file, along with its name.
   Closing, binning or deleting the note leaves the presentation alone.
-- **A presentations page of its own** (`presentations/`, beside `editor/`). It
-  lists every presentation with its title, its source, the date it was
-  created, the date it was last shown, its number of slides, and whether it has
-  ink. From the list you can open one again, delete it, or start a fresh one
-  from the same source with no ink.
+- **The presentations page** (`presentations/`) exists already (see
+  ARCHITECTURE → Presentation): it lists the notes that have been presented,
+  with their title, source note, slides and drawings, and shows one again. As
+  records it gains the date each was created and last shown, and *Delete* and
+  *Start afresh* from the same source with no ink.
 - **Start new** on that page asks where the presentation comes from: a note in
   this browser, a file on disk, or a file in Google Drive. That is a `.md` at
   first, and a `.pdf` too once 2.2 is done.
@@ -162,18 +163,25 @@ The change is that a presentation becomes a record of its own:
   handle the browser kept (Chromium) or by picking it again.
 - Ink, board pages, undo history and the last slide shown belong to the
   presentation, not the note.
+- **Boards of their own already exist** (*Start with a blank board*): a meta
+  cell `present-board:<id>` with the time it began, and ink under that id. The
+  move to records carries them over as presentations with no source and no
+  snapshot.
 - PDF export from the projector prints the presentation, meaning its snapshot
   and its ink, not whatever the note says now.
 
 Decided *(2026-11)*:
 
-- **The list is a page of its own**, not a dialog inside the editor. The front
-  page links to it with a *Presentations* button next to *Open the editor*,
-  and its *Slides* card stops saying "Coming". The editor's menu links to it
-  too.
-- **From the presentations page, the projector opens in its own window**, as it
-  does from the editor. The list stays where it is, and the window can be
-  dragged to the projector screen.
+- **No drawing is ever lost as a side effect.** Closing a note, discarding it,
+  deleting it from the bin, or the bin emptying itself leaves its
+  presentations whole: snapshot, ink, board pages and history. Only *Delete*
+  on the presentations page removes one. Today a note closed with nothing
+  unsaved is deleted from the browser, and its ink and boards with it, for
+  good and without passing through the bin.
+- **The page reads figures, it does not work them out.** A presentation keeps
+  its counts (slides, slides drawn on, board pages) and its dates with it,
+  updated when they change, so opening the page parses no deck and reads no
+  ink.
 - **The editor's *Present* stays**, and goes straight to a presentation of the
   current note without the list. If the note's latest presentation has no ink
   yet, its snapshot is refreshed quietly. If it has ink and the text is
@@ -193,7 +201,9 @@ Still open:
   file from disk has only its name to go by. Its old presentations stay on the
   presentations page either way.
 - **Storage.** Settings should count presentations (snapshots, ink, later PDFs)
-  separately from notes.
+  separately from notes. Today its figure is the notes' text alone, and ink,
+  kept in a store of its own, is in no figure at all; this is where that gets
+  settled, once presentations own their ink.
 
 ### 2.2 PDF files as presentations
 
@@ -240,11 +250,18 @@ Open questions:
 
 ## 3. Help
 
-### 3.1 More answers on the help page
+### 3.1 More answers in help
 
-The help page (`help/`) answers the first four questions: no server and no
-account, files on disk, where a note is before it is saved, and letting the
-site store data. The rest, in a proposed order. *Link candidate* marks a place
+Help (`help/`) is in sections: the FAQ (`help/faq/`), the editor,
+presentations and troubleshooting (`help/troubleshooting/`). The editor and
+presentations are placeholders that list what they will answer; the topics below go to the section their group belongs to: *How
+lemma-md works* and *Practical* to the FAQ, *Saving* and *Writing* to the
+editor, *Presenting* to presentations. The FAQ answers six questions so far: what Markdown is, with
+examples; why the site exists; no server and no account; files on disk; where
+a note is before it is saved; and other tools to view and edit `.md`.
+Troubleshooting has one problem: a browser that won't let the site store
+anything. A problem the app reports by a message goes there, headed by that
+message. The rest, in a proposed order. *Link candidate* marks a place
 in the app that could link to the answer, once it exists; see ARCHITECTURE →
 Help for why the app links rather than explains.
 
@@ -315,7 +332,7 @@ Still open:
 ## 4. Tests
 
 The test page (`_tools/tests/`, see ARCHITECTURE → Tests) covers rendering, the
-export, slides, the help links, browser storage, and the editor's flows with
+export, slides, the FAQ links, browser storage, and the editor's flows with
 files on disk and Google Drive. Still to come:
 
 ### 4.1 Later
