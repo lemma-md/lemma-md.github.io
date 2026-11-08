@@ -80,7 +80,10 @@ body { display: flex; flex-direction: column; }
   border-bottom: 1px solid #d4a72c;
 }
 #banner[hidden] { display: none; }
-#banner-text { flex: 1; }
+/* The link and the button follow the text they belong to; only the × goes to
+   the far end. */
+#banner-text { flex: 0 1 auto; }
+#banner #banner-close { margin-left: auto; }
 #banner button {
   font: inherit;
   padding: 2px 10px;

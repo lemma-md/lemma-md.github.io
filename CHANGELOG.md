@@ -18,6 +18,16 @@ This is the *when*. The *why* behind a decision is in
   KaTeX's own macros are made LaTeX's, and emoji left out. The preamble follows
   the text: pdfLaTeX for English, accented Latin and Cyrillic, LuaLaTeX for
   Chinese, Japanese, Korean, Arabic and Hebrew.
+- **Formulas from a chat.** ChatGPT and similar chats write formulas as
+  `\( … \)` and `\[ … \]`, which show as plain text. After a file is opened,
+  or a paste brings some, a notice offers *Fix*, which writes them with `$`
+  and `$$`; *Undo* takes it back. Code and formulas already in dollars are
+  left alone.
+
+### Fixed
+
+- The editor's menu scrolls within itself on a window too short for it,
+  instead of stretching the page.
 
 ## 2026-11-08
 

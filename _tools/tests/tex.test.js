@@ -46,6 +46,8 @@ test('formulas reach LaTeX as written', () => {
   has(body('Inline $a_b^{c}\\,\\frac12$ here.'), '$a_b^{c}\\,\\frac12$')
   has(body('$$\n\\int_0^1 f\n$$'), '\\[\n\\int_0^1 f\n\\]')
   has(body('A line with $$x+y$$ in it.'), '\\[ x+y \\]')
+  // \( \) is math to LaTeX, unfixed in the note or not.
+  assert.equal(body('Chat: \\( x^2 \\) and\n\\[\ny\n\\]'), 'Chat: $x^2$ and\n\n\\[\ny\n\\]')
   // amsmath's own environments may not sit inside \[ \]; KaTeX allows it.
   const align = '\\begin{align}\na &= b \\\\\nc &= d\n\\end{align}'
   assert.equal(body(`$$\n${align}\n$$`), align)

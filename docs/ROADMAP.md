@@ -18,37 +18,25 @@ Small bugs are not tracked here. They are fixed, and the commit is the record.
 
 ## 1. Editor
 
-### 1.1 A problems panel: broken formulas and ChatGPT-style delimiters
+### 1.1 Formulas that fail to render
 
-A slim panel along the bottom edge of the editor. It appears only when there is
-something to report, can be closed, and can be brought back from the menu. It
-holds two kinds of finding.
-
-- **Formulas that fail to render.** KaTeX already marks them: with
-  `throwOnError: false` it returns the formula's source in red, with the class
-  `katex-error` and the error message as a tooltip. The panel shows how many
-  there are, with *previous* and *next* to step through them. Each step scrolls
-  the preview to the formula and, while editing, puts the cursor on its source.
-- **`\( … \)` and `\[ … \]`.** ChatGPT and similar chats write formulas with
-  these delimiters. Markdown reads `\(` as an escaped bracket, so the formulas
-  arrive as plain text. When text is pasted or a file is opened, the panel
-  offers **Fix**, which converts them to `$ … $` and `$$ … $$` as one undoable
-  edit, and never touches code blocks or inline code.
-
-Converting was preferred to teaching the renderer a second delimiter style
-because it keeps the note portable: GitHub and Obsidian understand `$`, not
-`\(`.
+KaTeX already marks them: with `throwOnError: false` it returns the formula's
+source in red, with the class `katex-error` and the error message as a
+tooltip. A note should say how many there are, with *previous* and *next* to
+step through them; each step scrolls the preview to the formula and, while
+editing, puts the cursor on its source. Formulas written as `\( … \)` were the
+first such problem to be handled: the notice under the bar offers to fix them
+(ARCHITECTURE → Rendering pipeline).
 
 Open questions:
 
-- **Reading mode.** Most opened files are first seen in reading mode, where the
-  editor has not loaded. Should the panel appear there too, under the preview,
-  with Fix changing the text without the editor?
-- **What Fix covers after a paste**: only the pasted text, or the whole note?
+- **Where it shows.** The notice under the bar, as for `\( \)`, works while
+  reading too, but holds one message; a slim panel along the bottom of the
+  editor could list several kinds of finding, but only while writing.
 - **What else counts as a problem.** For example an unclosed `$$`, which shows
   as raw dollars and TeX up to the next blank line, or an image that fails to
   load. Or a bare `$` that reads like a price (`$5`): every pair of
-  dollars is math now, so Fix would escape it as `\$5`.
+  dollars is math now, so a fix would escape it as `\$5`.
 
 ### 1.2 Keeping the editor and the preview in step
 
@@ -280,7 +268,7 @@ Writing:
     LaTeX: no packages, and which macros work. A literal dollar is `\$`, as in
     LaTeX. What HTML a note may hold: no styles, forms or classes.
 13. **Formulas pasted from ChatGPT** (`#chatgpt-formulas`). `\( \)` and
-    `\[ \]`, and *Fix* in the problems panel once 1.1 ships.
+    `\[ \]`, and *Fix* in the notice under the bar.
 14. **Downloading and exporting** (`#export`). `.md`; a standalone `.html` that
     can be dragged back in; `.tex`, and which engine compiles it; PDF through
     the browser's print.

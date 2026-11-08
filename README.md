@@ -39,6 +39,8 @@ Working today:
   nothing. Matching is on the physical key, so a Cyrillic layout does not
   silently break them
 - live preview of markdown with TeX formulas
+- formulas written as `\( \)` and `\[ \]`, as ChatGPT writes them, are offered
+  a fix that writes them in dollars, after a file is opened or a paste
 - editor with line numbers, syntax highlighting and search
 - multiple notes in tabs, restored when you come back
 - automatic saving of drafts. Closing a note with unsaved changes asks first,
@@ -68,9 +70,7 @@ Working today:
 Planned, numbered as in [docs/ROADMAP.md](docs/ROADMAP.md):
 
 1. **Editor**
-   - **1.1** a problems panel that counts formulas failing to render and steps
-     through them, and offers to convert ChatGPT-style `\( \)` / `\[ \]` to
-     `$` / `$$` on paste or open
+   - **1.1** formulas that fail to render: how many, and stepping through them
    - **1.2** editor and preview in step: jump from the text to the preview and
      back
    - **1.3** inserting images by pasting, dropping or choosing a file
@@ -273,6 +273,7 @@ src/examples.js     renders the FAQ's Markdown examples with viewer.js
 src/app.js          tabs, drag & drop, autosave, pane splitter
 src/viewer.js       markdown + TeX -> sanitised HTML
 src/export-*.js     a note as a page that renders itself (html), or as LaTeX (tex)
+src/delimiters.js   formulas in \( \) and \[ \], as chats write them, into dollars
 src/editor.js       Ace, loaded on demand
 src/present/        slide splitting, reveal.js setup, the drawing tools, and the
                     catalog the presentations page lists

@@ -8,6 +8,7 @@ import { localFiles } from './storage/local.js'
 import { lineDiff, diffStats, sideBySide, inlineDiff } from './diff.js'
 import { buildStandaloneHtml, extractMarkdown } from './export-html.js'
 import { buildTex } from './export-tex.js'
+import { fixDelimiters } from './delimiters.js'
 import { openPdfPreview } from './pdf/preview.js'
 import { WELCOME, templates } from './templates.js'
 import { helpUrl } from './help.js'
@@ -269,6 +270,52 @@ function hideBanner() {
 }
 banner.close.onclick = hideBanner
 
+/* ---------- formulas in \( \) ---------- */
+
+const formulas = (n) => `${n} ${n === 1 ? 'formula' : 'formulas'}`
+
+/**
+ * Offer to write the active note's \( \) and \[ \] formulas in dollars
+ * (delimiters.js), in the notice under the bar, whether reading or writing:
+ * after a file is opened, and after a paste that brought some. Nothing changes
+ * until Fix is pressed. A notice about storage matters more, and stays.
+ */
+function offerFix() {
+  const doc = active()
+  const kind = banner.el.hidden ? '' : banner.el.dataset.kind
+  if (!doc || (kind && !kind.startsWith('delimiters'))) return
+  const { count } = fixDelimiters(doc.text)
+  if (!count) return
+  showBanner(`${formulas(count)} written with \\( \\) or \\[ \\] ${count === 1 ? 'is' : 'are'} shown as plain text.`, {
+    action: 'Fix',
+    onAction: () => fixFormulas(doc),
+    title: 'Chats such as ChatGPT write formulas this way. Fix writes them with $ and $$, as Markdown expects.',
+    kind: 'delimiters',
+  })
+}
+
+function fixFormulas(doc) {
+  const before = doc.text
+  const { text, count } = fixDelimiters(before)
+  if (doc !== active() || !count) return hideBanner()
+  replaceText(text)
+  showBanner(`Fixed ${formulas(count)}: written with $ now.`, {
+    action: 'Undo',
+    onAction: () => {
+      if (active() === doc && doc.text === text) replaceText(before)
+      hideBanner()
+    },
+    kind: 'delimiters-done',
+  })
+}
+
+/** Change the active note's whole text as an edit: through the editor once it
+ *  is built, where Ctrl+Z takes it back. */
+function replaceText(text) {
+  if (editor) editor.replaceAll(text) // which reports the change to onEdit
+  else onEdit(text)
+}
+
 /* ---------- rendering ---------- */
 
 let previewTimer = null
@@ -503,7 +550,8 @@ function renderTabs() {
 let editorPromise = null
 function ensureEditor() {
   if (!editorPromise) {
-    editorPromise = createEditor(el.editor, onEdit).then((created) => {
+    const onPaste = (text) => { if (fixDelimiters(text).count) offerFix() }
+    editorPromise = createEditor(el.editor, onEdit, { onPaste }).then((created) => {
       editor = created
       const doc = active()
       if (doc) editor.setText(doc.text)
@@ -600,6 +648,8 @@ function addDoc(name, text, remote = null, origin = null, local = null) {
 }
 
 function setActive(id) {
+  // An offer to fix formulas is about the note it was made for.
+  if (id !== state.activeId && banner.el.dataset.kind?.startsWith('delimiters')) hideBanner()
   state.activeId = id
   const doc = active()
   if (editor && doc) editor.setText(doc.text)
@@ -686,6 +736,8 @@ function onEdit(text) {
   const doc = active()
   if (!doc || doc.text === text) return
   const wasDirty = isDirty(doc)
+  // Undo after a fix is for the text the fix left; typing on makes it stale.
+  if (banner.el.dataset.kind === 'delimiters-done' && doc.text !== text) hideBanner()
   doc.text = text
   doc.updatedAt = Date.now()
   // Redraw the tab dot and the status when the note turns dirty, and also when
@@ -809,7 +861,7 @@ async function openLocalFiles(entries) {
     }
     lastId = addDoc(n.name, n.text, null, 'file', n.local)
   }
-  if (lastId) { setActive(lastId); setMode('view') } else renderTabs()
+  if (lastId) { setActive(lastId); setMode('view'); offerFix() } else renderTabs()
 }
 
 /** Open plain File objects — the fallback where no handle is available, so the
@@ -824,6 +876,7 @@ async function openFiles(files) {
     setActive(lastId)
     // Someone opening a file wants to see it, not to be handed a text editor.
     setMode('view')
+    offerFix()
   } else renderTabs()
 }
 
@@ -2103,6 +2156,7 @@ async function openFromCloud() {
     if (lastId) {
       setActive(lastId)
       setMode('view')
+      offerFix()
     }
   } catch (err) {
     cloudFailed('open that file', err)

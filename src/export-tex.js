@@ -14,6 +14,7 @@
 
 import './viewer.js' // registers the math extension with marked
 import { parseDeck, extractFrontMatter, hasTitle } from './present/slides.js'
+import { fixDelimiters } from './delimiters.js'
 
 /* ---------- characters ---------- */
 
@@ -450,8 +451,11 @@ function titleLines(meta, ctx) {
  * The note as a complete .tex file. `slides` makes it a Beamer presentation, as
  * the note is shown as slides; otherwise it is an article.
  */
-export function buildTex(name, text, { slides = false } = {}) {
-  const ctx = { slides, need: new Set(), macros: new Set(), last: ' ', inCell: false, enumDepth: 0, colors: 0 }
+export function buildTex(name, source, { slides = false } = {}) {
+  // \( \) is math to LaTeX itself, so a formula a chat wrote that way is one in
+  // the .tex, fixed in the note or not.
+  const text = fixDelimiters(source).text
+  const ctx ={ slides, need: new Set(), macros: new Set(), last: ' ', inCell: false, enumDepth: 0, colors: 0 }
   let meta, body
   if (slides) {
     const deck = parseDeck(text)

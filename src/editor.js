@@ -22,9 +22,10 @@ async function loadAce() {
 
 /**
  * Create the editor in `el`. `onChange` fires on every keystroke with the
- * full text; the caller decides how to debounce it.
+ * full text; the caller decides how to debounce it. `onPaste` gets the text of
+ * a paste once it is in.
  */
-export async function createEditor(el, onChange) {
+export async function createEditor(el, onChange, { onPaste } = {}) {
   await loadAce()
   el.textContent = ''
 
@@ -50,8 +51,28 @@ export async function createEditor(el, onChange) {
   // document does not read back as a user edit.
   let quiet = false
   editor.on('change', () => { if (!quiet) onChange(editor.getValue()) })
+  // Ace announces a paste before inserting it.
+  if (onPaste) editor.on('paste', (e) => setTimeout(() => onPaste(e.text)))
 
   return {
+    /**
+     * Replace the whole text as an edit, which Ctrl+Z takes back in one step,
+     * and not with the edits around it. The cursor and the scroll stay where
+     * they were, as far as the new text allows.
+     */
+    replaceAll(text) {
+      const { session } = editor
+      const undo = session.getUndoManager()
+      const cursor = editor.getCursorPosition()
+      const top = session.getScrollTop()
+      undo.startNewGroup()
+      session.doc.setValue(text)
+      undo.startNewGroup()
+      editor.clearSelection()
+      editor.moveCursorToPosition(session.doc.clippedPos(cursor.row, cursor.column))
+      session.setScrollTop(top)
+      editor.renderer.updateFull(true)
+    },
     setText(text) {
       quiet = true
       editor.setValue(text ?? '', -1)

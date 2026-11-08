@@ -121,6 +121,22 @@ Two details that are not free to change:
   its MathML and SVG survived; those profiles now serve a note's own MathML
   and SVG, and KaTeX's MathML keeps its TeX annotation, which they stripped.
   A note's inline colours are lost with the styles; GitHub drops them too.
+- **Formulas written as `\( … \)` and `\[ … \]` are offered a fix, not read**
+  *(2026-11)*. ChatGPT and similar chats write formulas this way; Markdown
+  reads `\(` as an escaped bracket, so they show as plain text. Teaching the
+  renderer a second style would have made notes that read right only here:
+  GitHub and Obsidian read `$`. So after a file is opened, and after a paste
+  that brought some, the notice under the bar counts them and offers *Fix*,
+  which writes them in dollars (`src/delimiters.js`); nothing changes until it
+  is pressed. The notice is the one storage warnings use, so it works while
+  reading, where most opened files are first seen and the editor is not
+  loaded, and a storage warning is never covered by it. *Fix* takes the whole
+  note, a paste or not: any `\(` in it shows as text anyway. It is an edit like
+  typing, so the note shows *Changed*; *Undo* in the notice takes it back, and
+  in the editor so does Ctrl+Z, in one step of its own. Code is left as it is,
+  and so is a formula already in dollars, whose `\\[4pt]` is TeX's own. A
+  formula that would hold a bare dollar is left too, since in dollars it would
+  end there; so is one that runs across a blank line, which TeX does not allow.
 
 ## No shadow DOM
 
@@ -365,7 +381,8 @@ them:
     left out, but for ✓ and ✗. KaTeX's own macros (`\R`, `\lt`, `\argmax`) are
     provided with `\providecommand`, and a formula's `\color`, `\cancel`, `\bm`
     or `\mathscr` brings its package. An amsmath environment written inside
-    `$$` stands on its own, as amsmath requires.
+    `$$` stands on its own, as amsmath requires. A formula in `\( \)` is math
+    in the `.tex` whether or not the note was fixed: LaTeX reads it so itself.
   - **Pictures become links** to their web address, with the address in a
     comment: `\includegraphics` needs the file beside the `.tex`, which waits
     for pictures that live with the note (ROADMAP 1.3).

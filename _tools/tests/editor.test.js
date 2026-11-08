@@ -388,6 +388,48 @@ async function openFromDrive(ed, name, text) {
   return { drive, id }
 }
 
+suite('editor: formulas from a chat')
+
+const CHAT = 'For \\( f(x) = x^2 \\):\n\n\\[\nf\'(x) = 2x\n\\]\n'
+
+test('a file with \\( \\) formulas offers Fix, in reading mode; Undo takes it back', () => withDisk((dir) => withEditor(async (ed) => {
+  await openFile(ed, await diskFile(dir, 'answer.md', CHAT))
+  assert.equal(ed.doc.body.dataset.mode, 'view', 'still reading')
+  assert.equal(ed.$$('#preview .katex').length, 0, 'shown as text')
+  assert.deepEqual(ed.banner()?.text, '2 formulas written with \\( \\) or \\[ \\] are shown as plain text.')
+  ed.$('#banner-action').click()
+  assert.equal(ed.banner()?.text, 'Fixed 2 formulas: written with $ now.')
+  await waitFor(() => ed.$$('#preview .katex').length === 2, 'typeset')
+  assert.equal(ed.status().text, 'Changed', 'an edit, to save like any other')
+  await waitFor(async () => (await ed.stored('answer.md'))?.text === 'For $f(x) = x^2$:\n\n$$\nf\'(x) = 2x\n$$\n', 'stored fixed')
+  ed.$('#banner-action').click() // Undo
+  assert.equal(ed.banner(), null)
+  await waitFor(() => ed.$$('#preview .katex').length === 0, 'back to the text it was')
+  assert.equal((await ed.editor()).getValue(), CHAT)
+})))
+
+test('a paste that brings \\( \\) offers Fix for the whole note, which Ctrl+Z takes back', () => withEditor(async (ed) => {
+  await ed.newNote()
+  await ed.type('Mine: \\(a\\). ')
+  assert.equal(ed.banner(), null, 'typing offers nothing')
+  const ace = await ed.editor()
+  ace.navigateFileEnd()
+  ace.onPaste('Pasted: \\(b\\).')
+  await waitFor(() => ed.banner()?.action === 'Fix', 'the offer')
+  ed.$('#banner-action').click()
+  assert.equal(ace.getValue(), 'Mine: $a$. Pasted: $b$.')
+  ace.undo()
+  assert.equal(ace.getValue(), 'Mine: \\(a\\). Pasted: \\(b\\).', 'one step back, the paste kept')
+  assert.equal(ed.banner(), null, 'and the Undo notice gone with it')
+}))
+
+test('switching notes takes the offer down', () => withDisk((dir) => withEditor(async (ed) => {
+  await openFile(ed, await diskFile(dir, 'answer.md', CHAT))
+  assert.equal(ed.banner()?.action, 'Fix')
+  await ed.newNote()
+  assert.equal(ed.banner(), null)
+})))
+
 suite('editor: Google Drive')
 
 test('a note opened from Drive saves back into the same file', () => withEditor(DRIVE, async (ed) => {
