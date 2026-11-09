@@ -22,6 +22,10 @@
  * the same origin. Nothing else sets it.
  */
 const DB_NAME = globalThis.lemmaTestDatabase ?? 'lemma-md'
+
+/** The database's name. The editor's lock is named after it (one-editor.js), so
+ *  that tests, each on a database of its own, do not wait on each other. */
+export const databaseName = DB_NAME
 // Bumped 1 -> 2 only to add the `annotations` store: IndexedDB runs
 // onupgradeneeded solely when this number rises, so an existing v1 database
 // would otherwise never gain the store. There is no data to migrate (nothing
@@ -99,7 +103,20 @@ export async function openFailure() {
   }
 }
 
+let mayWrite = () => true
+
+/**
+ * For the editor: its writes go through only while `check()` says so, that is
+ * while it is the one editor in this browser (one-editor.js). A last line of
+ * defence, since a page that is not starts nothing that writes. The projector
+ * and the presentations page do not call this, and write as before.
+ */
+export function writeOnlyWhile(check) {
+  mayWrite = check
+}
+
 async function run(storeName, mode, fn) {
+  if (mode === 'readwrite' && !mayWrite()) throw new Error('These notes are open in another tab, which is the one that stores them.')
   const db = await open()
   return new Promise((resolve, reject) => {
     const tx = db.transaction(storeName, mode)

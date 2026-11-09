@@ -152,9 +152,13 @@ async function loadFrame(dir, database, { before = '', extraHead = '', query = '
  * Load the editor. `meta` is written to its database first (settings the app
  * reads on start); `before` is more code to run before the app, as text;
  * `fakeDrive` swaps the Google Drive provider for the one in fake-drive.js.
+ * With `database`, a second editor on the notes of an open one, as another tab
+ * would be: it starts nothing but its "open in another tab", and leaves the
+ * database in place on closing.
  */
-export async function openEditor({ meta = null, before = '', fakeDrive = false } = {}) {
-  const database = `${PREFIX}${RUN}-${++made}`
+export async function openEditor({ meta = null, before = '', fakeDrive = false, database = null } = {}) {
+  const own = !database
+  database ??= `${PREFIX}${RUN}-${++made}`
   if (meta) await seed(database, { meta })
 
   const frame = await loadFrame('editor', database, {
@@ -170,8 +174,8 @@ export async function openEditor({ meta = null, before = '', fakeDrive = false }
       : '',
   })
 
-  const editor = driver(frame, database)
-  await waitFor(() => editor.tabs().length, 'the app to start')
+  const editor = driver(frame, database, own)
+  await waitFor(() => editor.tabs().length || editor.isOpen('elsewhere'), 'the app to start')
   return editor
 }
 
@@ -205,7 +209,7 @@ export async function openPage(dir, records = {}, { database = null, before = ''
 export const storedIn = (database, store) => readAll(database, store)
 
 /** What a test can do with an open editor. */
-function driver(frame, database) {
+function driver(frame, database, own = true) {
   const e = {
     database,
     get win() { return frame.contentWindow },
@@ -320,7 +324,7 @@ function driver(frame, database) {
 
     async close() {
       frame.remove()
-      await dropDatabase(database)
+      if (own) await dropDatabase(database)
     },
   }
   return e

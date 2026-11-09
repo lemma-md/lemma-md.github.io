@@ -45,6 +45,10 @@ This is the *when*. The *why* behind a decision is in
 - Typing in a long note no longer freezes the window at each pause while the
   preview is drawn: an edit redraws only the blocks it changed, about 40 ms
   instead of 400 in a 100 KB note with formulas, and in a deck only its slide.
+- Two tabs of one browser no longer write over each other's edits, silently.
+  The notes are edited in one tab at a time: another tab says they are open
+  elsewhere, and *Use this tab* moves the editing there, once the first tab
+  has stored what it held.
 - The editor's menu scrolls within itself on a window too short for it,
   instead of stretching the page.
 

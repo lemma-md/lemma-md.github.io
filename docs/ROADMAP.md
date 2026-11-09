@@ -239,8 +239,10 @@ Saving:
     notice). What it means and what to do: save or download the note, free disk
     space, *Try again*. Also the notice that the app was updated in another tab.
 11. **Other tabs, browsers and devices** (`#devices`). The tabs of one browser
-    share their notes; another browser or another computer sees none of them.
-    Notes move between them through Drive or files.
+    share their notes, edited in one tab at a time (*Already open in another
+    tab*, *Use this tab*; link candidate from that window); another browser or
+    another computer sees none of them. Notes move between them through Drive
+    or files.
 
 Writing:
 

@@ -284,6 +284,7 @@ src/present/        slide splitting, reveal.js setup, the drawing tools, and the
                     catalog the presentations page lists
 src/presentations.js the presentations page
 src/drafts.js       IndexedDB persistence (notes and presentation ink)
+src/one-editor.js   one editor at a time in a browser; another tab says so
 src/settings.js     the Settings window
 src/help.js         links into help/, whose answers' anchors are permanent
 src/toc.js          the contents beside the front page, presentations and help

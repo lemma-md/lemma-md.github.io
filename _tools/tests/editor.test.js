@@ -4,7 +4,7 @@
 // docs/STATUS.md lists the statuses; docs/ARCHITECTURE.md → Storage says why
 // each notice exists.
 
-import { withEditor, waitFor, sleep } from './editor-harness.js'
+import { withEditor, openEditor, waitFor, sleep } from './editor-harness.js'
 import { suite, test, assert } from './runner.js'
 
 suite('editor: notes')
@@ -291,6 +291,89 @@ async function openFile(ed, handle) {
   ed.$('#btn-open').click()
   await waitFor(() => ed.activeTab() === handle.name, `${handle.name} open`)
 }
+
+suite('editor: one tab at a time')
+
+// Two editors on the same notes, as two tabs of one browser are: the second is
+// opened in a frame of its own on the first one's database. Each wrote over
+// the other's edits before, the last write winning (src/one-editor.js).
+
+/** The text of the note `name` as stored. */
+const storedText = async (ed, name = 'untitled.md') => (await ed.stored(name))?.text
+
+test('a second editor on the same notes opens none of them, and says they are open in another tab', () => withEditor(async (ed) => {
+  await ed.newNote()
+  await ed.type('first')
+  await waitFor(async () => (await storedText(ed)) === 'first', 'stored')
+  const other = await openEditor({ database: ed.database })
+  try {
+    assert.ok(other.isOpen('elsewhere'), 'the second says so')
+    assert.equal(other.$('#elsewhere-title').textContent, 'Already open in another tab')
+    assert.deepEqual(other.tabs(), [], 'and opens no note')
+    await ed.type(', still here')
+    await waitFor(async () => (await storedText(ed)) === 'first, still here', 'the first goes on storing')
+  } finally {
+    await other.close()
+  }
+}))
+
+test('Use this tab takes the notes over, with what the first had not stored yet; the first writes no more', () => withEditor(async (ed) => {
+  await ed.newNote()
+  await ed.type('first')
+  const other = await openEditor({ database: ed.database })
+  try {
+    await ed.type(', typed just now') // not stored yet: autosave waits for a pause
+    other.$('#elsewhere-take').click()
+    await waitFor(() => other.tabs().includes('untitled.md') && !other.isOpen('elsewhere'), 'the second started')
+    assert.ok(ed.isOpen('elsewhere'), 'the first says the notes are open elsewhere now')
+    assert.equal(ed.$('#elsewhere-title').textContent, 'Now open in another tab')
+    const ace = await other.editor()
+    await waitFor(() => ace.getValue() === 'first, typed just now', 'the second has the last keys typed in the first')
+
+    ed.win.ace.edit(ed.$('.ace_editor')).session.insert({ row: 0, column: 0 }, 'LATE ')
+    await other.type(', and the second')
+    await waitFor(async () => (await storedText(ed)) === 'first, typed just now, and the second', 'the second stores')
+    await sleep(600) // past the first one's autosave
+    assert.equal(await storedText(ed), 'first, typed just now, and the second', 'the first did not write over it')
+  } finally {
+    await other.close()
+  }
+}))
+
+test('and back: the first takes the notes again, starting afresh with what the second wrote', () => withEditor(async (ed) => {
+  await ed.newNote()
+  await ed.type('first')
+  const other = await openEditor({ database: ed.database })
+  try {
+    other.$('#elsewhere-take').click()
+    await waitFor(() => other.tabs().includes('untitled.md'), 'the second started')
+    await other.type(', the second')
+    await waitFor(() => ed.isOpen('elsewhere'), 'the first gave way')
+    ed.$('#elsewhere-take').click()
+    await waitFor(() => other.isOpen('elsewhere'), 'the second gave way in turn')
+    await waitFor(() => ed.tabs().includes('untitled.md') && !ed.isOpen('elsewhere'), 'the first, started again')
+    const ace = await ed.editor()
+    await waitFor(() => ace.getValue() === 'first, the second', 'with the second one\'s text')
+  } finally {
+    await other.close()
+  }
+}))
+
+test('a tab that does not answer has the notes taken from it after a while', () => withEditor({
+  // This editor never hears the request to let go, as a frozen tab would not.
+  before: "Object.defineProperty(BroadcastChannel.prototype, 'onmessage', { set() {}, get() { return null }, configurable: true })",
+}, async (ed) => {
+  await ed.newNote()
+  const other = await openEditor({ database: ed.database })
+  try {
+    other.$('#elsewhere-take').click()
+    await waitFor(() => other.tabs().includes('untitled.md'), 'the second started anyway', 6000)
+    assert.ok(ed.isOpen('elsewhere'), 'the first says so')
+    assert.ok(ed.$('#elsewhere-text').textContent.includes('not answering'), 'and that its last keys may be lost')
+  } finally {
+    await other.close()
+  }
+}), { timeout: 20000 })
 
 suite('editor: files on disk')
 

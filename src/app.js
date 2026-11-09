@@ -3,6 +3,7 @@ import { showNote, patchChildren } from './preview.js'
 import { createEditor } from './editor.js'
 import { initSettings } from './settings.js'
 import * as drafts from './drafts.js'
+import * as oneEditor from './one-editor.js'
 import { register, availableProviders, providerFor } from './storage/index.js'
 import { googleDrive } from './storage/gdrive.js'
 import { localFiles } from './storage/local.js'
@@ -123,7 +124,7 @@ function storageFailed(doc, err) {
 /** Store again every note the browser refused, as when space has been freed.
  *  Pointless once this page has lost the database for good. */
 function retryFailedWrites() {
-  if (stale || unavailable) return Promise.resolve()
+  if (stale || unavailable || !writing) return Promise.resolve()
   return Promise.all([...state.docs.values()].filter((d) => d.storeFailed).map(storeDoc))
 }
 
@@ -2101,7 +2102,7 @@ async function checkLocalChanges() {
 }
 
 function maybeCheckRemote() {
-  if (document.visibilityState !== 'visible') return
+  if (document.visibilityState !== 'visible' || !writing) return
   const now = Date.now()
   if (now - lastRemoteCheck < 3000) return // don't storm on rapid focus changes
   lastRemoteCheck = now
@@ -3326,6 +3327,7 @@ function openLinkDialog(ed) {
 }
 
 addEventListener('keydown', (e) => {
+  if (!writing) return // the notes are open in another tab (see claim below)
   if (e.key === 'Escape') return closeMenu()
 
   const ctrl = e.ctrlKey || e.metaKey
@@ -3518,7 +3520,65 @@ async function init() {
   }
 }
 
-init().catch((err) => {
-  reportError(err)
-  el.preview.innerHTML = '<p class="empty-note">Could not start. See the browser console.</p>'
-})
+/* ---------- one editor at a time ---------- */
+
+// Only one page in this browser writes the notes (one-editor.js): two would
+// each write over the other's edits. A page that finds them open in another tab
+// starts nothing and says so, until it is asked to take them over.
+let writing = false
+let started = false
+drafts.writeOnlyWhile(() => writing)
+
+const elsewhere = {
+  dialog: document.getElementById('elsewhere'),
+  title: document.getElementById('elsewhere-title'),
+  text: document.getElementById('elsewhere-text'),
+  take: document.getElementById('elsewhere-take'),
+}
+// It stays until this tab takes the notes back: Escape does not dismiss it.
+elsewhere.dialog.oncancel = (e) => e.preventDefault()
+
+/**
+ * Say that the notes are open in another tab: from the start (`how` absent),
+ * or since that tab took them over, after this one stored what it held
+ * ('handed') or while this one did not answer ('taken').
+ */
+function showElsewhere(how) {
+  elsewhere.title.textContent = how ? 'Now open in another tab' : 'Already open in another tab'
+  elsewhere.text.textContent = {
+    handed: 'Another tab of this browser has taken the notes over. Everything typed here was stored first.',
+    taken: 'Another tab of this browser has taken the notes over while this one was not answering: what was typed here last may not have been stored.',
+  }[how] ?? 'lemma-md is open in another tab of this browser. Notes are edited in one tab at a time, so that neither writes over the other. Use this tab, and the other one stops, after storing what it holds.'
+  elsewhere.take.disabled = false
+  elsewhere.take.textContent = 'Use this tab'
+  if (!elsewhere.dialog.open) elsewhere.dialog.showModal()
+}
+
+elsewhere.take.onclick = async () => {
+  elsewhere.take.disabled = true
+  elsewhere.take.textContent = 'Waiting for the other tab…'
+  await oneEditor.takeOver()
+  // A page that ran before holds the notes as they were then: it starts again.
+  if (started) return location.reload()
+  elsewhere.dialog.close()
+  run()
+}
+
+function run() {
+  writing = true
+  started = true
+  init().catch((err) => {
+    reportError(err)
+    el.preview.innerHTML = '<p class="empty-note">Could not start. See the browser console.</p>'
+  })
+}
+
+oneEditor
+  .claim(`lemma-md-editor:${drafts.databaseName}`, {
+    stored: flushSaves,
+    lost: (how) => {
+      writing = false
+      showElsewhere(how)
+    },
+  })
+  .then((mine) => (mine ? run() : showElsewhere()))

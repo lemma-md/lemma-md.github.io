@@ -626,6 +626,7 @@ button.info-badge {
 #cloud-identity .note,
 #save-target .note,
 #local-conflict .note,
+#elsewhere .note,
 #close-warn .note { font-size: .9em; color: var(--muted); margin: 0; }
 #cloud-conflict .detail,
 #local-conflict .detail { font-size: .82em; }
@@ -800,6 +801,7 @@ button.info-badge {
 #cloud-conflict .primary,
 #cloud-identity .primary,
 #local-conflict .primary,
+#elsewhere .primary,
 #close-warn .primary {
   font: inherit;
   font-size: 13px;
@@ -816,9 +818,11 @@ button.info-badge {
 #cloud-conflict .primary:hover,
 #cloud-identity .primary:hover,
 #local-conflict .primary:hover,
+#elsewhere .primary:hover,
 #close-warn .primary:hover { filter: brightness(1.06); }
 #cloud-save-as .primary:disabled,
 #link-dialog .primary:disabled,
+#elsewhere .primary:disabled,
 #cloud-setup .primary:disabled { opacity: .6; cursor: default; }
 
 /* ---------- file info dialog ---------- */

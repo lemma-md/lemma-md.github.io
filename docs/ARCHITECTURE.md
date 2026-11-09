@@ -368,6 +368,30 @@ first writes what it still holds, then lets go and asks to be reloaded, and from
 then on every write fails with that message. Without this, its connection
 closed silently and every later save failed unseen.
 
+**One editor at a time in a browser** *(2026-11)*. Each editor page holds its
+open notes in memory and writes them back whole, so two tabs on the same notes
+each wrote over the other's edits without a word, whichever wrote last winning,
+and the start-up tidy-up of one could bin a note the other had open. Notes need
+no merging, so rather than versions and merging, only one page writes
+(`src/one-editor.js`). It holds a Web Lock named after the database; a page
+that finds the lock taken starts nothing and says the notes are open in another
+tab. *Use this tab* asks the page that has them, over a BroadcastChannel, to
+store what it holds and let go; one that does not answer within three seconds,
+frozen or hung, has the lock taken from it, and says that its last keys may not
+have been stored. A page that had run before starts afresh once it has the
+notes back, since what it held is out of date. As a last line of defence,
+`drafts.js` refuses the editor's writes while it does not hold the lock; the
+projector and the presentations page write as before. A browser without Web
+Locks writes as before too.
+
+Links to the editor and the presentations page were given a named window
+each, for a while, so that a link would bring an open one forward rather than
+make a second. A browser finds a window by name only among tabs opened from
+one another, and cannot tell whether one is open without opening it: from the
+front page the editor then opened in a new tab, where every other link stays
+in the same one. They were taken out; the lock is what makes a second editor
+harmless, and it says so.
+
 The mental model is a desktop editor. IndexedDB is the scratch area, and a file,
 on disk or in Drive, is the real copy. Until a note has been saved to one, the
 browser holds the only copy. README's *Drafts are local* tells the user so.
