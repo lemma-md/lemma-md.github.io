@@ -236,6 +236,16 @@ function driver(frame, database) {
       }
     },
 
+    /** The notice about the note (under the toolbar, or atop the preview), or null. */
+    notice() {
+      if (e.$('#note-notice').hidden) return null
+      return {
+        text: e.$('#note-notice-text').textContent,
+        action: e.$('#note-notice-action').hidden ? null : e.$('#note-notice-action').textContent,
+        place: e.$('#note-notice').parentElement.id,
+      }
+    },
+
     /** Ace, switching to writing mode first if needed. */
     async editor() {
       if (e.doc.body.dataset.mode !== 'edit') e.$('#btn-mode').click()

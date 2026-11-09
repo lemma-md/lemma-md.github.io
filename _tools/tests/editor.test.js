@@ -396,14 +396,15 @@ test('a file with \\( \\) formulas offers Fix, in reading mode; Undo takes it ba
   await openFile(ed, await diskFile(dir, 'answer.md', CHAT))
   assert.equal(ed.doc.body.dataset.mode, 'view', 'still reading')
   assert.equal(ed.$$('#preview .katex').length, 0, 'shown as text')
-  assert.deepEqual(ed.banner()?.text, '2 formulas written with \\( \\) or \\[ \\] are shown as plain text.')
-  ed.$('#banner-action').click()
-  assert.equal(ed.banner()?.text, 'Fixed 2 formulas: written with $ now.')
+  assert.deepEqual(ed.notice(), { text: '2 formulas written with \\( \\) or \\[ \\] are shown as plain text.', action: 'Fix', place: 'preview-pane' }, 'atop the preview while reading')
+  assert.equal(ed.banner(), null, 'not in the banner, which is the whole app\'s')
+  ed.$('#note-notice-action').click()
+  assert.equal(ed.notice()?.text, 'Fixed 2 formulas: written with $ now.')
   await waitFor(() => ed.$$('#preview .katex').length === 2, 'typeset')
   assert.equal(ed.status().text, 'Changed', 'an edit, to save like any other')
   await waitFor(async () => (await ed.stored('answer.md'))?.text === 'For $f(x) = x^2$:\n\n$$\nf\'(x) = 2x\n$$\n', 'stored fixed')
-  ed.$('#banner-action').click() // Undo
-  assert.equal(ed.banner(), null)
+  ed.$('#note-notice-action').click() // Undo
+  assert.equal(ed.notice(), null)
   await waitFor(() => ed.$$('#preview .katex').length === 0, 'back to the text it was')
   assert.equal((await ed.editor()).getValue(), CHAT)
 })))
@@ -411,24 +412,339 @@ test('a file with \\( \\) formulas offers Fix, in reading mode; Undo takes it ba
 test('a paste that brings \\( \\) offers Fix for the whole note, which Ctrl+Z takes back', () => withEditor(async (ed) => {
   await ed.newNote()
   await ed.type('Mine: \\(a\\). ')
-  assert.equal(ed.banner(), null, 'typing offers nothing')
+  assert.equal(ed.notice(), null, 'typing offers nothing')
   const ace = await ed.editor()
   ace.navigateFileEnd()
   ace.onPaste('Pasted: \\(b\\).')
-  await waitFor(() => ed.banner()?.action === 'Fix', 'the offer')
-  ed.$('#banner-action').click()
+  await waitFor(() => ed.notice()?.action === 'Fix', 'the offer')
+  assert.equal(ed.notice().place, 'editor-pane', 'under the toolbar while writing')
+  ed.$('#note-notice-action').click()
   assert.equal(ace.getValue(), 'Mine: $a$. Pasted: $b$.')
   ace.undo()
   assert.equal(ace.getValue(), 'Mine: \\(a\\). Pasted: \\(b\\).', 'one step back, the paste kept')
-  assert.equal(ed.banner(), null, 'and the Undo notice gone with it')
+  assert.equal(ed.notice(), null, 'and the Undo notice gone with it')
 }))
 
 test('switching notes takes the offer down', () => withDisk((dir) => withEditor(async (ed) => {
   await openFile(ed, await diskFile(dir, 'answer.md', CHAT))
-  assert.equal(ed.banner()?.action, 'Fix')
+  assert.equal(ed.notice()?.action, 'Fix')
   await ed.newNote()
-  assert.equal(ed.banner(), null)
+  assert.equal(ed.notice(), null)
 })))
+
+suite('editor: toolbar')
+
+const button = (ed, id) => ed.$(`#${id}`)
+
+test('Undo and Redo, greyed out when there is nothing to do', () => withEditor(async (ed) => {
+  await ed.newNote()
+  const ace = await ed.editor()
+  await waitFor(() => button(ed, 'tb-undo').disabled, 'nothing to undo in a new note')
+  await ed.type('abc')
+  await waitFor(() => !button(ed, 'tb-undo').disabled, 'Undo on')
+  button(ed, 'tb-undo').click()
+  await waitFor(() => ace.getValue() === '', 'undone')
+  await waitFor(() => !button(ed, 'tb-redo').disabled, 'Redo on')
+  button(ed, 'tb-redo').click()
+  await waitFor(() => ace.getValue() === 'abc', 'redone')
+  assert.ok(button(ed, 'tb-undo').title.endsWith('(Ctrl+Z)') || button(ed, 'tb-undo').title.endsWith('(⌘Z)'), 'the key in the tooltip')
+}))
+
+test('Find and Replace open the search box, Replace with its replace field', () => withEditor(async (ed) => {
+  await ed.newNote()
+  await ed.editor()
+  button(ed, 'tb-replace').click()
+  const box = await waitFor(() => ed.$('.ace_search'), 'the search box')
+  await waitFor(() => box.querySelector('.ace_replace_form') && ed.win.getComputedStyle(box.querySelector('.ace_replace_form')).display !== 'none', 'the replace field showing')
+}))
+
+test('Fix from the toolbar says so when there is nothing to fix; again, puts the notice away', () => withEditor(async (ed) => {
+  await ed.newNote()
+  await ed.type('Only $x$ here.')
+  button(ed, 'tb-fix').click()
+  await waitFor(() => ed.notice()?.text === 'No formulas here are written with \\( \\) or \\[ \\].', 'the answer')
+  button(ed, 'tb-fix').click()
+  await waitFor(() => ed.notice() === null, 'put away')
+  await ed.type(' And \\(y\\).')
+  button(ed, 'tb-fix').click()
+  await waitFor(() => ed.notice()?.action === 'Fix', 'the offer')
+  button(ed, 'tb-fix').click()
+  await waitFor(() => ed.notice() === null, 'put away again')
+}))
+
+/** Click a toolbar button and wait for the text it leaves. */
+async function press(ed, ace, id, expected) {
+  button(ed, id).click()
+  await waitFor(() => ace.getValue() === expected, `${id}: ${JSON.stringify(expected)}`)
+}
+
+// What each press does to the text is in markup.test.js; these are the buttons.
+test('Bold, italic and formulas: a second press takes them away; with nothing selected, the cursor waits between the marks', () => withEditor(async (ed) => {
+  await ed.newNote()
+  const ace = await ed.editor()
+  ace.setValue('word', -1)
+  ace.selectAll()
+  await press(ed, ace, 'tb-bold', '**word**')
+  assert.equal(ace.getSelectedText(), 'word', 'still selected')
+  await press(ed, ace, 'tb-italic', '***word***')
+  ace.undo()
+  assert.equal(ace.getValue(), '**word**', 'each a step of its own for Ctrl+Z')
+  ace.clearSelection()
+  ace.moveCursorTo(0, 4)
+  ace.execCommand('bold') // Ctrl+B, in the middle of the word
+  assert.equal(ace.getValue(), 'word')
+  ace.navigateFileEnd()
+  ace.insert(' ')
+  await press(ed, ace, 'tb-math', 'word $$')
+  ace.insert('x')
+  assert.equal(ace.getValue(), 'word $x$')
+  await press(ed, ace, 'tb-display', 'word $$x$$')
+  await press(ed, ace, 'tb-math', 'word $x$')
+  await press(ed, ace, 'tb-math', 'word x')
+}))
+
+test('a Markdown button shows pressed where the cursor is in what it puts in', () => withEditor(async (ed) => {
+  await ed.newNote()
+  const ace = await ed.editor()
+  const ids = ['tb-bold', 'tb-italic', 'tb-heading', 'tb-list', 'tb-math', 'tb-display']
+  const on = () => ids.filter((id) => button(ed, id).getAttribute('aria-pressed') === 'true').join(' ')
+  ace.setValue('# Title\n\nSome **bold** and $x$.', -1)
+  ace.moveCursorTo(0, 3)
+  await waitFor(() => on() === 'tb-heading', 'in the heading')
+  ace.moveCursorTo(2, 8)
+  await waitFor(() => on() === 'tb-bold', 'in the bold')
+  ace.moveCursorTo(2, 19)
+  await waitFor(() => on() === 'tb-math', 'in the formula')
+  ace.moveCursorTo(2, 2)
+  await waitFor(() => on() === '', 'in plain text')
+  button(ed, 'tb-bold').click()
+  await waitFor(() => ace.getValue().endsWith('**Some** **bold** and $x$.') && on() === 'tb-bold', 'pressed once the word is bold')
+}))
+
+test('the pressed buttons wait for a pause in typing, not read the text at every key', () => withEditor(async (ed) => {
+  await ed.newNote()
+  const ace = await ed.editor()
+  const bold = () => button(ed, 'tb-bold').getAttribute('aria-pressed')
+  ace.setValue('Some bold text.', -1)
+  ace.moveCursorTo(0, 7)
+  await waitFor(() => bold() === 'false', 'not pressed in plain text')
+  // Four keys, the cursor put back in the word after each, as typing moves it.
+  for (const column of [5, 6, 11, 12]) {
+    ace.session.insert({ row: 0, column }, '*')
+    ace.moveCursorTo(0, 8)
+  }
+  assert.equal(ace.getValue(), 'Some **bold** text.')
+  await sleep(0)
+  assert.equal(bold(), 'false', 'not yet, right after the keys')
+  await waitFor(() => bold() === 'true', 'pressed after the pause, the word now bold')
+}))
+
+test('Heading goes #, ##, ###, none; List puts lines in and out of a list', () => withEditor(async (ed) => {
+  await ed.newNote()
+  const ace = await ed.editor()
+  ace.setValue('Title', -1)
+  await press(ed, ace, 'tb-heading', '# Title')
+  await press(ed, ace, 'tb-heading', '## Title')
+  await press(ed, ace, 'tb-heading', '### Title')
+  await press(ed, ace, 'tb-heading', 'Title')
+  ace.setValue('a\nb\n\nc', -1)
+  ace.selectAll()
+  await press(ed, ace, 'tb-list', '- a\n- b\n\n- c')
+  await press(ed, ace, 'tb-list', 'a\nb\n\nc')
+  // Pasted from a Windows clipboard into an empty note: Ace keeps \r\n then.
+  ace.setValue('', -1)
+  ace.onPaste('Title\r\nmore')
+  assert.equal(ace.session.doc.getNewLineCharacter(), '\r\n')
+  ace.moveCursorTo(0, 2)
+  await press(ed, ace, 'tb-heading', '# Title\r\nmore')
+  await press(ed, ace, 'tb-heading', '## Title\r\nmore')
+  ace.selection.setSelectionRange({ start: { row: 1, column: 0 }, end: { row: 1, column: 4 } })
+  await press(ed, ace, 'tb-bold', '## Title\r\n**more**')
+  await press(ed, ace, 'tb-bold', '## Title\r\nmore')
+}))
+
+test('$$ puts a line between two $$', () => withEditor(async (ed) => {
+  await ed.newNote()
+  const ace = await ed.editor()
+  ace.setValue('', -1)
+  await press(ed, ace, 'tb-display', '$$\n\n$$')
+  ace.insert('x')
+  assert.equal(ace.getValue(), '$$\nx\n$$', 'the cursor waited between')
+  ace.setValue('E = mc^2', -1)
+  await press(ed, ace, 'tb-display', '$$\nE = mc^2\n$$')
+}))
+
+test('Link opens a dialog: a new link on the word at the cursor; in a link, that one, to change or take away', () => withEditor(async (ed) => {
+  await ed.newNote()
+  const ace = await ed.editor()
+  ace.setValue('see the site now', -1)
+  ace.moveCursorTo(0, 10)
+  button(ed, 'tb-link').click()
+  const dialog = await waitFor(() => ed.$('#link-dialog[open]'), 'the dialog')
+  assert.equal(ed.$('#link-title').textContent, 'Insert link')
+  assert.equal(ed.$('#link-text').value, 'site', 'the word as its text')
+  assert.equal(ed.doc.activeElement, ed.$('#link-href'), 'the address asked for')
+  assert.ok(ed.$('#link-apply').disabled, 'nothing to insert without an address')
+  assert.ok(ed.$('#link-remove').hidden, 'nothing to take away')
+  ed.$('#link-href').value = 'https://x.org'
+  ed.$('#link-href').dispatchEvent(new ed.win.Event('input'))
+  ed.$('#link-apply').click() // as Enter does
+  await waitFor(() => ace.getValue() === 'see the [site](https://x.org) now', 'written')
+  assert.ok(!dialog.open, 'and the dialog gone')
+
+  ace.moveCursorTo(0, 11)
+  await waitFor(() => button(ed, 'tb-link').getAttribute('aria-pressed') === 'true', 'pressed in the link')
+  button(ed, 'tb-link').click()
+  await waitFor(() => dialog.open, 'the dialog again')
+  assert.equal(ed.$('#link-title').textContent, 'Edit link')
+  assert.equal(ed.$('#link-href').value, 'https://x.org')
+  ed.$('#link-text').value = 'the site'
+  ed.$('#link-apply').click()
+  await waitFor(() => ace.getValue() === 'see the [the site](https://x.org) now', 'changed')
+
+  ace.moveCursorTo(0, 11)
+  button(ed, 'tb-link').click()
+  await waitFor(() => dialog.open && !ed.$('#link-remove').hidden, 'Remove link offered')
+  ed.$('#link-remove').click()
+  await waitFor(() => ace.getValue() === 'see the the site now', 'taken away, the text left')
+}))
+
+test('the arrows: the cursor\'s place to the preview, the preview\'s to the editor', () => withEditor(async (ed) => {
+  await ed.newNote()
+  const ace = await ed.editor()
+  ace.setValue(Array.from({ length: 80 }, (_, i) => `Paragraph ${i}.`).join('\n\n'), -1)
+  await waitFor(() => ed.$$('#preview [data-line]').length === 80, 'rendered, with its map')
+  const pane = ed.$('#preview-pane')
+  const inView = (line) => {
+    const box = ed.$(`#preview [data-line="${line}"]`).getBoundingClientRect()
+    const view = pane.getBoundingClientRect()
+    return box.top >= view.top && box.bottom <= view.bottom
+  }
+  // The cursor far below the top of the editor: the arrow brings its place in.
+  ace.gotoLine(121, 0, false) // paragraph 60
+  ace.session.setScrollTop(0)
+  await waitFor(() => pane.scrollTop === 0, 'the preview at the top')
+  button(ed, 'tb-to-preview').click()
+  await sleep(100) // and a follow that was still due does not undo it
+  await waitFor(() => inView(120), 'paragraph 60 in view in the preview')
+  // The preview scrolled by hand: the other arrow brings the editor there.
+  const forty = ed.$('#preview [data-line="80"]')
+  pane.scrollTop += forty.getBoundingClientRect().top - pane.getBoundingClientRect().top
+  button(ed, 'tb-to-editor').click()
+  // Read from the scroll position: Ace redraws on animation frames, which a
+  // background tab does not have.
+  await waitFor(() => Math.abs(ace.session.getScrollTop() / ace.renderer.lineHeight - 80) <= 1, 'line 80 at the top of the editor')
+}))
+
+suite('editor: preview in step')
+
+/** Ctrl+click `el` in the preview, near its top. */
+function ctrlClick(ed, el) {
+  el.dispatchEvent(new ed.win.MouseEvent('click', { bubbles: true, cancelable: true, ctrlKey: true, clientY: el.getBoundingClientRect().top + 2 }))
+}
+
+test('the preview follows the editor as it scrolls', () => withEditor(async (ed) => {
+  await ed.newNote()
+  const ace = await ed.editor()
+  // Paragraph i starts on line 2i.
+  ace.setValue(Array.from({ length: 80 }, (_, i) => `Paragraph ${i}.`).join('\n\n'), -1)
+  await waitFor(() => ed.$$('#preview [data-line]').length === 80, 'rendered, with its map')
+  const pane = ed.$('#preview-pane')
+  const at = (line) => ed.$(`#preview [data-line="${line}"]`).getBoundingClientRect().top - pane.getBoundingClientRect().top
+  ace.session.setScrollTop(100 * ace.renderer.lineHeight)
+  await waitFor(() => Math.abs(at(100)) < 5, 'paragraph 50 at the top of the preview')
+  ace.session.setScrollTop(0)
+  await waitFor(() => pane.scrollTop === 0, 'and back to the top')
+}))
+
+test('Ctrl+click in the preview puts the cursor on that line, opening the editor while reading', () => withEditor(async (ed) => {
+  await ed.newNote()
+  const ace = await ed.editor()
+  ace.setValue('# One\n\nSome text\nover two lines.\n\n## Two\n\nMore.', -1)
+  ed.$('#btn-mode').click()
+  await waitFor(() => ed.doc.body.dataset.mode === 'view', 'reading')
+  const two = await waitFor(() => ed.$('#preview h2'), 'the second heading')
+  two.dispatchEvent(new ed.win.MouseEvent('click', { bubbles: true, clientY: two.getBoundingClientRect().top + 2 }))
+  await sleep(100)
+  assert.equal(ed.doc.body.dataset.mode, 'view', 'a plain click does nothing')
+  ctrlClick(ed, two)
+  await waitFor(() => ed.doc.body.dataset.mode === 'edit', 'the editor open')
+  await waitFor(() => ace.getCursorPosition().row === 5, 'the cursor on "## Two"')
+}))
+
+// Paragraphs long enough to wrap, more so in the narrower preview beside the
+// editor: paragraph i starts on line 2i.
+const WRAPPING = Array.from({ length: 80 }, (_, i) => `Paragraph ${i}, with $x_{${i}}$ and enough words to wrap onto a second line when the preview stands beside the editor.`).join('\n\n')
+
+/** How far below the top of the preview `el` stands. */
+const below = (ed, el) => el.getBoundingClientRect().top - ed.$('#preview-pane').getBoundingClientRect().top
+
+/** A paragraph of the preview in the lower half of what it shows. */
+function lowerParagraph(ed) {
+  const height = ed.$('#preview-pane').clientHeight
+  return ed.$$('#preview p').find((p) => below(ed, p) > height / 2 && below(ed, p) + p.offsetHeight < height)
+}
+
+/** Whether the editor shows `line`, worked out from its scroll position (Ace draws on animation frames). */
+function editorShows(ace, line) {
+  const { session, renderer } = ace
+  const row = session.documentToScreenRow(line, 0)
+  const top = session.getScrollTop() / renderer.lineHeight
+  return row >= top && row + 1 <= top + renderer.scroller.clientHeight / renderer.lineHeight
+}
+
+test('Ctrl+click leaves the preview where it is, and brings the editor to it', () => withEditor(async (ed) => {
+  await ed.newNote()
+  const ace = await ed.editor()
+  ace.setValue(WRAPPING, -1)
+  await waitFor(() => ed.$$('#preview [data-line]').length === 80, 'rendered, with its map')
+  const pane = ed.$('#preview-pane')
+  ace.session.setScrollTop(60 * ace.renderer.lineHeight)
+  await waitFor(() => pane.scrollTop > 0, 'the preview following')
+  await sleep(100)
+  const p = lowerParagraph(ed)
+  const line = Number(p.dataset.line)
+  const [scroll, at] = [pane.scrollTop, below(ed, p)]
+  ctrlClick(ed, p)
+  await waitFor(() => ace.getCursorPosition().row === line, 'the cursor on its line')
+  await sleep(200) // a follow would have come by now
+  assert.ok(Math.abs(pane.scrollTop - scroll) <= 2, `the preview stayed: ${scroll}, then ${pane.scrollTop}`)
+  assert.ok(Math.abs(below(ed, p) - at) <= 2, 'and the paragraph with it')
+  assert.ok(editorShows(ace, line), 'the line in view in the editor')
+}))
+
+test('Ctrl+click while reading opens the editor, and what was clicked stays where it was', () => withEditor(async (ed) => {
+  await ed.newNote()
+  const ace = await ed.editor()
+  ace.setValue(WRAPPING, -1)
+  await waitFor(() => ed.$$('#preview [data-line]').length === 80, 'rendered, with its map')
+  ed.$('#btn-mode').click()
+  await waitFor(() => ed.doc.body.dataset.mode === 'view', 'reading')
+  const pane = ed.$('#preview-pane')
+  pane.scrollTop = pane.scrollHeight / 2
+  await sleep(100)
+  const p = lowerParagraph(ed)
+  const line = Number(p.dataset.line)
+  const at = below(ed, p)
+  ctrlClick(ed, p)
+  await waitFor(() => ed.doc.body.dataset.mode === 'edit' && ace.getCursorPosition().row === line, 'the editor open, the cursor on its line')
+  await sleep(200)
+  // The preview is narrower now and its text longer: the paragraph is back under the pointer.
+  assert.ok(Math.abs(below(ed, p) - at) <= 2, `the paragraph stayed: ${Math.round(at)}, then ${Math.round(below(ed, p))}`)
+  assert.ok(editorShows(ace, line), 'the line in view in the editor')
+}))
+
+test('in a deck, Ctrl+click finds the line within its slide', () => withEditor(async (ed) => {
+  await ed.newNote()
+  const ace = await ed.editor()
+  const md = '---\ntitle: T\n---\n\n# One\n\nA\n\n---\n\n<!-- center -->\n# Two\n\ntext'
+  ace.setValue(md, -1)
+  const text = await waitFor(() => [...ed.$$('#preview .slide-card p')].find((p) => p.textContent === 'text'), 'the second slide')
+  ctrlClick(ed, text)
+  await waitFor(() => ace.getCursorPosition().row === md.split('\n').indexOf('text'), 'the cursor on "text"')
+  ctrlClick(ed, ed.$$('#preview .slide-card')[2])
+  await waitFor(() => ace.getCursorPosition().row === 9, 'a click on the card, not on a block: the slide\'s first line')
+}))
 
 suite('editor: Google Drive')
 

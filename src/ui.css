@@ -218,7 +218,69 @@ body[data-mode="view"] #preview { padding-top: 36px; }
 
 #panes { display: flex; flex: 1; min-height: 0; }
 
-#editor-pane { width: 45%; min-width: 220px; display: flex; }
+#editor-pane { width: 45%; min-width: 220px; display: flex; flex-direction: column; }
+
+/* The editor's toolbar: icon buttons in small groups, the key in each tooltip. */
+#editor-toolbar {
+  display: flex;
+  flex-wrap: wrap; /* a second row on a narrow screen, never a hidden button */
+  align-items: center;
+  gap: 1px;
+  flex: none;
+  padding: 3px 6px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+}
+/* Small enough that the whole toolbar fits one row over the editor of a
+   1280-pixel window. */
+#editor-toolbar button {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 5px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: none;
+  color: var(--fg);
+  cursor: pointer;
+}
+#editor-toolbar button:hover:not(:disabled) { border-color: var(--line); background: var(--bg); color: var(--accent); }
+#editor-toolbar button:disabled { color: var(--muted); opacity: .45; cursor: default; }
+#editor-toolbar .tb-gap { width: 1px; height: 18px; margin: 0 4px; background: var(--line); }
+/* The formula buttons show the marks they put in: they teach the syntax. */
+#editor-toolbar .tb-text {
+  font: 600 12px/15px ui-monospace, SFMono-Regular, Consolas, monospace;
+  min-width: 27px;
+  justify-content: center;
+}
+/* A switch that is on looks pressed, as does bold where the cursor is in bold
+   text: unlike a button under the mouse, edged in the accent. */
+#editor-toolbar button[aria-pressed="true"] { color: var(--accent); background: var(--bg); border-color: var(--accent); }
+
+/* A notice about the note itself: under the toolbar while writing, at the top
+   of the preview while reading, where it stays in view as the preview scrolls. */
+#note-notice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: none;
+  padding: 5px 10px;
+  font-size: 13px;
+  background: #fff8c5;
+  color: #3b2300;
+  border-bottom: 1px solid #d4a72c;
+}
+#note-notice[hidden], #note-notice button[hidden] { display: none; }
+#preview-pane > #note-notice { position: sticky; top: 0; z-index: 2; }
+#note-notice button {
+  font: inherit;
+  padding: 2px 10px;
+  border: 1px solid #9a6700;
+  border-radius: 5px;
+  background: #fff;
+  color: inherit;
+  cursor: pointer;
+}
+#note-notice #note-notice-close { margin-left: auto; border: none; background: none; font-size: 16px; line-height: 1; padding: 2px 6px; }
 /* Ace measures its container, so it needs a positioned box with real size. */
 #editor { flex: 1; position: relative; font-size: 14px; color: var(--muted); padding: 12px; }
 #editor.ace_editor { padding: 0; }
@@ -227,6 +289,10 @@ body[data-mode="view"] #preview { padding-top: 36px; }
 #splitter:hover { background: var(--accent); }
 
 #preview-pane { flex: 1; overflow-y: auto; min-width: 220px; }
+/* Ctrl+click finds the place in the source (sync.js); the pointer says so
+   while the key is held. */
+body.ctrl-held #preview [data-line],
+body.ctrl-held #preview [data-slide-line] { cursor: pointer; }
 #preview { max-width: 760px; margin: 0 auto; padding: 28px 32px 96px; }
 
 /* Everything about how rendered markdown looks lives in markdown.css, which
@@ -639,7 +705,8 @@ button.info-badge {
 .field > span:first-child { width: 52px; flex: none; color: var(--muted); }
 
 #cloud-save-name,
-#cloud-setup-name {
+#cloud-setup-name,
+#link-dialog input {
   flex: 1;
   font: inherit;
   font-size: 14px;
@@ -650,7 +717,16 @@ button.info-badge {
   color: var(--fg);
 }
 #cloud-save-name:focus,
-#cloud-setup-name:focus { outline: none; border-color: var(--accent); }
+#cloud-setup-name:focus,
+#link-dialog input:focus { outline: none; border-color: var(--accent); }
+
+/* The link dialog: two fields, then Remove link on the left (when there is a
+   link to take away) and Insert on the right. */
+#link-form { margin-top: 18px; display: flex; flex-direction: column; gap: 14px; }
+#link-dialog .field > span:first-child { width: 60px; }
+#link-dialog .field input { min-width: 0; }
+#link-dialog .dlg-actions { gap: 8px; }
+#link-dialog .primary { margin-left: auto; }
 
 /* Save picker, shaped like Google's file picker: a wider dialog with a roots
    dropdown, a breadcrumb, and one list of folders and files. */
@@ -704,7 +780,8 @@ button.info-badge {
 .dlg-actions { display: flex; justify-content: flex-end; }
 #cloud-save-as .dlg-actions { justify-content: flex-start; gap: 8px; align-items: center; }
 #cloud-save-as .dlg-actions .primary { margin-left: auto; }
-#cloud-save-as .action {
+#cloud-save-as .action,
+#link-dialog .action {
   font: inherit;
   font-size: 13px;
   padding: 6px 12px;
@@ -714,9 +791,11 @@ button.info-badge {
   color: inherit;
   cursor: pointer;
 }
-#cloud-save-as .action:hover { border-color: var(--muted); }
+#cloud-save-as .action:hover,
+#link-dialog .action:hover { border-color: var(--muted); }
 
 #cloud-save-as .primary,
+#link-dialog .primary,
 #cloud-setup .primary,
 #cloud-conflict .primary,
 #cloud-identity .primary,
@@ -732,12 +811,14 @@ button.info-badge {
   cursor: pointer;
 }
 #cloud-save-as .primary:hover,
+#link-dialog .primary:hover,
 #cloud-setup .primary:hover,
 #cloud-conflict .primary:hover,
 #cloud-identity .primary:hover,
 #local-conflict .primary:hover,
 #close-warn .primary:hover { filter: brightness(1.06); }
 #cloud-save-as .primary:disabled,
+#link-dialog .primary:disabled,
 #cloud-setup .primary:disabled { opacity: .6; cursor: default; }
 
 /* ---------- file info dialog ---------- */

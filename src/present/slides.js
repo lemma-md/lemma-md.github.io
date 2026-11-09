@@ -53,14 +53,19 @@ export function extractFrontMatter(md) {
  * A blank line ends it, as in the renderer (TeX allows no blank line in math):
  * otherwise one unclosed `$$` merged every later slide into one.
  */
-export function splitSlides(md) {
+export const splitSlides = (md) => slideChunks(md).map((c) => c.text)
+
+/** The slides of `md` as { text, line }: `line` is the 0-based line of `md`
+ *  that the slide's text starts on, for the editor's preview to follow. */
+function slideChunks(md) {
   const lines = String(md ?? '').split('\n')
   const chunks = []
   let current = []
+  let start = 0
   let fence = null // inside a code block: the run of ` or ~ that opened it
   let inMath = false
 
-  for (const line of lines) {
+  for (const [index, line] of lines.entries()) {
     const trimmed = line.trim()
     const run = /^ {0,3}(`{3,}|~{3,})/.exec(line)?.[1]
     if (fence) {
@@ -74,17 +79,18 @@ export function splitSlides(md) {
     }
 
     if (!fence && !inMath && /^---\s*$/.test(line)) {
-      chunks.push(current.join('\n'))
+      chunks.push({ text: current.join('\n'), line: start })
       current = []
+      start = index + 1
       continue
     }
     current.push(line)
   }
-  chunks.push(current.join('\n'))
+  chunks.push({ text: current.join('\n'), line: start })
 
   // Drop chunks that are only whitespace (a leading or trailing separator, or
   // two in a row), so `---` at the very top does not make an empty first slide.
-  return chunks.filter((c) => c.trim() !== '')
+  return chunks.filter((c) => c.text.trim() !== '')
 }
 
 /**
@@ -175,9 +181,14 @@ export const slideCount = (deck) => (hasTitle(deck.title) ? 1 : 0) + deck.slides
 
 export function parseDeck(markdown) {
   const { meta, body } = extractFrontMatter(markdown)
-  const slides = splitSlides(body).map((chunk) => {
-    const { directives, md } = parseDirectives(chunk)
-    return { md, center: directives.center, cls: directives.cls, bg: directives.bg }
+  // The lines the front-matter took, so that a slide's line is the note's.
+  const offset = String(markdown ?? '').split('\n').length - body.split('\n').length
+  const slides = slideChunks(body).map((chunk) => {
+    const { directives, md } = parseDirectives(chunk.text)
+    // `line` is where the slide starts; `mdLine` where its `md` does, one line
+    // on when the directive comment was taken out of it.
+    const line = offset + chunk.line
+    return { md, center: directives.center, cls: directives.cls, bg: directives.bg, line, mdLine: md === chunk.text ? line : line + 1 }
   })
   return { title: meta, slides }
 }

@@ -24,7 +24,8 @@ KaTeX already marks them: with `throwOnError: false` it returns the formula's
 source in red, with the class `katex-error` and the error message as a
 tooltip. A note should say how many there are, with *previous* and *next* to
 step through them; each step scrolls the preview to the formula and, while
-editing, puts the cursor on its source. Formulas written as `\( … \)` were the
+editing, puts the cursor on its source, which the preview's line map gives
+(`src/sync.js`, as Ctrl+click uses it). Formulas written as `\( … \)` were the
 first such problem to be handled: the notice under the bar offers to fix them
 (ARCHITECTURE → Rendering pipeline).
 
@@ -37,27 +38,6 @@ Open questions:
   as raw dollars and TeX up to the next blank line, or an image that fails to
   load. Or a bare `$` that reads like a price (`$5`): every pair of
   dollars is math now, so a fix would escape it as `\$5`.
-
-### 1.2 Keeping the editor and the preview in step
-
-From the editor, the preview should scroll quickly to what is being edited.
-From the preview, it should be quick to jump to that place in the source.
-
-The preview has no map from what it shows back to source lines today. Tagging
-each top-level Markdown block with the line it starts on (a `data-line`
-attribute, as VS Code's preview does) gives one. The problems panel needs the
-same map to put the cursor on a broken formula, so whichever item comes first
-builds it. The HTML export keeps its own copy of the renderer and should not
-carry the tags.
-
-Open questions:
-
-- **Follow continuously or on demand.** Should the preview track the editor's
-  scrolling all the time, or move only when asked, by a key or a button?
-- **The gesture in the preview** that jumps to the source: a double-click, a
-  modifier with a click, or a key.
-- **Slides view.** The editor's preview can show a deck as slides; the map has
-  to work there as well.
 
 ### 1.3 Inserting images
 

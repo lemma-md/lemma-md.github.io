@@ -96,6 +96,72 @@
     <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
     <path d="M12 17h.01"/>
   </symbol>
+  <symbol id="icon-undo" viewBox="0 0 24 24">
+    <path d="M9 14 4 9l5-5"/>
+    <path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5a5.5 5.5 0 0 1-5.5 5.5H11"/>
+  </symbol>
+  <symbol id="icon-redo" viewBox="0 0 24 24">
+    <path d="m15 14 5-5-5-5"/>
+    <path d="M20 9H9.5A5.5 5.5 0 0 0 4 14.5A5.5 5.5 0 0 0 9.5 20H13"/>
+  </symbol>
+  <symbol id="icon-search" viewBox="0 0 24 24">
+    <path d="m21 21-4.34-4.34"/>
+    <circle cx="11" cy="11" r="8"/>
+  </symbol>
+  <symbol id="icon-replace" viewBox="0 0 24 24">
+    <path d="M14 4a1 1 0 0 1 1-1"/>
+    <path d="M15 10a1 1 0 0 1-1-1"/>
+    <path d="M21 4a1 1 0 0 0-1-1"/>
+    <path d="M21 9a1 1 0 0 1-1 1"/>
+    <path d="m3 7 3 3 3-3"/>
+    <path d="M6 10V5a2 2 0 0 1 2-2h2"/>
+    <rect x="3" y="14" width="7" height="7" rx="1"/>
+  </symbol>
+  <symbol id="icon-wand" viewBox="0 0 24 24">
+    <path d="m21.64 3.64-1.28-1.28a1.21 1.21 0 0 0-1.72 0L2.36 18.64a1.21 1.21 0 0 0 0 1.72l1.28 1.28a1.2 1.2 0 0 0 1.72 0L21.64 5.36a1.2 1.2 0 0 0 0-1.72"/>
+    <path d="m14 7 3 3"/>
+    <path d="M5 6v4"/>
+    <path d="M19 14v4"/>
+    <path d="M10 2v2"/>
+    <path d="M7 8H3"/>
+    <path d="M21 16h-4"/>
+    <path d="M11 3H9"/>
+  </symbol>
+  <symbol id="icon-to-right" viewBox="0 0 24 24">
+    <path d="M17 12H3"/>
+    <path d="m11 18 6-6-6-6"/>
+    <path d="M21 5v14"/>
+  </symbol>
+  <symbol id="icon-to-left" viewBox="0 0 24 24">
+    <path d="M3 19V5"/>
+    <path d="m13 6-6 6 6 6"/>
+    <path d="M7 12h14"/>
+  </symbol>
+  <symbol id="icon-bold" viewBox="0 0 24 24">
+    <path d="M6 12h9a4 4 0 0 1 0 8H7a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h7a4 4 0 0 1 0 8"/>
+  </symbol>
+  <symbol id="icon-italic" viewBox="0 0 24 24">
+    <line x1="19" x2="10" y1="4" y2="4"/>
+    <line x1="14" x2="5" y1="20" y2="20"/>
+    <line x1="15" x2="9" y1="4" y2="20"/>
+  </symbol>
+  <symbol id="icon-heading" viewBox="0 0 24 24">
+    <path d="M6 12h12"/>
+    <path d="M6 20V4"/>
+    <path d="M18 20V4"/>
+  </symbol>
+  <symbol id="icon-list" viewBox="0 0 24 24">
+    <path d="M3 5h.01"/>
+    <path d="M3 12h.01"/>
+    <path d="M3 19h.01"/>
+    <path d="M8 5h13"/>
+    <path d="M8 12h13"/>
+    <path d="M8 19h13"/>
+  </symbol>
+  <symbol id="icon-link" viewBox="0 0 24 24">
+    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+  </symbol>
   <symbol id="icon-present" viewBox="0 0 24 24">
     <path d="M2 3h20"/>
     <path d="M21 3v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V3"/>
@@ -171,7 +237,40 @@
 </div>
 
 <main id="panes">
-  <section id="editor-pane"><div id="editor">Loading editor…</div></section>
+  <section id="editor-pane">
+    <!-- What writing needs at hand, in reach of someone who knows no shortcut.
+         Each button's tooltip names its key (app.js → TOOLBAR). -->
+    <div id="editor-toolbar" role="toolbar" aria-label="Editing">
+      <button id="tb-undo" type="button" aria-label="Undo"><svg class="icon"><use href="#icon-undo"/></svg></button>
+      <button id="tb-redo" type="button" aria-label="Redo"><svg class="icon"><use href="#icon-redo"/></svg></button>
+      <span class="tb-gap"></span>
+      <button id="tb-find" type="button" aria-label="Find"><svg class="icon"><use href="#icon-search"/></svg></button>
+      <button id="tb-replace" type="button" aria-label="Replace"><svg class="icon"><use href="#icon-replace"/></svg></button>
+      <span class="tb-gap"></span>
+      <!-- Markdown for someone who has not learnt it: each wraps the selection
+           or puts in the marks to type between, and shows pressed where the
+           cursor is in what it puts in (src/markup.js). -->
+      <button id="tb-bold" type="button" aria-pressed="false" aria-label="Bold"><svg class="icon"><use href="#icon-bold"/></svg></button>
+      <button id="tb-italic" type="button" aria-pressed="false" aria-label="Italic"><svg class="icon"><use href="#icon-italic"/></svg></button>
+      <button id="tb-heading" type="button" aria-pressed="false" aria-label="Heading"><svg class="icon"><use href="#icon-heading"/></svg></button>
+      <button id="tb-list" type="button" aria-pressed="false" aria-label="List"><svg class="icon"><use href="#icon-list"/></svg></button>
+      <button id="tb-math" type="button" aria-pressed="false" class="tb-text" aria-label="Formula in the line">$x$</button>
+      <button id="tb-display" type="button" aria-pressed="false" class="tb-text" aria-label="Formula on lines of its own">$$</button>
+      <button id="tb-link" type="button" aria-pressed="false" aria-label="Link"><svg class="icon"><use href="#icon-link"/></svg></button>
+      <span class="tb-gap"></span>
+      <button id="tb-fix" type="button" aria-label="Fix formulas written as \( \)"><svg class="icon"><use href="#icon-wand"/></svg></button>
+      <span class="tb-gap"></span>
+      <button id="tb-to-preview" type="button" aria-label="Show this place in the preview"><svg class="icon"><use href="#icon-to-right"/></svg></button>
+      <button id="tb-to-editor" type="button" aria-label="Bring the editor to what the preview shows"><svg class="icon"><use href="#icon-to-left"/></svg></button>    </div>
+    <!-- A notice about this note (formulas to fix): under the toolbar while
+         writing, at the top of the preview while reading (app.js). -->
+    <div id="note-notice" role="status" hidden>
+      <span id="note-notice-text"></span>
+      <button id="note-notice-action" type="button" hidden></button>
+      <button id="note-notice-close" type="button" title="Dismiss" aria-label="Dismiss">&times;</button>
+    </div>
+    <div id="editor">Loading editor…</div>
+  </section>
   <div id="splitter"></div>
   <section id="preview-pane"><article id="preview" class="md"></article></section>
 </main>
@@ -232,6 +331,25 @@
       </section>
     </div>
   </div>
+</dialog>
+
+<!-- The toolbar's Link: the text and the address of a new link, or of the one
+     the cursor is in, which can also be taken away. src/markup.js finds the
+     link and writes it; Enter inserts, Escape leaves the text as it was. -->
+<dialog id="link-dialog">
+  <form method="dialog" class="dlg-head">
+    <h2 id="link-title">Insert link</h2>
+    <button class="dlg-close" title="Close" aria-label="Close">&times;</button>
+  </form>
+
+  <form id="link-form">
+    <label class="field"><span>Text</span><input id="link-text" type="text" autocomplete="off"></label>
+    <label class="field"><span>Address</span><input id="link-href" type="text" inputmode="url" autocomplete="off" spellcheck="false" placeholder="https://"></label>
+    <div class="dlg-actions">
+      <button id="link-remove" type="button" class="action">Remove link</button>
+      <button id="link-apply" type="submit" class="primary">Insert</button>
+    </div>
+  </form>
 </dialog>
 
 <!-- New from template: a short list of starter notes (blank, welcome, a slide

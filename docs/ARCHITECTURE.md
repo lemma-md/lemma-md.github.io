@@ -128,15 +128,97 @@ Two details that are not free to change:
   GitHub and Obsidian read `$`. So after a file is opened, and after a paste
   that brought some, the notice under the bar counts them and offers *Fix*,
   which writes them in dollars (`src/delimiters.js`); nothing changes until it
-  is pressed. The notice is the one storage warnings use, so it works while
-  reading, where most opened files are first seen and the editor is not
-  loaded, and a storage warning is never covered by it. *Fix* takes the whole
+  is pressed. It works while reading too, where most opened files are first
+  seen and the editor is not loaded. *Fix* takes the whole
   note, a paste or not: any `\(` in it shows as text anyway. It is an edit like
   typing, so the note shows *Changed*; *Undo* in the notice takes it back, and
   in the editor so does Ctrl+Z, in one step of its own. Code is left as it is,
   and so is a formula already in dollars, whose `\\[4pt]` is TeX's own. A
   formula that would hold a bare dollar is left too, since in dollars it would
   end there; so is one that runs across a blank line, which TeX does not allow.
+- **The editor's preview carries a map back to the source** *(2026-11)*. With
+  `render(md, { lines })` each top-level block gets the line it starts on and
+  how many it takes, `data-line` and `data-lines`, as VS Code's preview does:
+  each token is rendered on its own, and one that renders as no block of its
+  own, a display formula, is wrapped in a `<div>` to carry them. In a deck the
+  slides render from their own text, so a slide body carries where that text
+  starts in the note (`data-base`, set on every pass, as cached cards move),
+  and the title card stands for the front-matter. On that map (`src/sync.js`):
+  - **The preview follows the editor** as it scrolls, the top line of the
+    one at the top of the other, in proportion within a block and across the
+    gap between two. Never the other way round, so the two cannot chase each
+    other.
+  - **Ctrl+click** (⌘ on a Mac) in the preview puts the cursor on that line,
+    and opens the editor if it is put away: reading, one spots a typo and is
+    there. A double-click was the other candidate; it keeps selecting a word,
+    as it does everywhere else. The pointer changes while the key is held. A
+    link keeps its own meaning. What was clicked stays where it is on the
+    screen: the editor comes to what the preview shows, by the same map the
+    preview follows it by, and puts the line in its middle only if it is then
+    out of view. Opened from reading, the preview is narrower and its text
+    longer, so it is scrolled to bring the clicked block back under the
+    pointer. Putting the line in the middle of the editor, as at first, had
+    the preview follow it away.
+  Only the editor asks for the map: the projector, the PDF export and the
+  exported page render without it.
+- **The editor has a toolbar of its own** *(2026-11)*, for someone who knows
+  no shortcut and no Markdown:
+  - Undo and Redo, greyed out when there is nothing to do; Find, and Replace,
+    which opens Ace's search box with its replace field showing (a colleague
+    found Ctrl+F but never the small + that reveals replacing).
+  - Markdown: bold, italic, heading, list, a formula in the line, one on lines
+    of its own, a link. They come in two kinds. Bold, italic and `$` work on
+    the selection, which stays selected, or with nothing selected on the word
+    the cursor is in or next to (for `$`, everything up to the spaces, as in
+    `x^2` or `f(x)`); between spaces they put in their marks with the cursor
+    between them. Heading, list and `$$` work on the lines the cursor is on:
+    heading goes `#`, `##`, `###`, none, list goes in and out, and `$$` puts
+    the lines between two `$$` lines. The formula buttons show `$x$` and `$$`
+    rather than an icon: they teach the syntax. Ctrl+B and Ctrl+I do bold and
+    italic as in a word processor. Each is one step for Ctrl+Z.
+  - Pressed again, bold, italic and the formulas take their marks away, from
+    anywhere in the bold text or the formula, and `$` and `$$` turn one kind of
+    formula into the other: a formula alone on its line goes onto lines of its
+    own, one within a line becomes `$$x$$` there. Plain wrapping made `$` then
+    `$$` into `$$` lines round `$x$`, nonsense to TeX. To take marks away, a
+    button has to know what is bold, or a formula, and it knows it as the
+    preview does: marked reads the text, with our math extension, and the
+    smallest span of the kind that holds the selection is the one acted on. A
+    guess from the stars or dollars next to the cursor was the other way, and
+    it cannot tell `**a** b **c**` from bold round ` b `. The commands are
+    plain functions of the text and the selection, returning one edit
+    (`src/markup.js`), so they are tested without an editor.
+  - A button shows pressed exactly where its next press would take its marks
+    away (for heading, change the level), found by the same reading as the
+    commands, so the two cannot disagree. The text is read again only when it
+    has changed, so moving the cursor costs one reading of its own lines, and
+    the buttons follow it 50 ms after it rests. Reading the whole text costs
+    about a third of a millisecond per KB of a note with formulas (36 ms for
+    100 KB), so after an edit they wait for a pause in typing, 300 ms, instead
+    of reading the text again at every key (November 2026).
+  - Link opens a dialog with the text and the address, rather than putting in
+    `[text](https://)` to be typed over: an address is pasted, and a field
+    takes it better than the middle of a line. In a link (pressed there), the
+    dialog opens on it, to change, or to take away and leave the text; a
+    title the link had is kept. With nothing selected, the word at the cursor
+    is the text, as for bold. An address in `www.` gets `https://`, and one
+    with a space is written in `<…>`. A link left as it was is not rewritten,
+    so a bare address stays bare.
+  - Fix for formulas in `\( \)`, which also says when there are none, and puts
+    its notice away when pressed again.
+  - Two arrows, the cursor's place to the preview and the preview's to the
+    editor, for when the preview was scrolled by hand. A lock that stopped the
+    preview following, and buttons for the text size, were tried and taken
+    out: the preview always follows, and the size is the editor's, 14 px.
+  Each tooltip names the key that does the same. It all fits one row over the
+  editor of a 1280-pixel window, and wraps to a second on a narrow screen
+  rather than hiding a button. A context menu of our own was the other way,
+  and was not taken: it would hide the browser's copy, paste and spelling.
+- **A notice about the note sits with the note** *(2026-11)*. The offer to fix
+  formulas is about the note on screen, not the app, so it is not the banner
+  across the window that storage problems use: it sits under the editor's
+  toolbar while writing, and at the top of the preview, held in view, while
+  reading. It goes when another note is shown.
 
 ## No shadow DOM
 

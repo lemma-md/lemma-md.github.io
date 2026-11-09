@@ -38,10 +38,14 @@ Working today:
   deliver those keypresses to a page — a binding there would look right and do
   nothing. Matching is on the physical key, so a Cyrillic layout does not
   silently break them
-- live preview of markdown with TeX formulas
+- live preview of markdown with TeX formulas, which follows the editor as it
+  scrolls; Ctrl+click in it finds the place in the source
 - formulas written as `\( \)` and `\[ \]`, as ChatGPT writes them, are offered
   a fix that writes them in dollars, after a file is opened or a paste
-- editor with line numbers, syntax highlighting and search
+- editor with line numbers, syntax highlighting and search, and a toolbar for
+  undo, redo, find, replace, the Markdown a note needs (bold, italic, heading,
+  list, formulas, links), fixing formulas, and bringing the preview and the
+  editor to each other
 - multiple notes in tabs, restored when you come back
 - automatic saving of drafts. Closing a note with unsaved changes asks first,
   and a discarded note goes to a bin in Settings, from where it can be restored
@@ -71,8 +75,6 @@ Planned, numbered as in [docs/ROADMAP.md](docs/ROADMAP.md):
 
 1. **Editor**
    - **1.1** formulas that fail to render: how many, and stepping through them
-   - **1.2** editor and preview in step: jump from the text to the preview and
-     back
    - **1.3** inserting images by pasting, dropping or choosing a file
 2. **Presenter**
    - **2.1** presentation management: each presentation keeps its own copy of
@@ -274,6 +276,8 @@ src/app.js          tabs, drag & drop, autosave, pane splitter
 src/viewer.js       markdown + TeX -> sanitised HTML
 src/export-*.js     a note as a page that renders itself (html), or as LaTeX (tex)
 src/delimiters.js   formulas in \( \) and \[ \], as chats write them, into dollars
+src/sync.js         the editor's preview in step with the source
+src/markup.js       the editor toolbar's Markdown, as edits of the text
 src/editor.js       Ace, loaded on demand
 src/present/        slide splitting, reveal.js setup, the drawing tools, and the
                     catalog the presentations page lists

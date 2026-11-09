@@ -9,6 +9,8 @@ import { lineDiff, diffStats, sideBySide, inlineDiff } from './diff.js'
 import { buildStandaloneHtml, extractMarkdown } from './export-html.js'
 import { buildTex } from './export-tex.js'
 import { fixDelimiters } from './delimiters.js'
+import { followLine, showLine, lineAt, lineAtTop } from './sync.js'
+import * as markup from './markup.js'
 import { openPdfPreview } from './pdf/preview.js'
 import { WELCOME, templates } from './templates.js'
 import { helpUrl } from './help.js'
@@ -23,6 +25,8 @@ let editor = null
 const el = {
   tabs: document.getElementById('tabs'),
   preview: document.getElementById('preview'),
+  previewPane: document.getElementById('preview-pane'),
+  toolbar: document.getElementById('editor-toolbar'),
   editor: document.getElementById('editor'),
   editorPane: document.getElementById('editor-pane'),
   splitter: document.getElementById('splitter'),
@@ -270,23 +274,57 @@ function hideBanner() {
 }
 banner.close.onclick = hideBanner
 
+/* ---------- a notice about the note ---------- */
+
+// Unlike the banner, which speaks for the whole app (storage), this one is
+// about the note on screen: under the editor's toolbar while writing, at the
+// top of the preview while reading (placeNotice). It goes when the note does.
+const notice = {
+  el: document.getElementById('note-notice'),
+  text: document.getElementById('note-notice-text'),
+  action: document.getElementById('note-notice-action'),
+  close: document.getElementById('note-notice-close'),
+}
+
+function showNotice(text, { action, onAction, title = '', kind = '' } = {}) {
+  notice.text.textContent = text
+  notice.text.title = title
+  notice.action.hidden = !action
+  notice.action.textContent = action ?? ''
+  notice.action.onclick = onAction ?? null
+  notice.el.dataset.kind = kind
+  notice.el.hidden = false
+}
+function hideNotice() {
+  notice.el.hidden = true
+  notice.el.dataset.kind = ''
+}
+notice.close.onclick = hideNotice
+
+function placeNotice() {
+  if (state.mode === 'edit') el.toolbar.after(notice.el)
+  else el.previewPane.prepend(notice.el)
+}
+
 /* ---------- formulas in \( \) ---------- */
 
 const formulas = (n) => `${n} ${n === 1 ? 'formula' : 'formulas'}`
 
 /**
  * Offer to write the active note's \( \) and \[ \] formulas in dollars
- * (delimiters.js), in the notice under the bar, whether reading or writing:
- * after a file is opened, and after a paste that brought some. Nothing changes
- * until Fix is pressed. A notice about storage matters more, and stays.
+ * (delimiters.js), in the note's notice, whether reading or writing: after a
+ * file is opened, after a paste that brought some, and from the toolbar, which
+ * (`asked`) also says when there are none. Nothing changes until Fix is pressed.
  */
-function offerFix() {
+function offerFix({ asked = false } = {}) {
   const doc = active()
-  const kind = banner.el.hidden ? '' : banner.el.dataset.kind
-  if (!doc || (kind && !kind.startsWith('delimiters'))) return
+  if (!doc) return
   const { count } = fixDelimiters(doc.text)
-  if (!count) return
-  showBanner(`${formulas(count)} written with \\( \\) or \\[ \\] ${count === 1 ? 'is' : 'are'} shown as plain text.`, {
+  if (!count) {
+    if (asked) showNotice('No formulas here are written with \\( \\) or \\[ \\].', { kind: 'delimiters-none' })
+    return
+  }
+  showNotice(`${formulas(count)} written with \\( \\) or \\[ \\] ${count === 1 ? 'is' : 'are'} shown as plain text.`, {
     action: 'Fix',
     onAction: () => fixFormulas(doc),
     title: 'Chats such as ChatGPT write formulas this way. Fix writes them with $ and $$, as Markdown expects.',
@@ -297,13 +335,13 @@ function offerFix() {
 function fixFormulas(doc) {
   const before = doc.text
   const { text, count } = fixDelimiters(before)
-  if (doc !== active() || !count) return hideBanner()
+  if (doc !== active() || !count) return hideNotice()
   replaceText(text)
-  showBanner(`Fixed ${formulas(count)}: written with $ now.`, {
+  showNotice(`Fixed ${formulas(count)}: written with $ now.`, {
     action: 'Undo',
     onAction: () => {
       if (active() === doc && doc.text === text) replaceText(before)
-      hideBanner()
+      hideNotice()
     },
     kind: 'delimiters-done',
   })
@@ -358,9 +396,102 @@ function updatePreview() {
     renderDeckPreview(doc)
   } else {
     el.preview.className = 'md'
-    el.preview.innerHTML = render(doc.text)
+    el.preview.innerHTML = render(doc.text, { lines: 0 })
   }
+  followEditor()
 }
+
+/* ---------- the preview in step with the editor ---------- */
+
+// While writing, the preview follows the editor as it scrolls (sync.js); never
+// the other way, so that the two cannot chase each other. A timer, not
+// requestAnimationFrame, gathers a burst of scroll events: animation frames
+// stop in a background tab.
+let followTimer = null
+function followEditor() {
+  if (state.mode !== 'edit' || !editor || followTimer) return
+  followTimer = setTimeout(() => {
+    followTimer = null
+    if (state.mode === 'edit') followLine(el.previewPane, el.preview, editor.topLine())
+  }, 16)
+}
+
+/** Drop a follow still waiting to happen: the preview was just put somewhere on purpose. */
+function cancelFollow() {
+  clearTimeout(followTimer)
+  followTimer = null
+}
+
+// Ctrl+click (⌘ on a Mac) in the preview puts the cursor on that place in the
+// source, opening the editor if it is put away. A link keeps its own meaning.
+// What was clicked stays where it is on the screen. Opening the editor narrows
+// the preview, whose text then runs longer: it is brought back under the
+// pointer. And the editor comes to what the preview shows, by the same map the
+// preview follows it by, so following has nothing to move; putting the line in
+// the middle of the editor, as before, had the preview follow it away.
+el.preview.addEventListener('click', async (e) => {
+  if (!(e.ctrlKey || e.metaKey) || e.button !== 0 || e.target.closest('a')) return
+  const line = lineAt(el.preview, e.target, e.clientY)
+  if (line == null) return
+  e.preventDefault()
+  const held = e.target
+  const y = held.getBoundingClientRect().top
+  if (state.mode !== 'edit') await setMode('edit')
+  const ed = await ensureEditor()
+  cancelFollow()
+  if (held.isConnected) el.previewPane.scrollTop += held.getBoundingClientRect().top - y
+  ed.scrollToTop(lineAtTop(el.previewPane, el.preview))
+  cancelFollow()
+  ed.revealLine(line)
+})
+
+// The Markdown buttons that show pressed when the cursor is in what they put
+// in, by what markup.state calls it.
+const PRESSED = { 'tb-bold': 'bold', 'tb-italic': 'italic', 'tb-heading': 'heading', 'tb-list': 'list', 'tb-math': 'inlineMath', 'tb-display': 'displayMath', 'tb-link': 'link' }
+
+/**
+ * Undo and Redo are greyed out when there is nothing to undo or redo, and a
+ * Markdown button is pressed when pressing it would take its marks away.
+ */
+function updateToolbar() {
+  updateUndo()
+  updatePressed()
+}
+
+function updateUndo() {
+  if (!editor) return
+  document.getElementById('tb-undo').disabled = !editor.canUndo()
+  document.getElementById('tb-redo').disabled = !editor.canRedo()
+}
+
+function updatePressed() {
+  if (!editor) return
+  const on = editor.look(markup.state)
+  for (const [id, key] of Object.entries(PRESSED)) document.getElementById(id).setAttribute('aria-pressed', String(on[key]))
+}
+
+// Which buttons are pressed comes from the whole text read as the preview
+// reads it, which takes about a third of a millisecond per KB of a note with
+// formulas, and is done again whenever the text has changed. Done at every key
+// typed, that held up typing in a long note, so after an edit the buttons wait
+// for a pause. A move of the cursor alone finds the text already read and
+// shows sooner; the cursor also moves with every key typed, so a move never
+// brings forward a wait that an edit asked for.
+const PRESSED_AFTER_MOVE = 50
+const PRESSED_AFTER_EDIT = 300
+let pressedTimer = 0
+let pressedDue = 0
+function pressedSoon(delay = PRESSED_AFTER_MOVE) {
+  pressedDue = Math.max(pressedDue, performance.now() + delay)
+  clearTimeout(pressedTimer)
+  pressedTimer = setTimeout(updatePressed, pressedDue - performance.now())
+}
+
+// The pointer says so while the key is held.
+const ctrlHeld = (e) => document.body.classList.toggle('ctrl-held', e.ctrlKey || e.metaKey)
+addEventListener('keydown', ctrlHeld)
+addEventListener('keyup', ctrlHeld)
+addEventListener('blur', () => document.body.classList.remove('ctrl-held'))
 
 /** One preview card: a slide-shaped frame around a body, numbered in the corner. */
 function slideCard(body, mods, num, bg) {
@@ -425,22 +556,31 @@ function renderDeckPreview(doc) {
     next.set(key, node)
     node.querySelector('.slide-num').textContent = ++n
     children.push(node)
+    return node
   }
 
   // The projector's rule, not a looser one of its own: front-matter holding only
   // options such as `fontsize:` makes no title slide. A card the projector does
   // not have would also number every slide after it one higher than there.
   if (hasTitle(deck.title)) {
-    place('t:' + JSON.stringify(deck.title), () => slideCard(buildTitleBody(deck.title), 'title center', 0))
+    const card = place('t:' + JSON.stringify(deck.title), () => slideCard(buildTitleBody(deck.title), 'title center', 0))
+    // It stands for the front-matter, in the map the preview follows the
+    // editor by (sync.js): the lines before the first slide's.
+    card.dataset.line = 0
+    card.dataset.lines = deck.slides[0]?.line ?? 1
   }
   for (const s of deck.slides) {
     const mods = [s.center ? 'center' : '', s.cls || ''].filter(Boolean).join(' ')
-    place('s:' + JSON.stringify([s.md, mods, s.bg || '']), () => {
+    const card = place('s:' + JSON.stringify([s.md, mods, s.bg || '']), () => {
       const body = document.createElement('div')
       body.className = 'slide-body md'
-      body.innerHTML = render(s.md)
+      body.innerHTML = render(s.md, { lines: 0 })
       return slideCard(body, mods, 0, s.bg)
     })
+    // Where the slide is in the note, set on each pass like its number: a card
+    // is reused while its text is unchanged, wherever the slide has moved to.
+    card.dataset.slideLine = s.line
+    card.querySelector('.slide-body').dataset.base = s.mdLine
   }
 
   deckCache = next
@@ -551,10 +691,11 @@ let editorPromise = null
 function ensureEditor() {
   if (!editorPromise) {
     const onPaste = (text) => { if (fixDelimiters(text).count) offerFix() }
-    editorPromise = createEditor(el.editor, onEdit, { onPaste }).then((created) => {
+    editorPromise = createEditor(el.editor, onEdit, { onPaste, onScroll: followEditor, onSelect: () => pressedSoon() }).then((created) => {
       editor = created
       const doc = active()
       if (doc) editor.setText(doc.text)
+      updateToolbar()
       return editor
     })
   }
@@ -580,6 +721,7 @@ async function setMode(mode, { focus = false } = {}) {
   state.mode = mode
   document.body.dataset.mode = mode
   renderModeButton()
+  placeNotice()
   saveSession()
 
   if (mode !== 'edit') return
@@ -588,6 +730,7 @@ async function setMode(mode, { focus = false } = {}) {
     // The pane was display:none until a moment ago, so Ace measured nothing.
     ed.resize()
     if (focus) ed.focus()
+    followEditor()
   } catch (err) {
     reportError(err)
     el.editor.textContent = 'Could not load the editor. See the browser console.'
@@ -648,11 +791,12 @@ function addDoc(name, text, remote = null, origin = null, local = null) {
 }
 
 function setActive(id) {
-  // An offer to fix formulas is about the note it was made for.
-  if (id !== state.activeId && banner.el.dataset.kind?.startsWith('delimiters')) hideBanner()
+  // A notice about a note is about the note it was made for.
+  if (id !== state.activeId) hideNotice()
   state.activeId = id
   const doc = active()
   if (editor && doc) editor.setText(doc.text)
+  updateToolbar()
   renderTabs()
   updatePreview()
   renderCloudStatus()
@@ -737,7 +881,7 @@ function onEdit(text) {
   if (!doc || doc.text === text) return
   const wasDirty = isDirty(doc)
   // Undo after a fix is for the text the fix left; typing on makes it stale.
-  if (banner.el.dataset.kind === 'delimiters-done' && doc.text !== text) hideBanner()
+  if (notice.el.dataset.kind === 'delimiters-done' && doc.text !== text) hideNotice()
   doc.text = text
   doc.updatedAt = Date.now()
   // Redraw the tab dot and the status when the note turns dirty, and also when
@@ -745,6 +889,8 @@ function onEdit(text) {
   if (wasDirty !== isDirty(doc)) { renderTabs(); renderCloudStatus() }
   schedulePreview()
   scheduleSave(doc)
+  setTimeout(updateUndo) // once Ace has filed the change for undoing
+  pressedSoon(PRESSED_AFTER_EDIT)
 
   // The first keystroke is the earliest point where the user has something to
   // lose, and it follows a real gesture — see requestPersistenceOnce.
@@ -3082,6 +3228,93 @@ const shortcutLabel = (s) => prefix(s.mod) + s.hint
 for (const s of SHORTCUTS) {
   const hint = document.getElementById(s.id)?.querySelector('.key')
   if (hint) hint.textContent = shortcutLabel(s)
+}
+
+/* ---------- the editor's toolbar ---------- */
+
+// What writing needs at hand, for someone who knows no shortcut: each button
+// names the key that does the same in its tooltip. The keys are Ace's own.
+const jumpClick = isMac ? '⌘+click' : 'Ctrl+click'
+const TOOLBAR = [
+  { id: 'tb-undo', title: 'Undo', key: isMac ? '⌘Z' : 'Ctrl+Z', run: (ed) => ed.undo() },
+  { id: 'tb-redo', title: 'Redo', key: isMac ? '⌘⇧Z' : 'Ctrl+Y', run: (ed) => ed.redo() },
+  { id: 'tb-find', title: 'Find', key: isMac ? '⌘F' : 'Ctrl+F', run: (ed) => ed.find() },
+  { id: 'tb-replace', title: 'Find and replace', key: isMac ? '⌘⌥F' : 'Ctrl+H', run: (ed) => ed.replace() },
+
+  // Markdown, for someone who has not learnt it yet (src/markup.js).
+  { id: 'tb-bold', title: 'Bold: **text**. Again to take it away', key: isMac ? '⌘B' : 'Ctrl+B', run: (ed) => ed.format(markup.bold) },
+  { id: 'tb-italic', title: 'Italic: *text*. Again to take it away', key: isMac ? '⌘I' : 'Ctrl+I', run: (ed) => ed.format(markup.italic) },
+  { id: 'tb-heading', title: 'Heading: # Title. Again for a smaller one, a fourth time for none', run: (ed) => ed.format(markup.heading) },
+  { id: 'tb-list', title: 'List: - item, a line each. Again to take it away', run: (ed) => ed.format(markup.list) },
+  { id: 'tb-math', title: 'Formula in the line: $x^2$. Again to take it away', run: (ed) => ed.format(markup.inlineMath) },
+  { id: 'tb-display', title: 'Formula on lines of its own: $$ above and below. Again to take it away', run: (ed) => ed.format(markup.displayMath) },
+  { id: 'tb-link', title: 'Link: [text](https://…), its text and address in a dialog', run: (ed) => openLinkDialog(ed) },
+
+  {
+    id: 'tb-fix',
+    title: 'Fix formulas written as \\( \\) or \\[ \\], as chats write them. Again to put the notice away',
+    run: () => (notice.el.dataset.kind?.startsWith('delimiters') ? hideNotice() : offerFix({ asked: true })),
+  },
+  {
+    id: 'tb-to-preview',
+    title: 'Show the cursor’s place in the preview',
+    run: (ed) => { cancelFollow(); showLine(el.previewPane, el.preview, ed.cursorLine()) },
+  },
+  {
+    id: 'tb-to-editor',
+    title: `Bring the editor to what the preview shows. ${jumpClick} in the preview goes to that very place`,
+    run: (ed) => ed.scrollToTop(lineAtTop(el.previewPane, el.preview)),
+  },
+]
+for (const b of TOOLBAR) {
+  const button = document.getElementById(b.id)
+  if (b.title) button.title = b.key ? `${b.title} (${b.key})` : b.title
+  button.onclick = async () => {
+    b.run(await ensureEditor())
+    updateToolbar()
+  }
+}
+
+const linkDlg = {
+  dialog: document.getElementById('link-dialog'),
+  title: document.getElementById('link-title'),
+  form: document.getElementById('link-form'),
+  text: document.getElementById('link-text'),
+  href: document.getElementById('link-href'),
+  remove: document.getElementById('link-remove'),
+  apply: document.getElementById('link-apply'),
+}
+
+/**
+ * The toolbar's Link: a dialog with the text and the address, filled in from
+ * the link the cursor is in, or else from the selection or the word at the
+ * cursor. The address is asked for first when there is text already.
+ */
+function openLinkDialog(ed) {
+  const at = ed.look(markup.linkAt)
+  linkDlg.title.textContent = at.editing ? 'Edit link' : 'Insert link'
+  linkDlg.apply.textContent = at.editing ? 'Apply' : 'Insert'
+  linkDlg.text.value = at.text
+  linkDlg.href.value = at.href
+  linkDlg.remove.hidden = !at.removable
+  const ready = () => { linkDlg.apply.disabled = !linkDlg.href.value.trim() }
+  linkDlg.href.oninput = ready
+  ready()
+  const done = (command) => {
+    linkDlg.dialog.close()
+    ed.format(command)
+    updateToolbar()
+  }
+  linkDlg.form.onsubmit = (e) => {
+    e.preventDefault()
+    if (!linkDlg.apply.disabled) done(markup.setLink(linkDlg.text.value, linkDlg.href.value))
+  }
+  linkDlg.remove.onclick = () => done(markup.unlink)
+  linkDlg.dialog.onclose = () => ed.focus()
+  linkDlg.dialog.showModal()
+  const first = at.text ? linkDlg.href : linkDlg.text
+  first.focus()
+  first.select()
 }
 
 addEventListener('keydown', (e) => {

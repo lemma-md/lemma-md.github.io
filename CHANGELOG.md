@@ -23,6 +23,21 @@ This is the *when*. The *why* behind a decision is in
   or a paste brings some, a notice offers *Fix*, which writes them with `$`
   and `$$`; *Undo* takes it back. Code and formulas already in dollars are
   left alone.
+- **The preview follows the editor.** While writing, it scrolls with the
+  source, slide by slide in a deck. Ctrl+click (⌘ on a Mac) in the preview
+  puts the cursor on that place in the source, the editor beside it, opening
+  the editor if it was put away; what was clicked stays where it is.
+- **A toolbar in the editor**: Undo, Redo, Find, Replace; bold, italic,
+  heading, list, formulas in the line and on lines of their own, links; Fix
+  formulas; two arrows that bring the preview to the cursor or the editor to
+  what the preview shows. Each tooltip names its key, and Ctrl+B and Ctrl+I now do bold and
+  italic. With nothing selected, bold, italic and `$` take the word the
+  cursor is in. Pressed again, bold, italic and the formulas come off, from
+  anywhere in the text they mark, and `$` and `$$` turn a formula from one
+  kind into the other. Where the cursor is in bold text, a formula, a heading,
+  a list or a link, its button shows pressed. Link opens a dialog for the text
+  and the address, and in a link, changes it or takes it away. The offer to fix formulas now sits with the note, under
+  the toolbar, or atop the preview while reading.
 
 ### Fixed
 

@@ -67,7 +67,9 @@ own code is MIT — see the root `LICENSE`.
 ## Icons
 
 The toolbar icons — among them `file-plus`, `folder-open`, `download`,
-`settings`, `eye` and `square-pen` — are taken from
+`settings`, `eye` and `square-pen`, and on the editor's own toolbar `undo-2`,
+`redo-2`, `search`, `replace`, `bold`, `italic`, `heading`, `list`, `link`,
+`wand-sparkles`, `arrow-right-to-line` and `arrow-left-to-line` — are taken from
 [Lucide](https://lucide.dev) v1.30.0 and inlined as `<symbol>` definitions at
 the top of `index.html`. Only their path data is copied; the library itself is
 not a dependency, since pulling in a whole icon set for four glyphs would cost

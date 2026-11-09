@@ -150,19 +150,54 @@ DOMPurify.addHook('afterSanitizeAttributes', (node) => {
   node.setAttribute('rel', 'noopener noreferrer')
 })
 
+// The block elements a top-level token renders as, which take a data-line of
+// their own; anything else (a display formula, a comment) gets a <div> for it.
+const BLOCKS = new Set(['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'pre', 'blockquote', 'table', 'hr', 'div', 'details', 'figure', 'dl', 'section', 'aside'])
+
 /**
- * Convert markdown to HTML that is safe to assign to innerHTML.
+ * The note's HTML, each top-level block marked with the line it starts on
+ * (`data-line`, counted from `first`) and how many lines it takes
+ * (`data-lines`), as VS Code's preview does: the map the editor's preview
+ * follows the source by (sync.js). Each token is rendered on its own, which is
+ * what marked does with them anyway; the reference links are the whole note's.
+ */
+function parseWithLines(markdown, first) {
+  const tokens = marked.lexer(markdown)
+  let line = first
+  let html = ''
+  for (const token of tokens) {
+    const one = Object.assign([token], { links: tokens.links })
+    const part = marked.parser(one)
+    if (token.type !== 'space' && part.trim()) {
+      const attrs = `data-line="${line}" data-lines="${token.raw.replace(/\n+$/, '').split('\n').length}"`
+      const tag = /^\s*<([a-z][a-z0-9]*)\b/i.exec(part)?.[1]?.toLowerCase()
+      html += BLOCKS.has(tag)
+        ? part.replace(/^(\s*<[a-z][a-z0-9]*)/i, `$1 ${attrs}`)
+        : `<div ${attrs}>${part}</div>`
+    } else {
+      html += part
+    }
+    line += (token.raw.match(/\n/g) ?? []).length
+  }
+  return html
+}
+
+/**
+ * Convert markdown to HTML that is safe to assign to innerHTML. With `lines`,
+ * a number, each top-level block carries the line it starts on, counted from
+ * that number (see parseWithLines).
  *
  * The note's own HTML is sanitised under POLICY with every formula still a
  * placeholder, and KaTeX's output goes in afterwards. KaTeX writes its HTML
  * from the TeX alone, escaping all of it, so it needs no sanitising, and must
  * not get it: its positioning is inline styles that POLICY forbids.
  */
-export function render(markdown) {
+export function render(markdown, { lines } = {}) {
   const key = crypto.getRandomValues(new Uint32Array(2)).join('')
   pending = { key, formulas: [] }
   try {
-    const clean = DOMPurify.sanitize(marked.parse(markdown ?? ''), POLICY)
+    const html = Number.isInteger(lines) ? parseWithLines(markdown ?? '', lines) : marked.parse(markdown ?? '')
+    const clean = DOMPurify.sanitize(html, POLICY)
     const { formulas } = pending
     return clean.replace(new RegExp(`<span data-formula="${key}-(\\d+)"></span>`, 'g'), (_, i) => formulas[i] ?? '')
   } finally {
