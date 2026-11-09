@@ -274,6 +274,7 @@ privacy.html        the privacy policy
 src/examples.js     renders the FAQ's Markdown examples with viewer.js
 src/app.js          tabs, drag & drop, autosave, pane splitter
 src/viewer.js       markdown + TeX -> sanitised HTML
+src/preview.js      the editor's preview, brought up to date block by block
 src/export-*.js     a note as a page that renders itself (html), or as LaTeX (tex)
 src/delimiters.js   formulas in \( \) and \[ \], as chats write them, into dollars
 src/sync.js         the editor's preview in step with the source

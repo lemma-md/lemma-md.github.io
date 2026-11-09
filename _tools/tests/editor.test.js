@@ -101,6 +101,54 @@ test('the preview makes a title slide exactly when the projector does', () => wi
   assert.ok(titled(), 'a title makes one')
 }))
 
+test('an edit to one slide changes its card alone; the others, a repeated one too, stay in place', () => withEditor(async (ed) => {
+  await ed.newNote()
+  const editor = await ed.editor()
+  const cards = () => [...ed.$$('#preview .slide-card')]
+  const deck = (b) => `---\nfontsize: 28\n---\n\n# A\n\n---\n\nSame\n\n---\n\n# ${b}\n\n---\n\nSame\n\n---\n\n# C`
+  editor.setValue(deck('B'), 1)
+  await waitFor(() => cards().length === 5, 'five slides')
+  const before = cards()
+  let added = 0
+  let removed = 0
+  const count = (records) => { for (const r of records) { added += r.addedNodes.length; removed += r.removedNodes.length } }
+  const observer = new ed.win.MutationObserver(count)
+  observer.observe(ed.$('#preview .deck-preview'), { childList: true })
+  editor.setValue(deck('Bee'), 1)
+  await waitFor(() => cards()[2]?.querySelector('h1')?.textContent === 'Bee', 'the third slide changed')
+  count(observer.takeRecords())
+  observer.disconnect()
+  assert.deepEqual(cards().map((card, i) => card === before[i]), [true, true, false, true, true], 'the same cards but the third')
+  assert.deepEqual([added, removed], [1, 1], 'one card put in, one taken out')
+}))
+
+test('slides swapped, taken out or put in: the other cards are kept, and numbered anew', () => withEditor(async (ed) => {
+  await ed.newNote()
+  const editor = await ed.editor()
+  const cards = () => [...ed.$$('#preview .slide-card')]
+  const titles = () => cards().map((card) => card.querySelector('h1')?.textContent)
+  const numbers = () => cards().map((card) => card.querySelector('.slide-num').textContent).join(' ')
+  const deck = (...slides) => '---\nfontsize: 28\n---\n\n' + slides.map((s) => `# ${s}\n\nText of ${s}, $x_${s}$.`).join('\n\n---\n\n')
+  editor.setValue(deck('A', 'B', 'C', 'D'), 1)
+  await waitFor(() => titles().join() === 'A,B,C,D', 'four slides')
+  const [a, b, c, d] = cards()
+
+  editor.setValue(deck('A', 'C', 'B', 'D'), 1)
+  await waitFor(() => titles().join() === 'A,C,B,D', 'B and C swapped')
+  assert.deepEqual(cards(), [a, c, b, d], 'the same four cards')
+  assert.equal(numbers(), '1 2 3 4')
+
+  editor.setValue(deck('A', 'B', 'D'), 1)
+  await waitFor(() => titles().join() === 'A,B,D', 'C taken out')
+  assert.deepEqual(cards(), [a, b, d])
+  assert.equal(numbers(), '1 2 3')
+
+  editor.setValue(deck('E', 'A', 'B', 'D'), 1)
+  await waitFor(() => titles().join() === 'E,A,B,D', 'E put in first')
+  assert.deepEqual(cards().slice(1), [a, b, d], 'the others kept')
+  assert.equal(numbers(), '1 2 3 4')
+}))
+
 suite('editor: storage')
 
 test('a refused write shows Storage error and a notice; Try again stores it', () => withEditor(async (ed) => {

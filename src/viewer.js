@@ -19,16 +19,15 @@ function katexHtml(tex, displayMode) {
   }
 }
 
-// The formulas of the render in progress (see render): KaTeX's HTML is kept
-// aside and a placeholder put in its place, so that the sanitiser never sees
-// it. The placeholder carries a key fresh for each render, so one written into
-// a note by hand matches nothing.
+// The formulas of the render in progress (see render): each is kept aside and
+// a placeholder put in its place, so that the sanitiser never sees KaTeX's
+// HTML, and typeset when the placeholder is replaced. The placeholder carries a
+// key fresh for each render, so one written into a note by hand matches nothing.
 let pending = null
 
 function renderMath(tex, displayMode) {
-  const html = katexHtml(tex, displayMode)
-  if (!pending) return html
-  pending.formulas.push(html)
+  if (!pending) return katexHtml(tex, displayMode)
+  pending.formulas.push([tex, displayMode])
   return `<span data-formula="${pending.key}-${pending.formulas.length - 1}"></span>`
 }
 
@@ -161,8 +160,7 @@ const BLOCKS = new Set(['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'pr
  * follows the source by (sync.js). Each token is rendered on its own, which is
  * what marked does with them anyway; the reference links are the whole note's.
  */
-function parseWithLines(markdown, first) {
-  const tokens = marked.lexer(markdown)
+function parseWithLines(tokens, first) {
   let line = first
   let html = ''
   for (const token of tokens) {
@@ -193,14 +191,78 @@ function parseWithLines(markdown, first) {
  * not get it: its positioning is inline styles that POLICY forbids.
  */
 export function render(markdown, { lines } = {}) {
+  return sanitised(() => Number.isInteger(lines) ? parseWithLines(marked.lexer(markdown ?? ''), lines) : marked.parse(markdown ?? ''))
+}
+
+/**
+ * Runs of a note's top-level tokens, `{ tokens, line }`, each as render()
+ * would show it with its blocks' lines counted from `line`, `links` being the
+ * whole note's reference links: the parts the editor's preview is brought up
+ * to date by (preview.js). Each comes as `{ html, written }`, `written` being
+ * how many data-line attributes its HTML was given. They are sanitised in one
+ * pass, which costs a fraction of one pass each, so every run but the last
+ * must leave nothing open (leavesOpen); should the parts not come apart where
+ * they were put together, they go one by one.
+ */
+export function renderRuns(runs, links) {
+  const written = []
+  const parse = (run, k) => {
+    const html = parseWithLines(Object.assign([...run.tokens], { links }), run.line)
+    written[k] = (html.match(/ data-line="/g) ?? []).length
+    return html
+  }
+  const split = `<hr data-run="${crypto.getRandomValues(new Uint32Array(2)).join('')}">`
+  let parts = sanitised(() => runs.map(parse).join(split)).split(split)
+  if (parts.length !== runs.length) parts = runs.map((run, k) => sanitised(() => parse(run, k)))
+  return parts.map((html, k) => ({ html, written: written[k] }))
+}
+
+function sanitised(parse) {
   const key = crypto.getRandomValues(new Uint32Array(2)).join('')
   pending = { key, formulas: [] }
   try {
-    const html = Number.isInteger(lines) ? parseWithLines(markdown ?? '', lines) : marked.parse(markdown ?? '')
-    const clean = DOMPurify.sanitize(html, POLICY)
+    const clean = DOMPurify.sanitize(parse(), POLICY)
     const { formulas } = pending
-    return clean.replace(new RegExp(`<span data-formula="${key}-(\\d+)"></span>`, 'g'), (_, i) => formulas[i] ?? '')
+    return clean.replace(new RegExp(`<span data-formula="${key}-(\\d+)"></span>`, 'g'), (_, i) => formulas[i] ? katexHtml(...formulas[i]) : '')
   } finally {
     pending = null
   }
+}
+
+/** Whether HTML is written anywhere in `tokens`, as a block or within a line. */
+export function hasHtml(tokens) {
+  return tokens.some((token) => token.type === 'html' ||
+    [token.tokens, token.items, token.header, ...(token.rows ?? [])].some((inner) => Array.isArray(inner) && hasHtml(inner)))
+}
+
+// A document of its own to try HTML out in: inert, so nothing in it loads or runs.
+let scratch = null
+
+/**
+ * Whether the HTML of `tokens`, rendered as renderRuns would, leaves something
+ * open that runs on into what follows: an element not closed, or a formatting
+ * element such as <b> closed early by a paragraph's end, which the HTML parser
+ * opens again around the next text. The browser's own parser says so, its
+ * rules being too many to copy: after HTML that leaves nothing open, a comment
+ * and an element put after it stand last at the top, side by side. An element
+ * left open takes them in, a table left open the comment, and a <b> to open
+ * again wraps the element. Formulas stay placeholders, never typeset.
+ */
+export function leavesOpen(tokens, links) {
+  const key = crypto.getRandomValues(new Uint32Array(2)).join('')
+  pending = { key, formulas: [] }
+  let html
+  try {
+    html = parseWithLines(Object.assign([...tokens], { links }), 0)
+  } finally {
+    pending = null
+  }
+  scratch ??= document.implementation.createHTMLDocument('')
+  const body = scratch.body
+  body.innerHTML = `${html}<!--${key}--><lemma-probe></lemma-probe>`
+  const last = body.lastChild
+  const comment = last?.previousSibling
+  const shut = last?.nodeName === 'LEMMA-PROBE' && comment?.nodeType === Node.COMMENT_NODE && comment.data === key
+  body.textContent = ''
+  return !shut
 }

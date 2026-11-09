@@ -161,6 +161,54 @@ Two details that are not free to change:
     the preview follow it away.
   Only the editor asks for the map: the projector, the PDF export and the
   exported page render without it.
+- **The editor's preview is brought up to date block by block** *(2026-11)*.
+  At each pause in typing the whole note was rendered again and put in with
+  `innerHTML`: on a 100 KB note with formulas, about 160 ms to render and 240
+  ms for the browser to lay it out, the window frozen meanwhile. The deck
+  preview already kept each slide's card by its text, but put every card back
+  with `replaceChildren`, which lays them all out again: 450 ms in a deck of
+  400 slides. Now (`src/preview.js`):
+  - The note's top-level tokens go in runs, keyed by their source, and only
+    a run whose source is new is rendered. A run is one token, or several when
+    HTML opened in one closes in a later one, as a `<details>` written around
+    Markdown does; an element never closed takes the rest of the note, as it
+    does when the note is rendered whole. A change to the reference links,
+    which belong to the whole note, renders everything again.
+  - Where a run with HTML in it ends is the browser's to say, not ours.
+    Counting tags guesses wrong: HTML ignores the slash in `<div/>`, a
+    `</span>` with no `<span>` closes nothing, a `<b>` closed early by a
+    paragraph's end is opened again around the next text. So the run's HTML is
+    parsed in an inert document with a comment and an element after it; only
+    when both stand last at the top, side by side, does it leave nothing open
+    (`leavesOpen`). Otherwise it takes in the runs after it. Markdown alone
+    always closes, so a note without HTML is never asked about.
+  - HTML left open can take the markup after it for text, as a `<textarea>`
+    does, or into an attribute, as a quote never closed does; the line
+    numbers in that markup then show where no `data-line` can be set. Fewer
+    `data-line` attributes than were written tell so, and such a run is kept
+    only on its line: moved, it is rendered again. So is one whose own HTML
+    writes a `data-line`. Every other run, HTML or not, is kept wherever it
+    moves, a comment or a `<details>` too.
+  - A source written twice is two runs. Each takes the rendered run of that
+    source that stood nearest it last time: handed out in order, an edit above
+    the second would give it the first one's nodes, and every run after would
+    move.
+  - The new runs are sanitised in one pass, apart by an `<hr>` with a key fresh
+    for each pass, and parsed in one `<template>`, apart by comments, which the
+    sanitiser takes out of everything else; rendered one by one, the runs of
+    that note took four seconds to open. Where a run stands, its `data-line`,
+    is set on each pass.
+  - `patchChildren` takes out and puts in only the nodes that changed; the
+    others are not laid out again. The deck preview uses it too, and keeps a
+    card for each time a slide occurs, so a repeated slide is not rendered at
+    every pass either.
+  An edit to that note now costs about 20 ms and as much again for layout,
+  and opening it as much as before. What the preview shows is what `render()`
+  makes, and the tests compare the two on every kind of block, on forty kinds
+  of crooked HTML, on edits typed a key at a time, and on random edits; a
+  larger random run, 80,000 edits, found nothing more. A DOM-diffing
+  library was not taken: it would still need the whole note rendered to diff
+  against, and blocks are the unit the line map already uses.
 - **The editor has a toolbar of its own** *(2026-11)*, for someone who knows
   no shortcut and no Markdown:
   - Undo and Redo, greyed out when there is nothing to do; Find, and Replace,

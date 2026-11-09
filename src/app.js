@@ -1,4 +1,5 @@
 import { render } from './viewer.js'
+import { showNote, patchChildren } from './preview.js'
 import { createEditor } from './editor.js'
 import { initSettings } from './settings.js'
 import * as drafts from './drafts.js'
@@ -396,7 +397,7 @@ function updatePreview() {
     renderDeckPreview(doc)
   } else {
     el.preview.className = 'md'
-    el.preview.innerHTML = render(doc.text, { lines: 0 })
+    showNote(el.preview, doc.text)
   }
   followEditor()
 }
@@ -508,7 +509,9 @@ function slideCard(body, mods, num, bg) {
 
 // Rendered slide cards from the last deck preview, keyed by slide content, so a
 // keystroke re-renders only the slide that changed — the rest are reused as-is.
-// Bounded to the current deck: it is rebuilt from the cards used each pass.
+// A key holds one card for each time its slide occurs: a deck may repeat a
+// slide, and one node cannot stand in two places. Bounded to the current deck:
+// it is rebuilt from the cards used each pass.
 let deckCache = new Map()
 
 /**
@@ -548,13 +551,16 @@ function renderDeckPreview(doc) {
   const children = []
   let n = 0
 
-  // Reuse the cached card for `key` if there is one and it is not already placed
-  // this pass (two identical slides cannot share one node); else build it. The
-  // number is refreshed either way, so a moved slide is not re-rendered.
+  // Reuse a cached card for `key` not yet placed this pass; else build one. The
+  // number is refreshed either way, so a moved slide is not re-rendered, and
+  // only written when it changed, so an unchanged card is left untouched.
   const place = (key, build) => {
-    const node = deckCache.has(key) && !next.has(key) ? deckCache.get(key) : build()
-    next.set(key, node)
-    node.querySelector('.slide-num').textContent = ++n
+    const node = deckCache.get(key)?.shift() ?? build()
+    if (next.has(key)) next.get(key).push(node)
+    else next.set(key, [node])
+    const badge = node.querySelector('.slide-num')
+    const num = String(++n)
+    if (badge.textContent !== num) badge.textContent = num
     children.push(node)
     return node
   }
@@ -587,8 +593,10 @@ function renderDeckPreview(doc) {
 
   if (!n) { el.preview.className = 'md'; el.preview.innerHTML = EMPTY_STATE; return }
 
-  // Keep the same wrapper across renders and swap only its children, so reused
-  // cards stay put and the pane's scroll position survives an edit.
+  // Keep the same wrapper across renders and change only the cards that
+  // changed: reused cards stay put, not laid out again, and the pane's scroll
+  // position survives an edit. Putting back all of them, as replaceChildren
+  // did, took 450 ms in a deck of 400 slides.
   let wrap = el.preview.firstElementChild
   if (!wrap || !wrap.classList.contains('deck-preview')) {
     el.preview.textContent = ''
@@ -603,7 +611,7 @@ function renderDeckPreview(doc) {
   const px = fontSizeToPx(deck.title?.fontsize ?? deck.title?.['font-size'])
   if (px != null) wrap.style.setProperty('--slide-fs', String(px))
   else wrap.style.removeProperty('--slide-fs')
-  wrap.replaceChildren(...children)
+  patchChildren(wrap, children)
 }
 
 // Remembers the last tab-name click so a double-click can be recognised across

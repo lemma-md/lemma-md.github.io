@@ -18,8 +18,10 @@ file here; keep them current instead.
   `src/load-script.js`, so that reading a note stays cheap.
 - **Plans, decisions and history live in three files.** The next big features
   and their open and decided questions are in [docs/ROADMAP.md](docs/ROADMAP.md).
-  When a feature or notable fix ships, it leaves ROADMAP, gets a line under that
-  day's date in [CHANGELOG.md](CHANGELOG.md), and its decisions move into
+  When a feature or notable fix ships, it leaves ROADMAP, gets a line in
+  [CHANGELOG.md](CHANGELOG.md) under the date of its commit in UTC (the local
+  clock runs four hours ahead, and a commit at 1 a.m. is the day before in
+  UTC: `TZ=UTC git log --date=format-local:%F`), and its decisions move into
   [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) under their topic, marked with
   the month. ARCHITECTURE describes only what is built. Small bugs are not listed in any of them: fix
   them. Reviews and working notes stay out of the repo, which is public and
@@ -82,6 +84,14 @@ built on rAF, so the editor can look blank while its state is perfectly
 correct. Check `editor.session.getLength()` rather than counting rendered
 gutter cells, and do not "fix" a repaint problem that only exists in the test
 environment.
+
+Wait for a test run by reading the title every second or so, from a timer.
+A loop that checks again at once, through `MessageChannel` or a chain of
+promises, keeps a core busy, and the page then stalls for seconds at a time:
+the editor tests' three-second waits fail at random, a different test each
+run, and the run takes half as long again. That cost an evening of looking for
+a bug in the code under test. A tab in the background has its timers slowed to
+one a second, which fails the same tests: run them in a tab in front.
 
 ## Binary files
 
