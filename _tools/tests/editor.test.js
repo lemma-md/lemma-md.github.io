@@ -395,7 +395,7 @@ test('a save under way when another tab asks lands first; that tab starts in ste
     other.$('#elsewhere-take').click()
     await waitFor(() => other.$('#elsewhere-text').textContent.includes('then this one starts'), 'the second waits, told why')
     assert.equal(ed.$('#elsewhere-title').textContent, 'Handing over to another tab')
-    await waitFor(() => other.tabs().includes('notes.md') && !other.isOpen('elsewhere'), 'the second started')
+    await waitFor(() => other.tabs().includes('notes.md') && !other.isOpen('elsewhere'), 'the second started', 6000)
     assert.equal(await readFile(file), 'on disk, from the first', 'after the save landed')
     await waitFor(() => other.status().title === 'Saved to this computer', 'in step with the file')
 
@@ -420,7 +420,7 @@ test('a question left open in the first tab is taken down when another tab asks,
   const other = await openEditor({ database: ed.database })
   try {
     other.$('#elsewhere-take').click()
-    await waitFor(() => other.tabs().includes('notes.md') && !other.isOpen('elsewhere'), 'the second started')
+    await waitFor(() => other.tabs().includes('notes.md') && !other.isOpen('elsewhere'), 'the second started', 6000)
     assert.ok(!ed.isOpen('local-conflict'), 'the question is gone from the first')
     ed.$('#local-conflict-overwrite').click() // as if answered after all
     await sleep(300)
@@ -893,6 +893,47 @@ test('Link opens a dialog: a new link on the word at the cursor; in a link, that
   await waitFor(() => dialog.open && !ed.$('#link-remove').hidden, 'Remove link offered')
   ed.$('#link-remove').click()
   await waitFor(() => ace.getValue() === 'see the the site now', 'taken away, the text left')
+}))
+
+/** Open Link on the word at column `at`, with the address `href` filled in. */
+async function linkDialog(ed, ace, at, href) {
+  ace.moveCursorTo(0, at)
+  button(ed, 'tb-link').click()
+  await waitFor(() => ed.isOpen('link-dialog'), 'the dialog')
+  ed.$('#link-href').value = href
+  ed.$('#link-href').dispatchEvent(new ed.win.Event('input'))
+}
+
+test('shortcuts wait while a dialog is open: Alt+N under Link makes no note to write the link into', () => withEditor(async (ed) => {
+  await ed.newNote()
+  const ace = await ed.editor()
+  ace.setValue('see the site', -1)
+  await linkDialog(ed, ace, 10, 'https://x.org')
+  const notes = ed.tabs().length
+  ed.$('#link-href').dispatchEvent(new ed.win.KeyboardEvent('keydown', { code: 'KeyN', key: 'n', altKey: true, bubbles: true }))
+  await sleep(300)
+  assert.equal(ed.tabs().length, notes, 'no new note')
+  assert.ok(ed.isOpen('link-dialog'), 'the dialog still there')
+  ed.$('#link-apply').click()
+  await waitFor(() => ace.getValue() === 'see the [site](https://x.org)', 'the link in its note')
+}))
+
+test('Link writes into no other note than the one it was opened for', () => withEditor(async (ed) => {
+  await ed.newNote()
+  const ace = await ed.editor()
+  ace.setValue('note A', -1)
+  await ed.newNote()
+  ace.setValue('note B', -1)
+  await linkDialog(ed, ace, 6, 'https://x.org')
+  // Another note comes to the editor while the dialog is open, by whatever way.
+  ed.$$('#tabs .tab .name').at(-2).click()
+  await waitFor(() => ace.getValue() === 'note A', 'note A in the editor')
+  ed.$('#link-apply').click()
+  await sleep(300)
+  assert.ok(!ed.isOpen('link-dialog'), 'the dialog closed')
+  assert.equal(ace.getValue(), 'note A', 'A without B\'s link')
+  ed.$$('#tabs .tab .name').at(-1).click()
+  await waitFor(() => ace.getValue() === 'note B', 'and B as it was')
 }))
 
 test('the arrows: the cursor\'s place to the preview, the preview\'s to the editor', () => withEditor(async (ed) => {

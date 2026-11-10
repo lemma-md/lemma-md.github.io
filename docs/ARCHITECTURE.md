@@ -132,8 +132,11 @@ Two details that are not free to change:
   seen and the editor is not loaded. *Fix* takes the whole
   note, a paste or not: any `\(` in it shows as text anyway. It is an edit like
   typing, so the note shows *Changed*; *Undo* in the notice takes it back, and
-  in the editor so does Ctrl+Z, in one step of its own. Code is left as it is,
-  and so is a formula already in dollars, whose `\\[4pt]` is TeX's own. A
+  in the editor so does Ctrl+Z, in one step of its own. Code is left as it is:
+  code blocks are the ones marked finds, the preview's own reading, indented
+  or fenced, in a list or a quote too, where a scan for fences alone rewrote a
+  formula the preview showed as code, in the note and in the `.tex`. So is a
+  formula already in dollars, whose `\\[4pt]` is TeX's own. A
   formula that would hold a bare dollar is left too, since in dollars it would
   end there; so is one that runs across a blank line, which TeX does not allow.
 - **The editor's preview carries a map back to the source** *(2026-11)*. With
@@ -251,7 +254,10 @@ Two details that are not free to change:
     title the link had is kept. With nothing selected, the word at the cursor
     is the text, as for bold. An address in `www.` gets `https://`, and one
     with a space is written in `<…>`. A link left as it was is not rewritten,
-    so a bare address stays bare.
+    so a bare address stays bare. The editor is every note's, so the link
+    goes only into the note the dialog was opened for; and while any dialog
+    is open the app's shortcuts do nothing, since one under it acted on
+    another note: *Alt+N* under Link made a note, and the link went there.
   - Fix for formulas in `\( \)`, which also says when there are none, and puts
     its notice away when pressed again.
   - Two arrows, the cursor's place to the preview and the preview's to the
@@ -550,9 +556,13 @@ them:
   - **The preamble follows the text**, so an English note gets nothing extra.
     Accented Latin letters bring `T1` and `lmodern` (OT1 has no ą, and composes
     ü from parts that break hyphenation and search). Cyrillic brings `T2A` and
-    `babel`, whose language matters for hyphenation: Ukrainian if і, ї, є or ґ
-    appear, Russian otherwise, and the main language the one with more letters
-    outside formulas. A language is not guessed for Latin text: ü is German,
+    `babel`, wherever it appears: a word only in a formula's `\text` or in
+    code stopped pdfLaTeX too. Its language matters for hyphenation: Ukrainian
+    if і, ї, є or ґ appear, Russian otherwise, and the main language the one
+    with more letters in the prose, outside formulas and code. Cyrillic or
+    accented letters in a formula go into `\text`, which may stand inside
+    another: KaTeX shows them as they are, where pdfLaTeX drops them, with only
+    a warning. A language is not guessed for Latin text: ü is German,
     Turkish or Hungarian, and English hyphenation only errs, where none at all
     for Cyrillic overflows the margin. These all compile with plain pdfLaTeX,
     which journals and arXiv expect.
@@ -572,6 +582,14 @@ them:
     or `\mathscr` brings its package. An amsmath environment written inside
     `$$` stands on its own, as amsmath requires. A formula in `\( \)` is math
     in the `.tex` whether or not the note was fixed: LaTeX reads it so itself.
+  - **Where LaTeX allows no display**, in a table cell or a heading, a `$$`
+    formula the preview shows there is set in the line with `\displaystyle`,
+    and its amsmath environment becomes the form that goes inside a formula,
+    `aligned` for `align`.
+  - **Code** is `verbatim`, in a `fragile` frame on a slide. `\end{verbatim}`
+    in it gets a space, which makes it text, and so does a line of code that
+    starts with `\end{frame}`: Beamer reads a fragile frame up to such a line
+    before verbatim sees it.
   - **Pictures become links** to their web address, with the address in a
     comment: `\includegraphics` needs the file beside the `.tex`, which waits
     for pictures that live with the note (ROADMAP 1.3).

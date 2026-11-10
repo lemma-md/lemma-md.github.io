@@ -53,6 +53,17 @@ test('formulas reach LaTeX as written', () => {
   assert.equal(body(`$$\n${align}\n$$`), align)
 })
 
+test('a display formula in a table cell or a heading stays in the line, where LaTeX allows no display', () => {
+  has(body('| Value |\n|---|\n| $$x^2$$ |'), '\\midrule\n$\\displaystyle x^2$ \\\\')
+  has(body('# Sum $$\\sum_k x_k$$'), '\\section{Sum $\\displaystyle \\sum_k x_k$}')
+  has(body('# Sum $$x$$\n\nText.', { slides: true }), '\\begin{frame}{Sum $\\displaystyle x$}')
+  // amsmath's environments become the forms that go inside a formula.
+  has(body('| A |\n|---|\n| $$\\begin{align} a &= b \\end{align}$$ |'), '$\\displaystyle \\begin{aligned} a &= b \\end{aligned}$')
+  has(body('| A |\n|---|\n| $$\\begin{equation*} c \\end{equation*}$$ |'), '$\\displaystyle c$')
+  // In a paragraph, one stands on its own, as below a line.
+  has(body('Then $$\\begin{align} a &= b \\end{align}$$ here.'), 'Then \\begin{align} a &= b \\end{align} here.')
+})
+
 test("LaTeX's characters are escaped in text, and in code", () => {
   has(body('a # $ % & _ { } ~ ^ b'), 'a \\# \\$ \\% \\& \\_ \\{ \\} \\textasciitilde{} \\textasciicircum{} b')
   has(body('a \\ b'), 'a \\textbackslash{} b')
@@ -117,6 +128,14 @@ test('a note shown as slides is a Beamer presentation, a frame per slide', () =>
   has(out, '{\n\\definecolor{slidebg1}{HTML}{000000}\n\\setbeamercolor{background canvas}{bg=slidebg1}\n\\setbeamercolor{normal text}{fg=white}\n\\begin{frame}[fragile]{Code}\n\\usebeamercolor[fg]{normal text}\n')
 })
 
+test('a line of code that starts with \\end{frame} does not end its frame', () => {
+  // Beamer reads a fragile frame up to such a line; one further on is safe.
+  const out = body('# Code\n\n```tex\n\\end{frame}\n  \\end{frame}\nx \\end{frame}\n```', { slides: true })
+  has(out, '\\begin{verbatim}\n\\end {frame}\n  \\end {frame}\nx \\end{frame}\n\\end{verbatim}\n\\end{frame}')
+  // In an article it is only text.
+  has(body('```\n\\end{frame}\n```'), '\\begin{verbatim}\n\\end{frame}\n\\end{verbatim}')
+})
+
 test('the preamble follows the scripts in the text', () => {
   const head = (md) => preamble(md).join('\n')
   assert.deepEqual(preamble('Plain English.').slice(1), ['\\documentclass{article}', '\\usepackage{amsmath,amssymb}'], 'nothing extra for English')
@@ -127,6 +146,13 @@ test('the preamble follows the scripts in the text', () => {
   has(head('Лемма, and Café.'), '\\usepackage[T1,T2A]{fontenc}')
   // A formula's commands are not English words.
   assert.equal(scan('Лемма $\\frac{\\alpha}{\\beta} + \\sum_{k} x_k$.').cyrillicMain, true)
+  // Letters only in a formula or in code must be set as well; the prose,
+  // English, stays the main language.
+  for (const md of ['A formula: $\\text{если }x>0$', 'Example:\n\n```\nПривет\n```', 'Inline `Привет` code.', 'Indented:\n\n    Привет']) {
+    has(head(md), '\\usepackage[T2A]{fontenc}\n\\usepackage[russian,english]{babel}', md)
+  }
+  // In a formula they go into \text, without which pdfLaTeX drops them.
+  has(body('$x_{макс} + \\text{если } é$'), '$x_{\\text{макс}} + \\text{\\text{если} } \\text{é}$')
 
   const zh = tex('English and 中文.')
   assert.ok(zh.startsWith('% !TEX program = lualatex\n'), 'the magic comment opens the file')

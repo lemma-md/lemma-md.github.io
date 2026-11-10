@@ -58,6 +58,28 @@ test('code is left as it is', () => {
   assert.equal(fixed('Write `\\(x\\)` or ``\\[y\\]``, not \\(z\\).'), 'Write `\\(x\\)` or ``\\[y\\]``, not $z$.')
 })
 
+test('code indented, or in a list or a quote, is left as it is too', () => {
+  for (const md of [
+    'Example:\n\n    \\(x+1\\)\n    \\[y\\]',
+    'Example:\n\n\t\\(x+1\\)',
+    '1. item\n\n       code \\(a\\)\n   - inner\n\n     ```\n     \\(b\\)\n     ```',
+    '> quote\n>\n>     \\(c\\)\n>\n> ```\n> \\[d\\]\n> ```',
+    'Windows lines\r\n\r\n    \\(e\\)\r\n',
+  ]) {
+    assert.equal(fixed(md), md, md)
+    assert.equal(count(md), 0, md)
+  }
+  // The same, shown by the preview as code before and after.
+  const md = 'Example:\n\n    \\(x+1\\)\n\nbut \\(y\\) here.'
+  assert.equal(fixed(md), 'Example:\n\n    \\(x+1\\)\n\nbut $y$ here.')
+  // Indented four spaces in a list item is the item's own paragraph, not code.
+  assert.equal(fixed('1. item\n\n    Here \\(x\\) is.'), '1. item\n\n    Here $x$ is.')
+  assert.equal(fixed('> Quoted \\(q\\).\n\nAfter\r\n\r\n    \\(e\\)\r\n\r\nand \\(f\\).'), '> Quoted $q$.\n\nAfter\r\n\r\n    \\(e\\)\r\n\r\nand $f$.')
+  // A formula that would run on into a fence under its paragraph stays.
+  const into = 'A \\( x\n```\ny \\)\n```'
+  assert.equal(fixed(into), into)
+})
+
 test('formulas already in dollars are left alone, their own \\[ included', () => {
   const md = '$$\\begin{aligned} a &= b \\\\[4pt] c &= d \\end{aligned}$$ and $\\{x\\}$'
   assert.equal(fixed(md), md)

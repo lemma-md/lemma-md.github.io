@@ -30,6 +30,15 @@ This is the *when*. The *why* behind a decision is in
   refused to store keeps the notes and says why, instead of letting go and
   saying all was stored. A tab that does not answer is no longer taken from
   on its own after a few seconds: *Take over anyway* leaves it to you.
+- *Export as .tex* compiles in three more cases: Cyrillic that appears only
+  in a formula or in code, a `$$` formula in a table cell or a heading, and a
+  slide whose code has a line starting with `\end{frame}`. Cyrillic or
+  accented letters in a formula, outside `\text`, now reach the PDF; pdfLaTeX
+  left them out.
+- *Fix formulas* leaves code indented by four spaces, or in a list or a quote,
+  as it is, in the note and in the `.tex`; it rewrote the `\( \)` there.
+- Shortcuts do nothing while a dialog is open. *Alt+N* under *Link* made a new
+  note, and the link went into it.
 
 ## 2026-11-09
 

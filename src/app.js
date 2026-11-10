@@ -3382,8 +3382,12 @@ function openLinkDialog(ed) {
   const ready = () => { linkDlg.apply.disabled = !linkDlg.href.value.trim() }
   linkDlg.href.oninput = ready
   ready()
+  // The editor is every note's: the link goes only into the note the dialog
+  // was opened for, and only while it is the one in the editor.
+  const doc = active()
   const done = (command) => {
     linkDlg.dialog.close()
+    if (active() !== doc) return
     ed.format(command)
     updateToolbar()
   }
@@ -3403,6 +3407,9 @@ addEventListener('keydown', (e) => {
   // The notes are open in another tab, or going there (see claim below).
   if (!writing || handingOver) return
   if (e.key === 'Escape') return closeMenu()
+  // A dialog has the keys. Under it a shortcut would act on another note: one
+  // to the new note it made, say, while the dialog still wrote into the editor.
+  if (document.querySelector('dialog[open]')) return
 
   const ctrl = e.ctrlKey || e.metaKey
   for (const s of SHORTCUTS) {

@@ -121,6 +121,11 @@ const KATEX_MACROS = {
   argmax: '\\operatorname*{arg\\,max}', argmin: '\\operatorname*{arg\\,min}',
 }
 
+// Letters LaTeX sets only as text. KaTeX shows them in a formula as they are;
+// pdfLaTeX drops them there, saying only that they are invalid in math mode,
+// so they go into \text, which may stand inside another \text.
+const TEXT_LETTER = /[\p{Script=Cyrillic}À-ÖØ-öø-ɏ]/u
+
 /** A formula as LaTeX: as written, but for characters pdfLaTeX would refuse. */
 function mathTex(text, ctx) {
   for (const [re, pkg] of MATH_PACKAGES) if (re.test(text)) ctx.need.add(pkg)
@@ -128,20 +133,56 @@ function mathTex(text, ctx) {
     if (new RegExp(`\\\\${name}(?![A-Za-z])`).test(text)) ctx.macros.add(name)
   }
   let out = ''
+  let letters = ''
   for (const ch of text) {
+    // A combining accent stays with the letter it is on.
+    if (TEXT_LETTER.test(ch) || (letters && /\p{M}/u.test(ch))) {
+      letters += ch
+      continue
+    }
+    if (letters) out += `\\text{${letters}}`
+    letters = ''
     const cmd = GREEK[ch] ?? SYMBOLS[ch]
     out += cmd ? spaced(cmd) : PICTOGRAPH.test(ch) && !KEPT.has(ch) ? '' : ch
   }
-  return out
+  return letters ? `${out}\\text{${letters}}` : out
 }
 
 // A display formula that is an environment of its own: amsmath does not allow
 // it inside \[ \], where KaTeX does.
-const OWN_ENV = /^\\begin\{(align|alignat|gather|multline|flalign|equation|eqnarray)(\*?)\}[\s\S]*\\end\{\1\2\}$/
+const OWN_ENV = /^\\begin\{(align|alignat|gather|multline|flalign|equation|eqnarray)(\*?)\}([\s\S]*)\\end\{\1\2\}$/
 
 function displayMath(text, ctx) {
   const tex = mathTex(text.trim(), ctx)
   return OWN_ENV.test(tex) ? tex : `\\[\n${tex}\n\\]`
+}
+
+// The same environments as they go inside a formula.
+const IN_FORMULA = {
+  align: ['\\begin{aligned}', '\\end{aligned}'],
+  flalign: ['\\begin{aligned}', '\\end{aligned}'],
+  alignat: ['\\begin{alignedat}', '\\end{alignedat}'],
+  gather: ['\\begin{gathered}', '\\end{gathered}'],
+  multline: ['\\begin{gathered}', '\\end{gathered}'],
+  eqnarray: ['\\begin{array}{rcl}', '\\end{array}'],
+  equation: ['', ''],
+}
+
+/**
+ * $$ … $$ within a line. In a paragraph it is a display, as in the preview. In
+ * a table cell or a heading LaTeX allows no display: it is set in the line, as
+ * large as it would be on one of its own.
+ */
+function displayInLine(text, ctx) {
+  if (!ctx.oneLine) {
+    const tex = mathTex(text.trim(), ctx)
+    return OWN_ENV.test(tex) ? tex : `\\[ ${tex} \\]`
+  }
+  const tex = mathTex(text.trim(), ctx).replace(OWN_ENV, (_, env, star, inner) => {
+    const [open, close] = IN_FORMULA[env]
+    return `${open}${inner}${close}`
+  })
+  return `$\\displaystyle ${tex.trim()}$`
 }
 
 /* ---------- inline ---------- */
@@ -173,10 +214,10 @@ function inlineToken(t, ctx) {
     }
     case 'br':
       ctx.last = ' '
-      return ctx.inCell ? ' ' : '\\newline\n'
+      return ctx.oneLine ? ' ' : '\\newline\n'
     case 'mathInline':
       ctx.last = '$'
-      return t.display ? `\\[ ${mathTex(t.text, ctx)} \\]` : `$${mathTex(t.text, ctx)}$`
+      return t.display ? displayInLine(t.text, ctx) : `$${mathTex(t.text, ctx)}$`
     case 'link': return link(t, ctx)
     case 'image': return image(t, ctx).inline
     case 'html':
@@ -230,7 +271,7 @@ function block(t, ctx) {
   switch (t.type) {
     case 'space': case 'def': case 'checkbox': return ''
     case 'heading': {
-      const text = inline(t.tokens, ctx)
+      const text = oneLine(t.tokens, ctx)
       return ctx.slides ? `\\textbf{${text}}\\par` : `\\${SECTIONS[t.depth - 1]}{${text}}`
     }
     case 'paragraph': {
@@ -244,9 +285,14 @@ function block(t, ctx) {
     }
     case 'text': return t.tokens ? inline(t.tokens, ctx) : words(t.text, ctx)
     case 'mathBlock': return displayMath(t.text, ctx)
-    case 'code':
-      // \end{verbatim} would end it early; with a space it is only text.
-      return `\\begin{verbatim}\n${t.text.replace(/\\end\{verbatim\}/g, '\\end {verbatim}')}\n\\end{verbatim}`
+    case 'code': {
+      // \end{verbatim} would end it early; with a space it is only text. So
+      // would a line that starts with \end{frame}, in a slide: Beamer reads a
+      // fragile frame up to that line before verbatim sees any of it.
+      let code = t.text.replace(/\\end\{verbatim\}/g, '\\end {verbatim}')
+      if (ctx.slides) code = code.replace(/^([ \t]*)\\end\{frame\}/gm, '$1\\end {frame}')
+      return `\\begin{verbatim}\n${code}\n\\end{verbatim}`
+    }
     case 'blockquote': return `\\begin{quote}\n${blocks(t.tokens, ctx)}\n\\end{quote}`
     case 'list': return list(t, ctx)
     case 'table': return table(t, ctx)
@@ -279,15 +325,24 @@ function list(t, ctx) {
   return lines.join('\n')
 }
 
+/** Inline tokens where only one line goes, a table cell or a heading: a line
+ *  break is a space there, and a display formula stays in the line. */
+function oneLine(tokens, ctx) {
+  ctx.oneLine = true
+  try {
+    return inline(tokens, ctx)
+  } finally {
+    ctx.oneLine = false
+  }
+}
+
 function table(t, ctx) {
   ctx.need.add('booktabs')
-  ctx.inCell = true
-  const row = (cells) => `${cells.map((c) => { ctx.last = ' '; return inline(c.tokens, ctx) }).join(' & ')} \\\\`
+  const row = (cells) => `${cells.map((c) => { ctx.last = ' '; return oneLine(c.tokens, ctx) }).join(' & ')} \\\\`
   const cols = t.align.map((a) => ({ left: 'l', center: 'c', right: 'r' }[a] ?? 'l')).join('')
   const lines = ['\\begin{center}', `\\begin{tabular}{${cols}}`, '\\toprule', row(t.header), '\\midrule']
   for (const cells of t.rows) lines.push(row(cells))
   lines.push('\\bottomrule', '\\end{tabular}', '\\end{center}')
-  ctx.inCell = false
   return lines.join('\n')
 }
 
@@ -345,7 +400,7 @@ function frames(deck, ctx) {
     const first = tokens.findIndex((t) => t.type !== 'space')
     if (first >= 0 && tokens[first].type === 'heading') {
       ctx.last = ' '
-      title = inline(tokens[first].tokens, ctx)
+      title = oneLine(tokens[first].tokens, ctx)
       tokens.splice(first, 1)
     }
     const opts = hasCode(tokens) ? '[fragile]' : '' // verbatim needs it
@@ -372,10 +427,11 @@ const LUA_LANGUAGES = {
 
 /** What the text needs from LaTeX to be set at all. */
 export function scan(text) {
-  // Letters are counted in the prose: a formula's commands are Latin letters.
+  // Every letter must be set, in a formula or in code as well. But which
+  // language is the main one is a matter of the prose, so the letters are
+  // counted there: a formula's commands are Latin letters.
   const prose = text.replace(/\$\$[\s\S]*?\$\$|\$[^$\n]*\$|```[\s\S]*?```|`[^`\n]*`/g, '')
   const count = (re) => (prose.match(re) ?? []).length
-  const cyrillic = count(/\p{Script=Cyrillic}/gu)
   const lua = []
   if (/[\p{Script=Hiragana}\p{Script=Katakana}]/u.test(text)) lua.push('japanese')
   else if (/\p{Script=Hangul}/u.test(text)) lua.push('korean')
@@ -386,9 +442,9 @@ export function scan(text) {
     // Accented Latin letters and guillemets: none of them is in OT1.
     accented: /[\u00C0-\u00D6\u00D8-\u00F6\u00F8-\u024F«»‹›]/.test(text),
     // Which Cyrillic language: hyphenation needs one. і, ї, є and ґ are Ukrainian.
-    cyrillic: cyrillic ? (/[іїєґІЇЄҐ]/.test(text) ? 'ukrainian' : 'russian') : null,
+    cyrillic: /\p{Script=Cyrillic}/u.test(text) ? (/[іїєґІЇЄҐ]/.test(text) ? 'ukrainian' : 'russian') : null,
     // The main language is the one with more letters.
-    cyrillicMain: cyrillic > count(/\p{Script=Latin}/gu),
+    cyrillicMain: count(/\p{Script=Cyrillic}/gu) > count(/\p{Script=Latin}/gu),
     lua,
   }
 }
@@ -455,7 +511,7 @@ export function buildTex(name, source, { slides = false } = {}) {
   // \( \) is math to LaTeX itself, so a formula a chat wrote that way is one in
   // the .tex, fixed in the note or not.
   const text = fixDelimiters(source).text
-  const ctx ={ slides, need: new Set(), macros: new Set(), last: ' ', inCell: false, enumDepth: 0, colors: 0 }
+  const ctx = { slides, need: new Set(), macros: new Set(), last: ' ', oneLine: false, enumDepth: 0, colors: 0 }
   let meta, body
   if (slides) {
     const deck = parseDeck(text)
