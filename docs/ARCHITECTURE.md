@@ -380,10 +380,28 @@ no merging, so rather than versions and merging, only one page writes
 (`src/one-editor.js`). It holds a Web Lock named after the database; a page
 that finds the lock taken starts nothing and says the notes are open in another
 tab. *Use this tab* asks the page that has them, over a BroadcastChannel, to
-store what it holds and let go; one that does not answer within three seconds,
-frozen or hung, has the lock taken from it, and says that its last keys may not
-have been stored. A page that had run before starts afresh once it has the
-notes back, since what it held is out of date. As a last line of defence,
+let go. That page answers at once that it is on it, and from then on starts no
+write to a file or to Drive. It takes down any dialog left waiting on the
+person, which cancels the save it was asking about, and lets none open until
+it is done: a save still waiting on Drive came to its question after the
+others were closed, and the handover waited on a person who was in the other
+tab. The questions a save waits on are cancelled directly, not through their
+dialog's close event, which a tab in the background, as this one is, gets
+seconds late, and later the longer it has been there. It waits for the saves
+already under way, each from its first step to
+its last, and stores every open note; only then does it let go. Storing what it held was not enough on its
+own: a save still writing landed after the new page's, over it, and the new
+page started from a record the save had not yet brought up to date. A page
+holding text the browser refused to store keeps the notes, and both pages say
+why: let go, it held the only copy and could no longer store it. A page that
+does not answer within a second and a half, frozen or closing, or is still
+storing after fifteen, can have the lock taken from it, but only on the
+person's say-so (*Take over anyway*), since what it typed last, or a save it
+was making, may then be lost. Two pages may ask at once: the one handing over
+answers both, and the lock goes to one of them, which says so on the channel;
+the other stops waiting and says the notes went there, free to ask that page.
+A page that had run before starts afresh once it
+has the notes back, since what it held is out of date. As a last line of defence,
 `drafts.js` refuses the editor's writes while it does not hold the lock; the
 projector and the presentations page write as before. A browser without Web
 Locks writes as before too.

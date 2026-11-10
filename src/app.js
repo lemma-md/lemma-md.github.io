@@ -229,14 +229,33 @@ function saveNow(doc) {
 // text as saved afterwards. Reading `doc.text` again after the await would
 // declare saved whatever was typed while the write was in flight, though the
 // file holds the older text.
+//
+// None starts once another tab has asked for the notes (handingOver), or has
+// them: that tab may be saving the same file by then.
 const sourceWrites = new Map() // note id -> the last write's promise
 
 function inOrder(doc, write) {
-  const run = (sourceWrites.get(doc.id) ?? Promise.resolve()).then(write)
+  const run = (sourceWrites.get(doc.id) ?? Promise.resolve()).then(() => {
+    if (handingOver || !writing) throw new DOMException('Cancelled: the notes are edited in another tab now.', 'AbortError')
+    return write()
+  })
   const settled = run.catch(() => {})
   sourceWrites.set(doc.id, settled)
   settled.then(() => { if (sourceWrites.get(doc.id) === settled) sourceWrites.delete(doc.id) })
   return run
+}
+
+// Saves to a file or to Drive under way, each from its first step to its
+// last, the note stored with what it learnt of its file. A tab asking for the
+// notes gets them only after these (handOver): one let go of earlier landed
+// after that tab's own save, over it.
+const savesUnderWay = new Set()
+
+function underWay(save) {
+  const settled = Promise.resolve(save).catch(() => {})
+  savesUnderWay.add(settled)
+  settled.then(() => savesUnderWay.delete(settled))
+  return save
 }
 
 const saveSession = () =>
@@ -1221,6 +1240,7 @@ async function ensureAppFolder(provider) {
       setup.create.onclick = null
       setup.rename.onclick = null
       setup.dialog.removeEventListener('close', onCancel)
+      openQuestions.delete(onCancel)
       resolve(result)
     }
     const onCancel = () => finish(null) // the × or Escape
@@ -1262,6 +1282,8 @@ async function ensureAppFolder(provider) {
       }
     }
 
+    setup.dialog.addEventListener('close', onCancel)
+    openQuestions.add(onCancel)
     setup.dialog.showModal()
   })
 }
@@ -2182,6 +2204,7 @@ function askConflict(doc, current) {
       settled = true
       conflict.theirs.onclick = conflict.copy.onclick = conflict.overwrite.onclick = conflict.compare.onclick = null
       conflict.dialog.removeEventListener('close', onCancel)
+      openQuestions.delete(onCancel)
       resolve(choice)
     }
     const onCancel = () => finish('cancel') // the × or Escape
@@ -2196,6 +2219,7 @@ function askConflict(doc, current) {
     const yours = [fmtWhen(doc.updatedAt), fmtBytes(new Blob([doc.text]).size)].filter(Boolean).join(', ')
     conflict.detail.textContent = `Theirs: ${theirs} · Yours: ${yours}`
     conflict.dialog.addEventListener('close', onCancel)
+    openQuestions.add(onCancel)
     conflict.theirs.onclick = () => { if (confirm('Discard your changes and reload this file from Drive?')) choose('theirs') }
     conflict.copy.onclick = () => choose('copy')
     conflict.overwrite.onclick = () => { if (confirm('Overwrite the file in Drive with your version?')) choose('overwrite') }
@@ -2243,6 +2267,7 @@ async function askIdentity(provider, doc, cur, kind) {
       if (settled) return
       settled = true
       identity.dialog.removeEventListener('close', onCancel)
+      openQuestions.delete(onCancel)
       resolve(value)
     }
     const onCancel = () => finish('cancel') // the × or Escape
@@ -2263,6 +2288,7 @@ async function askIdentity(provider, doc, cur, kind) {
       identity.actions.append(b)
     }
     identity.dialog.addEventListener('close', onCancel)
+    openQuestions.add(onCancel)
     identity.dialog.showModal()
   })
 }
@@ -2351,8 +2377,8 @@ async function openFromCloud() {
 function saveDoc(doc) {
   if (!doc) return
   const src = noteSource(doc)
-  if (src === 'gdrive') return overwriteToCloud(doc)
-  if (src === 'local') return saveToLocal(doc)
+  if (src === 'gdrive') return underWay(overwriteToCloud(doc))
+  if (src === 'local') return underWay(saveToLocal(doc))
   return openSaveTarget(doc)
 }
 
@@ -2437,7 +2463,7 @@ async function saveToLocalAs(doc) {
 /** "Save As" on the active note — the menu entry and its wiring. */
 function saveActiveAs() {
   const doc = active()
-  if (doc) return saveToLocalAs(doc)
+  if (doc) return underWay(saveToLocalAs(doc))
 }
 
 /** Report a local-file failure, staying quiet when the user just cancelled the
@@ -2490,6 +2516,7 @@ function askLocalConflict(doc, cur, unreadable = null) {
       settled = true
       localConflict.theirs.onclick = localConflict.copy.onclick = localConflict.overwrite.onclick = localConflict.compare.onclick = null
       localConflict.dialog.removeEventListener('close', onCancel)
+      openQuestions.delete(onCancel)
       resolve(choice)
     }
     const onCancel = () => finish('cancel')
@@ -2521,6 +2548,7 @@ function askLocalConflict(doc, cur, unreadable = null) {
       localConflict.detail.textContent = `On disk: ${theirs} · Yours: ${yours}`
     }
     localConflict.dialog.addEventListener('close', onCancel)
+    openQuestions.add(onCancel)
     localConflict.theirs.onclick = () => { if (confirm('Discard your changes and reload this file from disk?')) choose('theirs') }
     localConflict.copy.onclick = () => choose('copy')
     localConflict.overwrite.onclick = () => {
@@ -2708,7 +2736,7 @@ async function openCloseWarn(doc) {
     closeWarn.source.textContent = `It also changed ${src === 'gdrive' ? 'in Google Drive' : 'on disk'} after you opened it here.`
   }
   const actions = closeActionSet(doc, changed)
-  const run = (v) => { closeWarn.dialog.close(); handleCloseAction(doc, v) }
+  const run = (v) => { closeWarn.dialog.close(); underWay(handleCloseAction(doc, v)) }
   closeWarn.actions.textContent = ''
   for (const a of actions) closeWarn.actions.append(makeActionButton(a, run))
   closeWarn.compare.onclick = () => openDiff(doc, { focus: 'editor', actions, onAction: run })
@@ -3057,7 +3085,7 @@ function renderEntries() {
       .join(' · ')
     li.append(name, meta)
     li.onclick = () => { saveAs.name.value = f.name; highlightFile(f.id) }
-    li.ondblclick = () => { saveAs.name.value = f.name; confirmSaveAs() }
+    li.ondblclick = () => { saveAs.name.value = f.name; underWay(confirmSaveAs()) }
     saveAs.files.append(li)
   }
 }
@@ -3216,7 +3244,7 @@ document.getElementById('diff-close').onclick = () => diff.dialog.close()
 // its own dialog, which settles the close when it saves or is dismissed.
 saveTarget.local.onclick = async () => {
   saveTarget.dialog.close('chosen')
-  await saveToLocal(saveTargetDoc)
+  await underWay(saveToLocal(saveTargetDoc))
   settlePendingClose()
 }
 saveTarget.drive.onclick = async () => {
@@ -3236,7 +3264,7 @@ saveTarget.dialog.addEventListener('close', () => {
 for (const t of saveAs.tabs.querySelectorAll('.cloud-tab')) t.onclick = () => openTab(t.dataset.tab)
 saveAs.newFolder.onclick = newFolder
 saveAs.addExternal.onclick = addExternalFolder
-saveAs.confirm.onclick = confirmSaveAs
+saveAs.confirm.onclick = () => underWay(confirmSaveAs())
 saveAs.cancel.onclick = () => saveAs.dialog.close()
 // Closing the Drive dialog without saving (Cancel, ×, Esc) dismisses a close
 // that was waiting on it. Stepping out for Google's folder picker closes it too,
@@ -3372,7 +3400,8 @@ function openLinkDialog(ed) {
 }
 
 addEventListener('keydown', (e) => {
-  if (!writing) return // the notes are open in another tab (see claim below)
+  // The notes are open in another tab, or going there (see claim below).
+  if (!writing || handingOver) return
   if (e.key === 'Escape') return closeMenu()
 
   const ctrl = e.ctrlKey || e.metaKey
@@ -3572,6 +3601,9 @@ async function init() {
 // starts nothing and says so, until it is asked to take them over.
 let writing = false
 let started = false
+// Another tab has asked for the notes: no write to a file or to Drive starts
+// here any more (inOrder), since that tab may soon save the same file.
+let handingOver = false
 drafts.writeOnlyWhile(() => writing)
 
 const elsewhere = {
@@ -3579,34 +3611,133 @@ const elsewhere = {
   title: document.getElementById('elsewhere-title'),
   text: document.getElementById('elsewhere-text'),
   take: document.getElementById('elsewhere-take'),
+  force: document.getElementById('elsewhere-force'),
 }
 // It stays until this tab takes the notes back: Escape does not dismiss it.
 elsewhere.dialog.oncancel = (e) => e.preventDefault()
 
+const ELSEWHERE_OPEN = 'Already open in another tab'
+const ELSEWHERE_NOW = 'Now open in another tab'
+const ANYWAY = 'You can take the notes over anyway, but what was typed there last, or a save it is making, may then be lost or land over yours.'
+
 /**
- * Say that the notes are open in another tab: from the start (`how` absent),
- * or since that tab took them over, after this one stored what it held
- * ('handed') or while this one did not answer ('taken').
+ * What the window says, by the state of things: { title, text, take, force }.
+ * `take` is the label of the button that asks for the notes (none, or
+ * disabled while waiting); `force` shows the one that takes them anyway.
  */
-function showElsewhere(how) {
-  elsewhere.title.textContent = how ? 'Now open in another tab' : 'Already open in another tab'
-  elsewhere.text.textContent = {
-    handed: 'Another tab of this browser has taken the notes over. Everything typed here was stored first.',
-    taken: 'Another tab of this browser has taken the notes over while this one was not answering: what was typed here last may not have been stored.',
-  }[how] ?? 'lemma-md is open in another tab of this browser. Notes are edited in one tab at a time, so that neither writes over the other. Use this tab, and the other one stops, after storing what it holds.'
-  elsewhere.take.disabled = false
-  elsewhere.take.textContent = 'Use this tab'
+const ELSEWHERE = {
+  open: { title: ELSEWHERE_OPEN, take: 'Use this tab', text: 'lemma-md is open in another tab of this browser. Notes are edited in one tab at a time, so that neither writes over the other. Use this tab, and the other one stops, after storing what it holds.' },
+  asking: { title: ELSEWHERE_OPEN, take: 'Waiting…', text: 'Asking the other tab for the notes…' },
+  busy: { title: ELSEWHERE_OPEN, take: 'Waiting…', text: 'The other tab is storing what it holds, then this one starts.' },
+  slow: { title: ELSEWHERE_OPEN, take: 'Waiting…', force: true, text: `The other tab is still storing what it holds. ${ANYWAY}` },
+  refused: { title: ELSEWHERE_OPEN, take: 'Use this tab', text: 'The other tab holds text that this browser refused to store, which only it has. Save or download it in that tab, then use this one.' },
+  silent: { title: ELSEWHERE_OPEN, take: 'Ask again', force: true, text: `The other tab does not answer: it may be frozen, or closing. ${ANYWAY}` },
+  raced: { title: ELSEWHERE_OPEN, take: 'Use this tab', text: 'Another tab asked for the notes at the same moment, and has them now. Use this tab, and that one stops, after storing what it holds.' },
+  handing: { title: 'Handing over to another tab', text: 'Another tab asked for the notes. This one stores what it holds first.' },
+  handed: { title: ELSEWHERE_NOW, take: 'Use this tab', text: 'Another tab of this browser has taken the notes over. Everything typed here was stored first.' },
+  taken: { title: ELSEWHERE_NOW, take: 'Use this tab', text: 'Another tab of this browser took the notes over without waiting for this one: what was typed here last may not have been stored, and a save this tab was making may still land after that tab’s.' },
+}
+
+function showElsewhere(state) {
+  const s = ELSEWHERE[state]
+  elsewhere.title.textContent = s.title
+  elsewhere.text.textContent = s.text
+  elsewhere.take.hidden = !s.take
+  elsewhere.take.textContent = s.take ?? ''
+  elsewhere.take.disabled = s.take === 'Waiting…'
+  elsewhere.force.hidden = !s.force
   if (!elsewhere.dialog.open) elsewhere.dialog.showModal()
 }
 
-elsewhere.take.onclick = async () => {
-  elsewhere.take.disabled = true
-  elsewhere.take.textContent = 'Waiting for the other tab…'
-  await oneEditor.takeOver()
-  // A page that ran before holds the notes as they were then: it starts again.
+/**
+ * Another tab asks for the notes (one-editor.js). From now on no write to a
+ * file or Drive starts here (inOrder). A dialog left open here, waiting on the
+ * person, is closed: they are in the other tab, and the save it was asking
+ * about is cancelled, as if they had. Saves already under way are waited for,
+ * and everything is written to the browser. Resolves null once all of it is
+ * stored, or why not: a note the browser refused to store holds text that
+ * only this tab has, and the notes stay here.
+ */
+async function handOver() {
+  handingOver = true
+  closeDialogs()
+  showElsewhere('handing')
+  await Promise.allSettled([...savesUnderWay])
+  // Every open note, not only those with a write pending: a save may have
+  // learnt something of its file without storing it, and a note the browser
+  // refused before may go in now.
+  for (const id of [...pendingSaves.keys()]) cancelSave(id)
+  await Promise.all([...state.docs.values()].map(storeDoc))
+  await saveSession()
+  if (![...state.docs.values()].some(unstored)) return null
+  handingOver = false
+  elsewhere.dialog.close()
+  // As the notice of the refusal itself, which this one replaces: it goes
+  // once the browser takes the note after all.
+  showBanner(
+    'Another tab asked for these notes, but this one holds text that the browser refused to store. ' +
+    'Save or download it here, or try storing it again; then the other tab can take the notes.',
+    { kind: 'store-failed', action: 'Try again', onAction: retryFailedWrites },
+  )
+  return 'unstored'
+}
+
+// How to cancel each question a save is waiting on: conflicts, a file renamed
+// or trashed in Drive, the Drive folder to make. Each is answered 'cancel'
+// when its dialog closes, but the close event comes late in a tab in the
+// background, which is where a tab handing over is: seconds, and more the
+// longer it has been there. So closeDialogs answers them itself.
+const openQuestions = new Set()
+
+/** Close this tab's dialogs, but the one saying where the notes are, and
+ *  cancel the questions they asked. */
+function closeDialogs() {
+  for (const dialog of document.querySelectorAll('dialog[open]')) if (dialog !== elsewhere.dialog) dialog.close()
+  for (const cancel of [...openQuestions]) cancel()
+}
+
+// Nor does one open while handing over. A save still waiting on Drive or the
+// disk when the other tab asked opens its question once the answer comes,
+// after handOver closed the rest, and the handover then waited on a person who
+// is in the other tab. Closed at once, the question is cancelled, and the save
+// with it.
+new MutationObserver(() => { if (handingOver) closeDialogs() })
+  .observe(document.body, { subtree: true, attributes: true, attributeFilter: ['open'] })
+
+/** This tab may write now: start, or, if it ran before, start afresh. */
+function beginHere() {
+  // A page that ran before holds the notes as they were then.
   if (started) return location.reload()
   elsewhere.dialog.close()
   run()
+}
+
+// How long the other tab may take to store what it holds before this one
+// offers to take the notes anyway.
+const SLOW_HANDOVER = 15000
+let asks = 0 // counts requests, so that one given up for "anyway" stays quiet
+
+elsewhere.take.onclick = async () => {
+  const ask = ++asks
+  showElsewhere('asking')
+  let slow = 0
+  const result = await oneEditor.takeOver({
+    busy: () => {
+      showElsewhere('busy')
+      slow = setTimeout(() => showElsewhere('slow'), SLOW_HANDOVER)
+    },
+  })
+  clearTimeout(slow)
+  if (ask !== asks) return
+  if (result === 'taken') return beginHere()
+  showElsewhere(typeof result === 'string' ? result : 'refused')
+}
+
+elsewhere.force.onclick = async () => {
+  asks++
+  showElsewhere('asking')
+  await oneEditor.takeAnyway()
+  beginHere()
 }
 
 function run() {
@@ -3620,10 +3751,10 @@ function run() {
 
 oneEditor
   .claim(`lemma-md-editor:${drafts.databaseName}`, {
-    stored: flushSaves,
+    handOver,
     lost: (how) => {
       writing = false
       showElsewhere(how)
     },
   })
-  .then((mine) => (mine ? run() : showElsewhere()))
+  .then((mine) => (mine ? run() : showElsewhere('open')))

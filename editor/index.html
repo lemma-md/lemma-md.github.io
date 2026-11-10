@@ -416,7 +416,8 @@
      (the note still goes to the bin, recoverable for a while); × / Escape keeps
      the note open. The link opens the diff. -->
 <!-- The notes are open in another tab of this browser, which is the one that
-     writes them (src/one-editor.js). It stays until this tab takes them over. -->
+     writes them (src/one-editor.js). It stays until this tab takes them over.
+     "Take over anyway" shows only when that tab is silent or slow. -->
 <dialog id="elsewhere">
   <div class="dlg-head">
     <h2 id="elsewhere-title">Already open in another tab</h2>
@@ -424,6 +425,7 @@
   <section>
     <p class="note" id="elsewhere-text"></p>
     <div class="conflict-actions">
+      <button id="elsewhere-force" type="button" class="action" hidden>Take over anyway</button>
       <button id="elsewhere-take" type="button" class="primary">Use this tab</button>
     </div>
   </section>

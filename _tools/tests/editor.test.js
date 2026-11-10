@@ -359,7 +359,7 @@ test('and back: the first takes the notes again, starting afresh with what the s
   }
 }))
 
-test('a tab that does not answer has the notes taken from it after a while', () => withEditor({
+test('a tab that does not answer has the notes taken from it only on the person\'s say-so', () => withEditor({
   // This editor never hears the request to let go, as a frozen tab would not.
   before: "Object.defineProperty(BroadcastChannel.prototype, 'onmessage', { set() {}, get() { return null }, configurable: true })",
 }, async (ed) => {
@@ -367,13 +367,168 @@ test('a tab that does not answer has the notes taken from it after a while', () 
   const other = await openEditor({ database: ed.database })
   try {
     other.$('#elsewhere-take').click()
-    await waitFor(() => other.tabs().includes('untitled.md'), 'the second started anyway', 6000)
-    assert.ok(ed.isOpen('elsewhere'), 'the first says so')
-    assert.ok(ed.$('#elsewhere-text').textContent.includes('not answering'), 'and that its last keys may be lost')
+    await waitFor(() => !other.$('#elsewhere-force').hidden, 'the offer to take them anyway', 6000)
+    assert.ok(other.$('#elsewhere-text').textContent.includes('does not answer'), 'the second says why')
+    assert.equal(other.$('#elsewhere-take').textContent, 'Ask again')
+    assert.deepEqual(other.tabs(), [], 'and took nothing yet')
+    other.$('#elsewhere-force').click()
+    await waitFor(() => other.tabs().includes('untitled.md') && !other.isOpen('elsewhere'), 'the second started')
+    await waitFor(() => ed.isOpen('elsewhere'), 'the first says so')
+    assert.ok(ed.$('#elsewhere-text').textContent.includes('without waiting'), 'and that its last keys may be lost')
   } finally {
     await other.close()
   }
-}), { timeout: 20000 })
+}))
+
+test('a save under way when another tab asks lands first; that tab starts in step with the file', () => withDisk((dir) => withEditor(async (ed) => {
+  const file = await diskFile(dir, 'notes.md', 'on disk')
+  await openFile(ed, file)
+  await ed.type(', from the first')
+  const other = await openEditor({ database: ed.database })
+  try {
+    // A slow disk: the first one's save is still writing when the second asks.
+    let writing = false
+    const write = file.createWritable
+    file.createWritable = async function (...args) { writing = true; await sleep(1000); return write.apply(this, args) }
+    ed.$('#btn-cloud-save').click()
+    await waitFor(() => writing, 'the save under way')
+    other.$('#elsewhere-take').click()
+    await waitFor(() => other.$('#elsewhere-text').textContent.includes('then this one starts'), 'the second waits, told why')
+    assert.equal(ed.$('#elsewhere-title').textContent, 'Handing over to another tab')
+    await waitFor(() => other.tabs().includes('notes.md') && !other.isOpen('elsewhere'), 'the second started')
+    assert.equal(await readFile(file), 'on disk, from the first', 'after the save landed')
+    await waitFor(() => other.status().title === 'Saved to this computer', 'in step with the file')
+
+    await other.type(', and the second')
+    other.$('#btn-cloud-save').click()
+    await waitFor(async () => (await readFile(file)) === 'on disk, from the first, and the second', 'its own save')
+    assert.ok(!other.isOpen('local-conflict'), 'with nothing to ask')
+    await sleep(600)
+    assert.equal(await readFile(file), 'on disk, from the first, and the second', 'nothing from the first lands after it')
+  } finally {
+    await other.close()
+  }
+})))
+
+test('a question left open in the first tab is taken down when another tab asks, and its save never writes', () => withDisk((dir) => withEditor(async (ed) => {
+  const file = await diskFile(dir, 'notes.md', 'on disk')
+  await openFile(ed, file)
+  await ed.type(', mine')
+  await writeFile(file, 'changed by another program')
+  ed.$('#btn-cloud-save').click()
+  await waitFor(() => ed.isOpen('local-conflict'), 'the question')
+  const other = await openEditor({ database: ed.database })
+  try {
+    other.$('#elsewhere-take').click()
+    await waitFor(() => other.tabs().includes('notes.md') && !other.isOpen('elsewhere'), 'the second started')
+    assert.ok(!ed.isOpen('local-conflict'), 'the question is gone from the first')
+    ed.$('#local-conflict-overwrite').click() // as if answered after all
+    await sleep(300)
+    assert.equal(await readFile(file), 'changed by another program', 'and the first wrote nothing')
+  } finally {
+    await other.close()
+  }
+})))
+
+test('a question a save comes to only after another tab asked is not put, and the notes go over', () => withEditor(DRIVE, async (ed) => {
+  const { drive, id } = await openFromDrive(ed, 'drive.md', 'in Drive')
+  await ed.type(', mine')
+  drive.outside.edit(id, 'changed in Drive')
+  const other = await openEditor({ database: ed.database, fakeDrive: true })
+  try {
+    // Drive is slow to say what the file is now: the save is still asking
+    // when the second tab does, and comes to the conflict only after.
+    drive.delay.revision = 1500
+    ed.$('#btn-cloud-save').click()
+    await sleep(300)
+    other.$('#elsewhere-take').click()
+    await waitFor(() => other.$('#elsewhere-text').textContent.includes('then this one starts'), 'the second waits')
+    await waitFor(() => other.tabs().includes('drive.md') && !other.isOpen('elsewhere'), 'the second started', 6000)
+    assert.ok(!ed.isOpen('cloud-conflict'), 'no question left in the first')
+    assert.equal(drive.writes.length, 0, 'and nothing written')
+    assert.equal(drive.files.get(id).text, 'changed in Drive')
+  } finally {
+    await other.close()
+  }
+}))
+
+test('a tab holding text the browser refused keeps the notes, and both tabs say why', () => withEditor(async (ed) => {
+  await ed.newNote()
+  ed.win.refuseWrites = true
+  await ed.type('refused')
+  await waitFor(() => ed.status().text === 'Storage error', 'the error')
+  const other = await openEditor({ database: ed.database })
+  try {
+    other.$('#elsewhere-take').click()
+    await waitFor(() => other.$('#elsewhere-text').textContent.includes('refused to store'), 'the second is told why not')
+    assert.ok(other.isOpen('elsewhere'), 'and stays as it was')
+    assert.deepEqual(other.tabs(), [])
+    assert.equal(other.$('#elsewhere-take').disabled, false, 'free to ask again')
+    assert.ok(!ed.isOpen('elsewhere'), 'the first goes on')
+    assert.ok(ed.banner()?.text.startsWith('Another tab asked for these notes'), `and says why, got ${JSON.stringify(ed.banner())}`)
+    await ed.type(', and more')
+
+    ed.win.refuseWrites = false
+    other.$('#elsewhere-take').click()
+    await waitFor(() => other.tabs().includes('untitled.md') && !other.isOpen('elsewhere'), 'taken, once the browser stores it')
+    const ace = await other.editor()
+    await waitFor(() => ace.getValue() === 'refused, and more', 'all of it')
+    assert.equal(ed.$('#elsewhere-title').textContent, 'Now open in another tab')
+  } finally {
+    await other.close()
+  }
+}))
+
+test('a save waiting on the Drive folder to make is cancelled when another tab asks', () => withEditor(DRIVE, async (ed) => {
+  const { drive, id } = await openFromDrive(ed, 'drive.md', 'in Drive')
+  await ed.type(', mine')
+  drive.outside.edit(id, 'changed in Drive')
+  drive.files.delete('folder-app') // the app's folder is gone: saving a copy asks to make one
+  ed.$('#btn-cloud-save').click()
+  await waitFor(() => ed.isOpen('cloud-conflict'), 'the conflict')
+  ed.$('#conflict-copy').click()
+  await waitFor(() => ed.isOpen('cloud-setup'), 'the folder to make')
+  const other = await openEditor({ database: ed.database, fakeDrive: true })
+  try {
+    other.$('#elsewhere-take').click()
+    await waitFor(() => other.tabs().includes('drive.md') && !other.isOpen('elsewhere'), 'the second started', 6000)
+    assert.ok(!ed.isOpen('cloud-setup'), 'the question gone from the first')
+    assert.equal(drive.writes.length, 0, 'and nothing written')
+  } finally {
+    await other.close()
+  }
+}))
+
+test('two tabs asking at once: one has the notes, the other stops waiting and may ask that one', () => withDisk((dir) => withEditor(async (ed) => {
+  const file = await diskFile(dir, 'notes.md', 'on disk')
+  await openFile(ed, file)
+  await ed.type(', edited')
+  const b = await openEditor({ database: ed.database })
+  const c = await openEditor({ database: ed.database })
+  try {
+    // A slow disk keeps the first one handing over while both ask.
+    let writing = false
+    const write = file.createWritable
+    file.createWritable = async function (...args) { writing = true; await sleep(1000); return write.apply(this, args) }
+    ed.$('#btn-cloud-save').click()
+    await waitFor(() => writing, 'the save under way')
+    b.$('#elsewhere-take').click()
+    await waitFor(() => b.$('#elsewhere-text').textContent.includes('then this one starts'), 'the first answers the second')
+    c.$('#elsewhere-take').click()
+    await waitFor(() => c.$('#elsewhere-text').textContent.includes('then this one starts'), 'and the third')
+    await waitFor(() => b.tabs().includes('notes.md') && !b.isOpen('elsewhere'), 'the second started', 6000)
+    await waitFor(() => c.$('#elsewhere-text').textContent.includes('at the same moment'), 'the third stops waiting')
+    assert.equal(c.$('#elsewhere-take').disabled, false, 'free to ask again')
+    assert.deepEqual(c.tabs(), [])
+
+    c.$('#elsewhere-take').click()
+    await waitFor(() => c.tabs().includes('notes.md') && !c.isOpen('elsewhere'), 'the third has them from the second', 6000)
+    assert.equal(b.$('#elsewhere-title').textContent, 'Now open in another tab')
+  } finally {
+    await c.close()
+    await b.close()
+  }
+})))
 
 suite('editor: files on disk')
 

@@ -23,6 +23,13 @@ This is the *when*. The *why* behind a decision is in
 - *Download as .md* no longer counts as saving a note that has a file of its
   own, on disk or in Drive: it said "in sync" with a Drive file that never got
   the text, and a save to disk found a conflict with the download.
+- *Use this tab* waits while the other tab finishes a save to a file or to
+  Drive; that save could land after the new tab's own, over it. A question
+  the other tab has open, or comes to meanwhile, is taken down, and the save
+  it asked about cancelled. A tab holding text the browser
+  refused to store keeps the notes and says why, instead of letting go and
+  saying all was stored. A tab that does not answer is no longer taken from
+  on its own after a few seconds: *Take over anyway* leaves it to you.
 
 ## 2026-11-09
 

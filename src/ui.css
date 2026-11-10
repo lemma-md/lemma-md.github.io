@@ -634,6 +634,7 @@ button.info-badge {
 #cloud-conflict .action,
 #cloud-identity .action,
 #local-conflict .action,
+#elsewhere .action,
 #close-warn .action {
   font: inherit;
   font-size: 13px;
@@ -647,6 +648,7 @@ button.info-badge {
 #cloud-conflict .action:hover,
 #cloud-identity .action:hover,
 #local-conflict .action:hover,
+#elsewhere .action:hover,
 #close-warn .action:hover { border-color: var(--muted); }
 #cloud-conflict .primary.danger,
 #local-conflict .primary.danger,
