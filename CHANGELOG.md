@@ -8,6 +8,22 @@ This is the *when*. The *why* behind a decision is in
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), and what is still to come is in
 [docs/ROADMAP.md](docs/ROADMAP.md).
 
+## 2026-11-10
+
+### Fixed
+
+- *Save* in the close dialog, or in *File info*, saves the note it was opened
+  for, even when another tab was chosen while it got ready; it saved the
+  active one.
+- A save that finishes after its note was discarded leaves the note in the
+  bin. It used to store it again, gone from the bin and not open either; and
+  one started from the close dialog deleted it from the bin.
+- A Drive note renamed while its save was under way keeps the new name, a
+  change still to save; the old name came back.
+- *Download as .md* no longer counts as saving a note that has a file of its
+  own, on disk or in Drive: it said "in sync" with a Drive file that never got
+  the text, and a save to disk found a conflict with the download.
+
 ## 2026-11-09
 
 ### Added

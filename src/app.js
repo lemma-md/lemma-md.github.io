@@ -42,6 +42,13 @@ const el = {
 const active = () => state.docs.get(state.activeId) ?? null
 
 /**
+ * Whether `doc` is still the note open under its id. A save to a file or Drive
+ * can finish after its note was closed, binned, or opened afresh; what that
+ * save holds is then no longer the note, and must not be written back as it.
+ */
+const stillOpen = (doc) => state.docs.get(doc.id) === doc
+
+/**
  * Unsaved changes: edited text or, for a Drive note, a new name that has not
  * reached Drive yet (a save carries the name with it). Without the name, a
  * renamed note could close as clean and the new name never get there. A file on
@@ -75,6 +82,10 @@ function persistDoc(doc) {
  * Never rejects.
  */
 function storeDoc(doc) {
+  // A note no longer open is not written back. A save that finished after its
+  // note went to the bin stored it again without the bin's stamp: gone from
+  // the bin, and not open either.
+  if (!stillOpen(doc)) return Promise.resolve()
   return persistDoc(doc).then(
     () => {
       if (!doc.storeFailed) return
@@ -1066,6 +1077,13 @@ function downloadActive() {
   if (!doc) return
   download(doc.name.endsWith('.md') ? doc.name : `${doc.name}.md`, doc.text, 'text/markdown')
 
+  // For a note with no file of its own, the download is its saved copy: it is
+  // no longer unsaved, and closes like a saved note. For one from a file on
+  // disk or in Drive it is only a copy. Its baseline stays what that file
+  // holds: marking the download saved had the status say "in sync" with a
+  // Drive file that never got the text, and a save to disk find a conflict
+  // with nobody's edit but the download.
+  if (noteSource(doc)) return
   doc.savedText = doc.text
   storeDoc(doc)
   renderTabs()
@@ -1433,9 +1451,14 @@ function addInfoRow(label, value, right = null) {
 const SLOW = Symbol('slow')
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
+// The note File info was opened for: its Save saves that one, even if another
+// tab was chosen while the panel waited on the disk or Drive.
+let fileInfoDoc = null
+
 async function openFileInfo() {
   const doc = active()
   if (!doc) return
+  fileInfoDoc = doc
   const source = noteSource(doc)
 
   if (source === 'local') {
@@ -2319,17 +2342,23 @@ async function openFromCloud() {
 }
 
 /**
- * "Save", also on Ctrl+S. It writes a note back to wherever it came from: a
- * Drive file, or a file on this computer — silently unless that file changed
- * underneath us. A note with no source yet is asked where to go.
+ * "Save" of `doc`. It writes a note back to wherever it came from: a Drive
+ * file, or a file on this computer — silently unless that file changed
+ * underneath us. A note with no source yet is asked where to go. A dialog that
+ * saves takes the note it was opened for, never the active one at the time of
+ * the click: it may have waited on Drive while another tab was chosen.
  */
-function saveActive() {
-  const doc = active()
+function saveDoc(doc) {
   if (!doc) return
   const src = noteSource(doc)
   if (src === 'gdrive') return overwriteToCloud(doc)
   if (src === 'local') return saveToLocal(doc)
-  return openSaveTarget()
+  return openSaveTarget(doc)
+}
+
+/** Save, also on Ctrl+S: the active note. */
+function saveActive() {
+  return saveDoc(active())
 }
 
 /* ---------- save to a local file ---------- */
@@ -2552,8 +2581,7 @@ const saveTarget = {
 // The note the "where to save" dialog is for, so that its choices act on it.
 let saveTargetDoc = null
 
-function openSaveTarget() {
-  const doc = active()
+function openSaveTarget(doc = active()) {
   if (!doc) return
   saveTargetDoc = doc
   const canLocal = localFiles.isSaveSupported()
@@ -2632,14 +2660,18 @@ function closeActionSet(doc, srcChanged) {
 async function handleCloseAction(doc, value) {
   if (value === 'discard') return binAndDrop(doc.id)
   if (value === 'save') {
-    // A note with no file yet only opens "where to save" here; the choice made
-    // there finishes the close (see pendingClose).
-    if (!noteSource(doc)) { pendingClose = doc; return saveActive() }
-    await saveActive()
+    // This note, not whichever is active by now: the dialog may have waited on
+    // Drive while another tab was chosen. A note with no file yet only opens
+    // "where to save" here; the choice made there finishes the close (see
+    // pendingClose).
+    if (!noteSource(doc)) { pendingClose = doc; return saveDoc(doc) }
+    await saveDoc(doc)
   } else if (value === 'copy') await copyToSource(doc)
   else if (value === 'overwrite') await overwriteSource(doc)
   else return
-  if (!isDirty(doc)) deleteAndDrop(doc.id)
+  // Closed meanwhile, to the bin say: removing it now by its id would delete
+  // it from the bin.
+  if (stillOpen(doc) && !isDirty(doc)) deleteAndDrop(doc.id)
 }
 
 /**
@@ -2656,7 +2688,7 @@ let pendingClose = null
 function settlePendingClose() {
   const doc = pendingClose
   pendingClose = null
-  if (doc && state.docs.has(doc.id) && !isDirty(doc)) deleteAndDrop(doc.id)
+  if (doc && stillOpen(doc) && !isDirty(doc)) deleteAndDrop(doc.id)
 }
 
 const dropPendingClose = () => { pendingClose = null }
@@ -2719,15 +2751,27 @@ async function copyToSource(doc) {
       const folder = await ensureAppFolder(provider)
       if (!folder) return
       const text = doc.text
-      const saved = await inOrder(doc, () => createInAppFolder(provider, { name: copyName(doc.name), text }, folder))
+      const named = doc.name
+      const saved = await inOrder(doc, () => createInAppFolder(provider, { name: copyName(named), text }, folder))
       doc.remote = remoteLink(provider, saved)
-      doc.name = saved.name
+      adoptName(doc, named, saved.name)
       doc.savedText = text
       doc.remoteChanged = doc.remoteRenamed = doc.remoteTrashed = false
     } catch (err) {
       cloudFailed('save to the cloud', err)
     }
   }
+}
+
+/**
+ * After a write to Drive: the note takes the name Drive answered with, unless
+ * its tab was renamed while the write was in flight (`named` being the name it
+ * had when the write began). That later name then stays, an unsaved change
+ * against the name now in Drive, for the next save to carry. Taking Drive's
+ * answer regardless undid the rename without a word.
+ */
+function adoptName(doc, named, written) {
+  if (written && doc.name === named) doc.name = written
 }
 
 /** Write a cloud-backed note straight back to its Drive file. */
@@ -2744,21 +2788,22 @@ async function overwriteToCloud(doc) {
     doc.cloudBusy = true
     renderCloudStatus()
     const text = doc.text
+    const named = doc.name
     if (choice === 'copy') {
       const folder = await ensureAppFolder(provider)
       if (!folder) return
-      const saved = await inOrder(doc, () => createInAppFolder(provider, { name: copyName(doc.name), text }, folder))
+      const saved = await inOrder(doc, () => createInAppFolder(provider, { name: copyName(named), text }, folder))
       doc.remote = remoteLink(provider, saved)
-      doc.name = saved.name
+      adoptName(doc, named, saved.name)
     } else {
       // 'follow' adopts the file's current Drive name (it was renamed or moved);
       // 'restore' brings it back from the trash first; 'overwrite' keeps our
       // name. All three write to the same file.
       if (choice === 'restore') await provider.untrash(doc.remote.id)
-      const name = choice === 'follow' ? cur.name : doc.name
+      const name = choice === 'follow' ? cur.name : named
       const saved = await inOrder(doc, () => provider.write({ id: doc.remote.id, name, text }))
       doc.remote = remoteLink(provider, saved)
-      if (saved.name) doc.name = saved.name
+      adoptName(doc, named, saved.name)
     }
     doc.savedText = text
     doc.remoteChanged = doc.remoteRenamed = doc.remoteTrashed = false
@@ -3163,7 +3208,7 @@ document.getElementById('btn-presentations').onclick = () =>
   window.open(new URL('../presentations/', import.meta.url).href, 'lemma-presentations')
 // The status in the bar is a shortcut to the same panel.
 if (el.cloudState) el.cloudState.onclick = openFileInfo
-fi.save.onclick = () => { fi.dialog.close(); saveActive() }
+fi.save.onclick = () => { fi.dialog.close(); saveDoc(fileInfoDoc) }
 diff.prev.onclick = () => gotoHunk(-1)
 diff.next.onclick = () => gotoHunk(1)
 document.getElementById('diff-close').onclick = () => diff.dialog.close()

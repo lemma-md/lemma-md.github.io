@@ -1008,3 +1008,120 @@ test('reloading from Drive keeps what was typed while it loaded, unless told oth
   assert.equal((await ed.editor()).getValue(), 'from Drive, mine and more', 'kept')
   assert.ok(ed.win.asked.some((q) => q.includes('while its Drive version was loading')), 'it asked first')
 }))
+
+/** Rename the active tab as a person would: a double click on its name, a new name, Enter. */
+async function renameActive(ed, name) {
+  ed.$('#tabs .tab.active .name').click()
+  ed.$('#tabs .tab.active .name').click()
+  const input = await waitFor(() => ed.$('#tabs .tab.active input.tab-rename'), 'the rename field')
+  input.value = name
+  input.dispatchEvent(new ed.win.KeyboardEvent('keydown', { key: 'Enter' }))
+  await waitFor(() => ed.activeTab() === name, 'the new name')
+}
+
+/** The stored record of the note `name`, in the bin or not. */
+const record = async (ed, name) => (await ed.storedDocs()).find((d) => d.name === name) ?? null
+
+test('a rename made while a save to Drive is in flight is kept, a change still to save', () => withEditor(DRIVE, async (ed) => {
+  const { drive, id } = await openFromDrive(ed, 'drive.md', 'from Drive')
+  await ed.type(', edited')
+  drive.delay.write = 400
+  ed.$('#btn-cloud-save').click()
+  await sleep(50) // the write is on its way
+  await renameActive(ed, 'new-name.md')
+  await waitFor(() => drive.writes.length === 1, 'the write done')
+  await sleep(50) // and what follows it
+  assert.equal(drive.files.get(id).name, 'drive.md', 'Drive has the name the save was sent with')
+  assert.equal(ed.activeTab(), 'new-name.md', 'the tab keeps the new one')
+  assert.equal(ed.status().text, 'Changed', 'a change still to save')
+  assert.equal(ed.activeDot(), 'Renamed since it was last saved')
+  drive.delay.write = 0
+  ed.$('#btn-cloud-save').click()
+  await waitFor(() => drive.files.get(id).name === 'new-name.md', 'the next save carries it')
+}))
+
+test('a save that finishes after its note was discarded leaves the note in the bin', () => withEditor(DRIVE, async (ed) => {
+  const { drive, id } = await openFromDrive(ed, 'drive.md', 'original')
+  await ed.type(' saved')
+  drive.delay.write = 400
+  ed.$('#btn-cloud-save').click()
+  await sleep(50) // the write is on its way
+  await ed.type(' discarded')
+  ed.closeActive()
+  await ed.choose('close-warn', 'Discard changes')
+  await waitFor(async () => (await record(ed, 'drive.md'))?.binnedAt, 'in the bin')
+  await waitFor(() => drive.writes.length === 1, 'the save done')
+  await sleep(100) // and what follows it
+  const binned = await record(ed, 'drive.md')
+  assert.ok(binned?.binnedAt, 'still in the bin')
+  assert.equal(binned.text, 'original saved discarded', 'with what was discarded')
+  assert.ok(!ed.tabs().includes('drive.md'), 'and not open')
+  assert.equal(drive.files.get(id).text, 'original saved', 'Drive has what the save was sent with')
+}))
+
+test('Save in the close dialog finishing after the note went to the bin does not delete it from there', () => withEditor(DRIVE, async (ed) => {
+  const { drive } = await openFromDrive(ed, 'drive.md', 'original')
+  await ed.type(' edited')
+  drive.delay.write = 400
+  ed.closeActive()
+  await ed.choose('close-warn', 'Save')
+  await sleep(50) // the save is on its way, the note still open
+  ed.closeActive()
+  await ed.choose('close-warn', 'Discard changes')
+  await waitFor(async () => (await record(ed, 'drive.md'))?.binnedAt, 'in the bin')
+  await waitFor(() => drive.writes.length === 1, 'the save done')
+  await sleep(100) // and what follows it
+  assert.ok((await record(ed, 'drive.md'))?.binnedAt, 'still in the bin')
+}))
+
+test('Save in the close dialog of one note saves that note, though another was chosen while it got ready', () => withEditor(DRIVE, async (ed) => {
+  const a = await openFromDrive(ed, 'a.md', 'A')
+  await ed.type(' edited')
+  const b = await openFromDrive(ed, 'b.md', 'B')
+  await ed.type(' edited')
+  const tab = (name) => ed.$$('#tabs .tab .name').find((n) => n.textContent === name)
+  tab('a.md').click()
+  await waitFor(() => ed.activeTab() === 'a.md', 'A shown')
+  a.drive.delay.revision = 300 // Drive is slow to say whether A changed…
+  ed.closeActive()
+  tab('b.md').click() // …and meanwhile the person moves on to B
+  await waitFor(() => ed.activeTab() === 'b.md', 'B shown')
+  await ed.choose('close-warn', 'Save')
+  await waitFor(() => a.drive.writes.length === 1, 'the write')
+  assert.equal(a.drive.writes[0].id, a.id, "into A's file")
+  assert.equal(a.drive.writes[0].text, 'A edited')
+  assert.equal(a.drive.files.get(b.id).text, 'B', 'B left alone')
+  await waitFor(() => !ed.tabs().includes('a.md'), 'A closed, saved')
+  assert.ok(ed.tabs().includes('b.md'), 'B still open')
+}))
+
+suite('editor: Download is a copy')
+
+// For a note with a file of its own, on disk or in Drive, downloading it makes
+// a copy; the note still holds a change its file does not have.
+
+test('downloading a Drive note leaves it a change to save: Drive does not have the text', () => withEditor(DRIVE, async (ed) => {
+  const { drive, id } = await openFromDrive(ed, 'drive.md', 'original')
+  await ed.type(' edited')
+  ed.$('#btn-save').click() // Download as .md
+  assert.deepEqual(ed.win.downloads, ['drive.md'])
+  // Away and back, which draws the status afresh.
+  await ed.newNote()
+  ed.$$('#tabs .tab .name').find((n) => n.textContent === 'drive.md').click()
+  await waitFor(() => ed.activeTab() === 'drive.md', 'back')
+  assert.equal(ed.status().text, 'Changed', 'not "in sync"')
+  ed.closeActive()
+  await waitFor(() => ed.isOpen('close-warn'), 'closing asks first')
+  assert.equal(drive.files.get(id).text, 'original')
+}))
+
+test('downloading a note from a file on disk keeps the file its baseline: Save finds no conflict', () => withDisk((dir) => withEditor(async (ed) => {
+  const file = await diskFile(dir, 'notes.md', 'on disk')
+  await openFile(ed, file)
+  await ed.type(', edited')
+  ed.$('#btn-save').click() // Download as .md
+  assert.equal(ed.status().text, 'Changed', 'still a change to save')
+  ed.$('#btn-cloud-save').click()
+  await waitFor(async () => (await readFile(file)) === 'on disk, edited', 'written back')
+  assert.ok(!ed.isOpen('local-conflict'), 'without a conflict')
+})))

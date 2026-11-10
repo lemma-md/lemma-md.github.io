@@ -52,8 +52,8 @@ export function installFakeDrive(provider) {
     /** Every write, in order: { id, name, text }. */
     writes: [],
     /** How long Drive takes to answer, in ms: a slow network, to race against. */
-    /** `list` is a function of the folder listed. */
-    delay: { stat: 0, read: 0, list: () => 0 },
+    /** `list` is a function of the folder listed. A write is in `writes` once it is done. */
+    delay: { stat: 0, read: 0, write: 0, revision: 0, list: () => 0 },
     /** Changes made elsewhere, as if in Drive itself. */
     outside: {
       edit(id, text) { const f = get(id); f.text = text; touch(f) },
@@ -76,8 +76,12 @@ export function installFakeDrive(provider) {
       const f = get(id)
       return { ...meta(f), text: f.text }
     },
-    async revision(id) { return meta(get(id)) },
+    async revision(id) {
+      await pause(drive.delay.revision)
+      return meta(get(id))
+    },
     async write({ id, name, text, parents }) {
+      await pause(drive.delay.write)
       drive.writes.push({ id: id ?? null, name, text })
       if (!id) return meta(get(add({ name, text, parents: parents?.length ? parents : ['root'] })))
       const f = get(id)

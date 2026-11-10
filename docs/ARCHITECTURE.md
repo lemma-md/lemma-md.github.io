@@ -337,7 +337,11 @@ asks where to save, and the close finishes only after that choice saves it; if
 that dialog is dismissed or the save fails, the note stays open. A note
 "saved" only by *Download* is likewise removed on close. That trusts the
 download, which by default goes straight to the Downloads folder; the rare
-download that fails silently is an accepted risk.
+download that fails silently is an accepted risk. Only a note with no file of
+its own counts as saved by a download *(2026-11)*: for one from a file on disk
+or in Drive, the download is a copy, and its baseline stays what that file
+holds. Marking it saved had the status say "in sync" with a Drive file that
+never got the text, and a save to disk find a conflict with nobody's edit.
 
 This replaces the first version's rule that a closed note always stayed in
 storage. That rule fitted a time when this database held the *only* copy of
@@ -477,7 +481,20 @@ them:
   and one for a folder already left is dropped, so the list always matches the
   breadcrumb; saving waits until the list is in. *Reload theirs*, from Drive or
   from disk, asks again if the note was edited while the file was loading,
-  since those edits were not what the choice was about.
+  since those edits were not what the choice was about. The same holds for
+  every save:
+  - A dialog that saves saves the note it was opened for. *Save* in the close
+    dialog of note A, which may wait on Drive before it shows, wrote note B,
+    the active one by the time of the click; so could *Save* in *File info*.
+  - A save that finishes after its note was closed writes nothing back. One
+    finishing after its note went to the bin stored it again without the bin's
+    stamp, gone from the bin and not open either; one started from the close
+    dialog then removed the binned note for good. The browser's copy is only
+    written for a note still open as that very object (`storeDoc`).
+  - A note renamed while its save to Drive was in flight keeps the new name,
+    an unsaved change against the name now in Drive. Taking Drive's answer
+    undid the rename without a word. A file on disk keeps its own name, and
+    its tab follows it after each save, as before.
 - **A file on disk is never written over blindly either** *(2026-11)*. Before
   saving, the file is read and compared with the text last saved or opened:
   by content alone, since an edit can leave the date and size as they were,
