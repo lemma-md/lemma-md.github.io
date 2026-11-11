@@ -65,6 +65,12 @@ test('code indented, or in a list or a quote, is left as it is too', () => {
     '1. item\n\n       code \\(a\\)\n   - inner\n\n     ```\n     \\(b\\)\n     ```',
     '> quote\n>\n>     \\(c\\)\n>\n> ```\n> \\[d\\]\n> ```',
     'Windows lines\r\n\r\n    \\(e\\)\r\n',
+    // marked turns a tab in a list item into four spaces, at any column.
+    '- example\n\n      a\tb \\(x\\)\n',
+    '- example\n\n      abc\tb \\(x\\)\n',
+    '1. item\n\n   ```\n   a\tb \\(x\\)\n   ```',
+    // Lines ended by \r alone, as old Macs wrote them.
+    'Old Mac lines\r\r    \\(e\\)\r',
   ]) {
     assert.equal(fixed(md), md, md)
     assert.equal(count(md), 0, md)
@@ -75,6 +81,20 @@ test('code indented, or in a list or a quote, is left as it is too', () => {
   // Indented four spaces in a list item is the item's own paragraph, not code.
   assert.equal(fixed('1. item\n\n    Here \\(x\\) is.'), '1. item\n\n    Here $x$ is.')
   assert.equal(fixed('> Quoted \\(q\\).\n\nAfter\r\n\r\n    \\(e\\)\r\n\r\nand \\(f\\).'), '> Quoted $q$.\n\nAfter\r\n\r\n    \\(e\\)\r\n\r\nand $f$.')
+  assert.equal(fixed('a\r\r    \\(x\\)\r\rb \\(y\\)'), 'a\r\r    \\(x\\)\r\rb $y$', 'the source kept as it is, \\r and all')
+  assert.equal(fixed('- tab\tkept \\(z\\)'), '- tab\tkept $z$')
+  // The same text in an item and in the code below it: the item's is fixed,
+  // the code's is not, at any depth.
+  for (const [md, want] of [
+    ['- \\(x\\)\n\n      \\(x\\)', '- $x$\n\n      \\(x\\)'],
+    ['1. \\(x\\)\n\n       \\(x\\)', '1. $x$\n\n       \\(x\\)'],
+    ['- item\n\n  para \\(x\\)\n\n      para \\(x\\)', '- item\n\n  para $x$\n\n      para \\(x\\)'],
+    ['> \\(x\\)\n>\n>     \\(x\\)', '> $x$\n>\n>     \\(x\\)'],
+    ['- a\n  - \\(x\\)\n\n        \\(x\\)\n  - \\(x\\)', '- a\n  - $x$\n\n        \\(x\\)\n  - $x$'],
+    ['-\n      \\(x\\)\n- \\(x\\)', '-\n      \\(x\\)\n- $x$'],
+  ]) {
+    assert.equal(fixed(md), want, md)
+  }
   // A formula that would run on into a fence under its paragraph stays.
   const into = 'A \\( x\n```\ny \\)\n```'
   assert.equal(fixed(into), into)
@@ -92,6 +112,8 @@ test('what is not a formula stays: escapes, unclosed, empty, across a blank line
     'An opening with no end \\( x + y',
     'Nothing inside \\(\\) or \\[ \\]',
     'Two paragraphs \\( a\n\nb \\)',
+    'Two paragraphs \\( a\r\n\r\nb \\)',
+    'Two paragraphs \\( a\r\rb \\)',
     'A dollar inside \\( a $ b \\) would end it early',
   ]) {
     assert.equal(fixed(md), md, md)

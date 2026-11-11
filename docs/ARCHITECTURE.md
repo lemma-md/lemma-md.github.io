@@ -135,7 +135,13 @@ Two details that are not free to change:
   in the editor so does Ctrl+Z, in one step of its own. Code is left as it is:
   code blocks are the ones marked finds, the preview's own reading, indented
   or fenced, in a list or a quote too, where a scan for fences alone rewrote a
-  formula the preview showed as code, in the note and in the `.tex`. So is a
+  formula the preview showed as code, in the note and in the `.tex`. Their
+  lines are counted, not found by their text: a list item's or a quote's raw
+  text is the source as written, and the blocks inside are read from it line
+  for line, so each starts as many lines on as those before it span. Matching
+  text was fooled by a tab, which marked writes in a list as four spaces, and
+  by an item's text that read as the code below it once indentation was set
+  aside. So is a
   formula already in dollars, whose `\\[4pt]` is TeX's own. A
   formula that would hold a bare dollar is left too, since in dollars it would
   end there; so is one that runs across a blank line, which TeX does not allow.
